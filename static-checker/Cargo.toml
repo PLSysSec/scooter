@@ -14,7 +14,9 @@ path="bin/check.rs"
 
 [dependencies]
 serde = {version = "1.0.99", features=["derive"]}
+sqlparser = "0.4.0"
 
 [dev-dependencies]
 serde_json = "1.0.40"
 toml = "0.5.3"
+lazy_static = "1.4.0"

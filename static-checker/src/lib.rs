@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 use serde::Deserialize;
 
+pub mod query;
+pub mod relation;
+
+
 /// Represents a collection of all Tables
 #[derive(Debug, Default, Deserialize)]
 #[serde(transparent)]
@@ -20,26 +24,22 @@ pub struct Field {
     pub name: String
 }
 
-#[cfg(test)]
-mod test {
+#[test]
+fn json_parse() {
+    let schema_def = r#"{ "user": ["id", "name", "email"] }"#;
 
-    #[test]
-    fn json_parse() {
-        let schema_def = r#"{ "user": ["id", "name", "email"] }"#;
+    let _: Schema = serde_json::from_str(schema_def).unwrap();
+}
 
-        let _: super::Schema = serde_json::from_str(schema_def).unwrap();
-    }
+#[test]
+fn toml_parse() {
+    let schema_def = r#"
+    user = [
+        "id",
+        "name",
+        "email"
+    ]
+    "#;
 
-    #[test]
-    fn toml_parse() {
-        let schema_def = r#"
-        user = [
-            "id",
-            "name",
-            "email"
-        ]
-        "#;
-
-        let _: super::Schema = toml::from_str(schema_def).unwrap();
-    }
+    let _: Schema = toml::from_str(schema_def).unwrap();
 }
