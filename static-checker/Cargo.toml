@@ -1,7 +1,20 @@
 [package]
+# So boring, I know. We'll get something snappy eventually
 name = "static-checker"
 version = "0.1.0"
 authors = ["John Renner <john@jrenner.net>"]
 edition = "2018"
 
+
+[lib]
+
+[[bin]]
+name="check"
+path="bin/check.rs"
+
 [dependencies]
+serde = {version = "1.0.99", features=["derive"]}
+
+[dev-dependencies]
+serde_json = "1.0.40"
+toml = "0.5.3"
