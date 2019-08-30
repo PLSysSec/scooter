@@ -164,9 +164,14 @@ fn whole_table_select() {
 // outputting the string (which won't typecheck in the theory).
 #[test]
 fn select_col_value() {
-    let sql_stmt = "SELECT * FROM t1 WHERE name = 'foo'";
     let schema: Schema = toml::from_str(r#"t1 = ["name"]"#).unwrap();
 
+    let sql_stmt = "SELECT * FROM t1 WHERE name = 'foo'";
     let smt = schema.builder().to_smt(sql_stmt);
+    assert_eq!(smt, "(sel-eqv zero 'foo' t1)");
+
+
+    let sql_stmt_rev = "SELECT * FROM t1 WHERE 'foo' = name";
+    let smt = schema.builder().to_smt(sql_stmt_rev);
     assert_eq!(smt, "(sel-eqv zero 'foo' t1)");
 }
