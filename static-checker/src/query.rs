@@ -4,22 +4,25 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
 use sqlparser::ast::{
-    BinaryOperator, Expr, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
+    BinaryOperator, Expr, Query, Select, SelectItem, SetExpr, Statement, TableFactor, Value
 };
-
+use std::collections::HashMap;
 use crate::Schema;
 use std::string::ToString;
 
 /// SmtBuilder contains all the information necessary to convert a SQL query into
 /// an SMT assertion
+#[derive(Debug)]
 pub struct SmtBuilder<'a> {
     schema: &'a Schema,
+    values: HashMap<Value, String>,
+    val_ct: u32
 }
 
 impl Schema {
     /// A convenience method for getting an SmtBuilder for a schema
     pub fn builder(&self) -> SmtBuilder {
-        SmtBuilder { schema: self }
+        SmtBuilder { schema: self, values: HashMap::new(), val_ct: 0}
     }
 }
 
@@ -29,7 +32,7 @@ const NUMBERS: [&str; 8] = [
 
 impl<'a> SmtBuilder<'a> {
     /// Converts a SQL query to an SMTLIB expression in our logic
-    pub fn to_smt(&self, sql: impl ToString) -> String {
+    pub fn to_smt(&mut self, sql: impl ToString) -> String {
         let dialect = GenericDialect {};
 
         let ast = Parser::parse_sql(&dialect, sql.to_string()).expect("invalid sql query");
@@ -46,7 +49,7 @@ impl<'a> SmtBuilder<'a> {
         self.ast_to_smt(query)
     }
 
-    fn ast_to_smt(&self, query: &Query) -> String {
+    fn ast_to_smt(&mut self, query: &Query) -> String {
         let Query {
             ctes,
             body,
@@ -84,7 +87,7 @@ impl<'a> SmtBuilder<'a> {
         }
     }
 
-    fn id_to_col_num(&self, id: &str, table_name: &String) -> usize {
+    fn id_to_col_num(&mut self, id: &str, table_name: &String) -> usize {
         self.schema.tables[&table_name.to_string()]
             .fields
             .iter()
@@ -92,7 +95,7 @@ impl<'a> SmtBuilder<'a> {
             .expect("field does not exist on table")
     }
 
-    fn select_to_smt(&self, sel: &Select) -> String {
+    fn select_to_smt(&mut self, sel: &Select) -> String {
         if sel.distinct {
             unimplemented!();
         }
@@ -142,13 +145,35 @@ impl<'a> SmtBuilder<'a> {
             return format!(
                 "(sel-eqv {} {} {})",
                 NUMBERS[self.id_to_col_num(&id, &table_name)],
-                v,
+                self.value_to_str(v),
                 table_name
             );
         }
 
         unimplemented!("Only 'id = value' WHERE clauses are supported");
     }
+
+    /// Attempts to look up the value in the accumulated index of values. Because
+    /// values are abstract in SMT we need to produce the same identifier for the
+    /// same literal value. This function attempts to look up the value in our
+    /// index, inserting it if we've never encountered it before, and returns an
+    /// SMT-safe identifier.
+    ///
+    /// Currently this function emits identifiers like: v1_foo
+    fn value_to_str(&mut self, v: &Value) -> &str {
+        let val_ct = &mut self.val_ct;
+        self.values.entry(v.clone()).or_insert_with(|| {
+            let v_name = format!("v{}_{}", *val_ct, alphanumericize(v.to_string()));
+            *val_ct += 1;
+            v_name
+        })
+    }
+}
+
+/// Removes all non-alphanumeric characters from a string
+fn alphanumericize(mut desc: String) -> String {
+    desc.retain(|c| char::is_ascii_alphanumeric(&c));
+    desc
 }
 
 #[test]
@@ -168,10 +193,10 @@ fn select_col_value() {
 
     let sql_stmt = "SELECT * FROM t1 WHERE name = 'foo'";
     let smt = schema.builder().to_smt(sql_stmt);
-    assert_eq!(smt, "(sel-eqv zero 'foo' t1)");
+    assert_eq!(smt, "(sel-eqv zero v0_foo t1)");
 
 
     let sql_stmt_rev = "SELECT * FROM t1 WHERE 'foo' = name";
     let smt = schema.builder().to_smt(sql_stmt_rev);
-    assert_eq!(smt, "(sel-eqv zero 'foo' t1)");
+    assert_eq!(smt, "(sel-eqv zero v0_foo t1)");
 }
