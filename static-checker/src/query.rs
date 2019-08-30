@@ -4,13 +4,14 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
 use sqlparser::ast::{
-    BinaryOperator, ColumnDef, Expr, Query, Select, SelectItem, SetExpr, Statement, TableFactor
+    BinaryOperator, Expr, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
 };
 
+use crate::Schema;
 use std::string::ToString;
 
 /// Converts a SQL query to an SMTLIB expression in our logic
-pub fn to_smt(sql: impl ToString, col_defs: Vec<ColumnDef>) -> String {
+pub fn to_smt(sql: impl ToString, schema: &Schema) -> String {
     let dialect = GenericDialect {};
 
     let ast = Parser::parse_sql(&dialect, sql.to_string()).expect("invalid sql query");
@@ -24,10 +25,10 @@ pub fn to_smt(sql: impl ToString, col_defs: Vec<ColumnDef>) -> String {
         _ => unimplemented!("Only SELECT queries are supported"),
     };
 
-    ast_to_smt(query, col_defs)
+    ast_to_smt(query, schema)
 }
 
-pub fn ast_to_smt(query: &Query, col_defs: Vec<ColumnDef>) -> String {
+pub fn ast_to_smt(query: &Query, schema: &Schema) -> String {
     let Query {
         ctes,
         body,
@@ -36,6 +37,7 @@ pub fn ast_to_smt(query: &Query, col_defs: Vec<ColumnDef>) -> String {
         offset,
         fetch,
     } = query;
+
     if !ctes.is_empty() {
         unimplemented!("WITH clauses aren't supported (yet?)")
     }
@@ -57,8 +59,8 @@ pub fn ast_to_smt(query: &Query, col_defs: Vec<ColumnDef>) -> String {
     }
 
     match body {
-        SetExpr::Query(q) => ast_to_smt(q, col_defs),
-        SetExpr::Select(s) => select_to_smt(s, col_defs),
+        SetExpr::Query(q) => ast_to_smt(q, schema),
+        SetExpr::Select(s) => select_to_smt(s, schema),
         SetExpr::SetOperation { .. } => unimplemented!("Set operations not supported"),
         SetExpr::Values(..) => unimplemented!("Raw values not supported"),
     }
@@ -68,87 +70,88 @@ const NUMBERS: [&str; 8] = [
     "zero", "one", "two", "three", "four", "five", "six", "seven",
 ];
 
-fn id_to_col_num(id: &str, col_defs: Vec<ColumnDef>) -> &str {
-    for (idx, col) in col_defs.iter().enumerate() {
-        if col.name == *id {
-            assert!(idx < NUMBERS.len());
-            return NUMBERS[idx];
-        }
-    }
-    unimplemented!()
+fn id_to_col_num(id: &str, table_name: &String, schema: &Schema) -> usize {
+    schema.tables[&table_name.to_string()]
+        .fields
+        .iter()
+        .position(|field| field.name == id)
+        .expect("field does not exist on table")
 }
 
-fn select_to_smt(sel: &Select, col_defs: Vec<ColumnDef>) -> String {
+fn select_to_smt(sel: &Select, schema: &Schema) -> String {
     if sel.distinct {
         unimplemented!();
     }
     if sel.projection.len() > 1 {
         unimplemented!();
     }
-    match &sel.projection[0] {
-        SelectItem::Wildcard => (),
-        _ => unimplemented!(),
-    };
+
+    if sel.projection[0] != SelectItem::Wildcard {
+        unimplemented!("Only wildcard selects are supported");
+    }
+
     if sel.from.len() > 1 {
         unimplemented!();
     }
+
+    if !sel.from[0].joins.is_empty() {
+        unimplemented!();
+    }
+
+    if !sel.group_by.is_empty() {
+        unimplemented!("GROUP BY not supported")
+    }
+
     let table_name = match &sel.from[0].relation {
         TableFactor::Table { name, .. } => format!("{}", name),
         _ => unimplemented!(),
     };
-    if !sel.from[0].joins.is_empty() {
-        unimplemented!();
+
+    if sel.selection.is_none() {
+        return table_name;
     }
-    match &sel.selection {
-        None => (),
-        Some(e) => match &e {
-            Expr::BinaryOp { left, op, right } => match &**left {
-                Expr::Identifier(id) => match op {
-                    BinaryOperator::Eq => match &**right {
-                        Expr::Value(v) => {
-                            return format!("(sel-eqv {} {} {})",
-                                           id_to_col_num(&id, col_defs),
-                                           v, table_name)
-                        }
-                        _ => unimplemented!(),
-                    },
-                    _ => unimplemented!(),
-                },
-                _ => unimplemented!(),
-            },
-            _ => unimplemented!(),
-        },
-    };
-    if !sel.group_by.is_empty() {
-        unimplemented!();
+
+    if let Expr::BinaryOp {
+        left,
+        op: BinaryOperator::Eq,
+        right,
+    } = sel.selection.as_ref().unwrap()
+    {
+        let (id, v) = match (left.as_ref(), right.as_ref()) {
+            // Accept things in either order
+            (Expr::Identifier(id), Expr::Value(v)) | (Expr::Value(v), Expr::Identifier(id)) => {
+                (id, v)
+            }
+            _ => unimplemented!("Only equalities of identifiers to values are supported"),
+        };
+
+        return format!(
+            "(sel-eqv {} {} {})",
+            NUMBERS[id_to_col_num(&id, &table_name, schema)],
+            v,
+            table_name
+        );
     }
-    match &sel.having {
-        None => (),
-        Some(_) => unimplemented!(),
-    };
-    table_name
+
+    unimplemented!("Only 'id = value' WHERE clauses are supported");
 }
 
 #[test]
 fn whole_table_select() {
     let sql_stmt = "SELECT * FROM t1";
-    let smt = to_smt(sql_stmt, vec!());
-    assert!(smt == "t1");
+    let schema: Schema = toml::from_str(r#"t1 = ["name"]"#).unwrap();
+    let smt = to_smt(sql_stmt, &schema);
+    assert_eq!(smt, "t1");
 }
-
 
 // Eventually this should output symbol names instead of strings,
 // where we map literal strings to these symbols, but for now just
 // outputting the string (which won't typecheck in the theory).
 #[test]
 fn select_col_value() {
-    use sqlparser::ast::DataType;
     let sql_stmt = "SELECT * FROM t1 WHERE name = 'foo'";
-    let col_def = ColumnDef{
-        name: "name".to_string(),
-        data_type: DataType::Text,
-        collation: None,
-        options: vec!()};
-    let smt = to_smt(sql_stmt, vec!(col_def));
-    assert_eq!(smt,"(sel-eqv zero 'foo' t1)");
+    let schema: Schema = toml::from_str(r#"t1 = ["name"]"#).unwrap();
+
+    let smt = to_smt(sql_stmt, &schema);
+    assert_eq!(smt, "(sel-eqv zero 'foo' t1)");
 }
