@@ -184,9 +184,6 @@ fn whole_table_select() {
     assert_eq!(smt, "t1");
 }
 
-// Eventually this should output symbol names instead of strings,
-// where we map literal strings to these symbols, but for now just
-// outputting the string (which won't typecheck in the theory).
 #[test]
 fn select_col_value() {
     let schema: Schema = toml::from_str(r#"t1 = ["name"]"#).unwrap();
