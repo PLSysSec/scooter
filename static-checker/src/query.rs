@@ -10,23 +10,22 @@ use sqlparser::ast::{
 use crate::Schema;
 use std::string::ToString;
 
+/// SmtBuilder contains all the information necessary to convert a SQL query into
+/// an SMT assertion
 pub struct SmtBuilder<'a> {
-    schema: &'a Schema
+    schema: &'a Schema,
 }
 
 impl Schema {
+    /// A convenience method for getting an SmtBuilder for a schema
     pub fn builder(&self) -> SmtBuilder {
-        SmtBuilder {
-            schema: self
-        }
+        SmtBuilder { schema: self }
     }
 }
-
 
 const NUMBERS: [&str; 8] = [
     "zero", "one", "two", "three", "four", "five", "six", "seven",
 ];
-
 
 impl<'a> SmtBuilder<'a> {
     /// Converts a SQL query to an SMTLIB expression in our logic
@@ -47,7 +46,7 @@ impl<'a> SmtBuilder<'a> {
         self.ast_to_smt(query)
     }
 
-    pub fn ast_to_smt(&self, query: &Query) -> String {
+    fn ast_to_smt(&self, query: &Query) -> String {
         let Query {
             ctes,
             body,
@@ -151,7 +150,6 @@ impl<'a> SmtBuilder<'a> {
         unimplemented!("Only 'id = value' WHERE clauses are supported");
     }
 }
-
 
 #[test]
 fn whole_table_select() {
