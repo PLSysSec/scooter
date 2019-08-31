@@ -204,7 +204,7 @@ impl<'a> SmtBuilder<'a> {
 
 /// Constructs an attr list from a slice of column indices. This is necessary for projection
 fn attr_list(indices: &[usize]) -> String {
-    indices.iter().fold("l_nil".to_string(), |query, num| {
+    indices.iter().rev().fold("l_nil".to_string(), |query, num| {
         format!("(insert {} {})", NUMBERS[*num], query)
     })
 }
@@ -227,6 +227,15 @@ fn field_select() {
     let sql_stmt = "SELECT name FROM t1";
     let smt = schema.builder().to_smt(sql_stmt);
     assert_eq!(smt, "(proj (insert one l_nil) t1)");
+}
+
+#[test]
+fn multifield_select() {
+    let schema: Schema = toml::from_str(r#"t1 = ["id", "email", "name"]"#).unwrap();
+
+    let sql_stmt = "SELECT id, name FROM t1";
+    let smt = schema.builder().to_smt(sql_stmt);
+    assert_eq!(smt, "(proj (insert zero (insert two l_nil)) t1)");
 }
         
 
