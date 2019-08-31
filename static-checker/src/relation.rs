@@ -1,9 +1,9 @@
 use crate::Schema;
-use sqlparser::ast::TableFactor;
+use sqlparser::ast::{TableFactor, TableWithJoins};
 
 /// A Relation unifies the concept of tables and joins to simplify serializing
 /// queries to SMT
-trait Relation {
+pub trait Relation {
     fn resolve_name(&self, schema: &Schema, name: &str) -> usize;
 }
 
@@ -27,5 +27,25 @@ impl Relation for TableFactor {
             .expect("unknown field");
 
         idx
+    }
+}
+
+impl Relation for TableWithJoins {
+    fn resolve_name(&self, schema: &Schema, field_name: &str) -> usize {
+        if !self.joins.is_empty() {
+            unimplemented!("name resolution across joins is unsupported");
+        }
+        
+        self.relation.resolve_name(schema, field_name)
+    }
+}
+
+impl Relation for Vec<TableWithJoins> {
+    fn resolve_name(&self, schema: &Schema, field_name: &str) -> usize {
+        if self.len() != 1 {
+            unimplemented!("name resolution across multiple tables is unsupported");
+        }
+        
+        self[0].resolve_name(schema, field_name)
     }
 }

@@ -4,25 +4,64 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
 use sqlparser::ast::{
-    BinaryOperator, Expr, Query, Select, SelectItem, SetExpr, Statement, TableFactor, Value
+    BinaryOperator, Expr, Query, Select, SelectItem, SetExpr, Statement, TableFactor, Value, TableWithJoins
 };
 use std::collections::HashMap;
 use crate::Schema;
+use crate::relation::Relation;
+
 use std::string::ToString;
+
+/// ValueMap is used for keeping a record of all encountered literal SQL values, and mapping them
+/// to fresh SMT identifiers
+#[derive(Debug, Default)]
+struct ValueMap {
+    values: HashMap<Value, String>,
+    val_ct: u32,
+}
+
+impl ValueMap {
+    fn new() -> Self {
+        Default::default()
+    }
+    /// Attempts to look up the value in the accumulated index of values. Because
+    /// values are abstract in SMT we need to produce the same identifier for the
+    /// same literal value. This function attempts to look up the value in our
+    /// index, inserting it if we've never encountered it before, and returns an
+    /// SMT-safe identifier.
+    ///
+    /// Currently this function emits identifiers like: v1_foo
+    fn get_or_insert(&mut self, v: &Value) -> &str {
+        let val_ct = &mut self.val_ct;
+        self.values.entry(v.clone()).or_insert_with(|| {
+            let v_name = format!("v{}_{}", *val_ct, alphanumericize(v.to_string()));
+            *val_ct += 1;
+            v_name
+        })
+    }
+}
+
+/// Removes all non-alphanumeric characters from a string
+fn alphanumericize(mut desc: String) -> String {
+    desc.retain(|c| char::is_ascii_alphanumeric(&c));
+    desc
+}
+
+
 
 /// SmtBuilder contains all the information necessary to convert a SQL query into
 /// an SMT assertion
 #[derive(Debug)]
 pub struct SmtBuilder<'a> {
     schema: &'a Schema,
-    values: HashMap<Value, String>,
-    val_ct: u32
+    
+    values: ValueMap,
 }
 
 impl Schema {
     /// A convenience method for getting an SmtBuilder for a schema
     pub fn builder(&self) -> SmtBuilder {
-        SmtBuilder { schema: self, values: HashMap::new(), val_ct: 0}
+        SmtBuilder { schema: self, values: ValueMap::new()}
     }
 }
 
@@ -87,52 +126,33 @@ impl<'a> SmtBuilder<'a> {
         }
     }
 
-    fn id_to_col_num(&mut self, id: &str, table_name: &String) -> usize {
-        self.schema.tables[&table_name.to_string()]
-            .fields
-            .iter()
-            .position(|field| field.name == id)
-            .expect("field does not exist on table")
-    }
-
-    fn select_to_smt(&mut self, sel: &Select) -> String {
-        if sel.distinct {
-            unimplemented!();
-        }
-        if sel.projection.len() > 1 {
-            unimplemented!();
+    fn from_to_smt(&mut self, from: &[TableWithJoins]) -> String {
+        if from.len() != 1 {
+            unimplemented!("only selections from single tables are supported");
         }
 
-        if sel.projection[0] != SelectItem::Wildcard {
-            unimplemented!("Only wildcard selects are supported");
+        if !from[0].joins.is_empty() {
+            unimplemented!("JOIN in the from clause is not supported");
         }
 
-        if sel.from.len() > 1 {
-            unimplemented!();
-        }
-
-        if !sel.from[0].joins.is_empty() {
-            unimplemented!();
-        }
-
-        if !sel.group_by.is_empty() {
-            unimplemented!("GROUP BY not supported")
-        }
-
-        let table_name = match &sel.from[0].relation {
+        match &from[0].relation {
             TableFactor::Table { name, .. } => format!("{}", name),
             _ => unimplemented!(),
-        };
-
-        if sel.selection.is_none() {
-            return table_name;
         }
+    }
 
-        if let Expr::BinaryOp {
+    fn selection_to_smt(&mut self, wher: &Option<Expr>, src: &Vec<TableWithJoins>) -> String {
+        // Get the query which we'll be filtering with this WHERE clause
+        let relation = self.from_to_smt(&src);
+
+        // If we're not filtering we can just return the underlying relation
+        if wher.is_none() {
+            relation     
+        } else if let Expr::BinaryOp {
             left,
             op: BinaryOperator::Eq,
             right,
-        } = sel.selection.as_ref().unwrap()
+        } = wher.as_ref().unwrap()
         {
             let (id, v) = match (left.as_ref(), right.as_ref()) {
                 // Accept things in either order
@@ -142,47 +162,73 @@ impl<'a> SmtBuilder<'a> {
                 _ => unimplemented!("Only equalities of identifiers to values are supported"),
             };
 
-            return format!(
+            format!(
                 "(sel-eqv {} {} {})",
-                NUMBERS[self.id_to_col_num(&id, &table_name)],
-                self.value_to_str(v),
-                table_name
-            );
+                NUMBERS[src.resolve_name(self.schema, id)],
+                self.values.get_or_insert(v),
+                relation 
+            )
+        } else {
+            unimplemented!("Only 'id = value' WHERE clauses are supported")
+        }
+    }
+
+    fn select_to_smt(&mut self, sel: &Select) -> String {
+        if sel.distinct {
+            unimplemented!("DISTINCT is not supported");
         }
 
-        unimplemented!("Only 'id = value' WHERE clauses are supported");
-    }
+        if !sel.group_by.is_empty() {
+            unimplemented!("GROUP BY not supported")
+        }
 
-    /// Attempts to look up the value in the accumulated index of values. Because
-    /// values are abstract in SMT we need to produce the same identifier for the
-    /// same literal value. This function attempts to look up the value in our
-    /// index, inserting it if we've never encountered it before, and returns an
-    /// SMT-safe identifier.
-    ///
-    /// Currently this function emits identifiers like: v1_foo
-    fn value_to_str(&mut self, v: &Value) -> &str {
-        let val_ct = &mut self.val_ct;
-        self.values.entry(v.clone()).or_insert_with(|| {
-            let v_name = format!("v{}_{}", *val_ct, alphanumericize(v.to_string()));
-            *val_ct += 1;
-            v_name
-        })
+        // Construct the underlying relation
+        let relation = self.selection_to_smt(&sel.selection, &sel.from);
+
+        // If we're selecting everything we don't need to project
+        if let [SelectItem::Wildcard] = sel.projection.as_slice() {
+            return relation;
+        }
+
+        let indices: Vec<_> = sel.projection.iter().map(|si| {
+            match si {
+                SelectItem::UnnamedExpr(Expr::Identifier(i)) => sel.from.resolve_name(&self.schema, &i),
+                _ => unimplemented!("Only raw identifiers are allowed for projection")
+            }
+        }).collect();
+
+
+        return format!("(proj {} {})", attr_list(&indices), relation);
     }
 }
 
-/// Removes all non-alphanumeric characters from a string
-fn alphanumericize(mut desc: String) -> String {
-    desc.retain(|c| char::is_ascii_alphanumeric(&c));
-    desc
+/// Constructs an attr list from a slice of column indices. This is necessary for projection
+fn attr_list(indices: &[usize]) -> String {
+    indices.iter().fold("l_nil".to_string(), |query, num| {
+        format!("(insert {} {})", NUMBERS[*num], query)
+    })
 }
+
 
 #[test]
 fn whole_table_select() {
-    let sql_stmt = "SELECT * FROM t1";
     let schema: Schema = toml::from_str(r#"t1 = ["name"]"#).unwrap();
+
+    let sql_stmt = "SELECT * FROM t1";
     let smt = schema.builder().to_smt(sql_stmt);
     assert_eq!(smt, "t1");
 }
+
+
+#[test]
+fn field_select() {
+    let schema: Schema = toml::from_str(r#"t1 = ["id", "name"]"#).unwrap();
+
+    let sql_stmt = "SELECT name FROM t1";
+    let smt = schema.builder().to_smt(sql_stmt);
+    assert_eq!(smt, "(proj (insert one l_nil) t1)");
+}
+        
 
 #[test]
 fn select_col_value() {
