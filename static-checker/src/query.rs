@@ -141,35 +141,49 @@ impl<'a> SmtBuilder<'a> {
         }
     }
 
+    /// Takes the WHERE clause of a SELECT expression, and produces
+    /// the smt select expression.
+    fn where_expr_to_sel(&mut self, wher: &Expr, src: &Vec<TableWithJoins>,
+                         src_str: String) -> String {
+        if let Expr::BinaryOp { left, op, right } = wher
+        {
+
+            match op {
+                BinaryOperator::Eq => {
+                    let (id, v) = match (left.as_ref(), right.as_ref()) {
+                        // Accept things in either order
+                        (Expr::Identifier(id), Expr::Value(v)) |
+                        (Expr::Value(v), Expr::Identifier(id)) => {
+                            (id, v)
+                        }
+                        _ => unimplemented!("Only conjunctions of equalities \
+                                             of identifiers to values are supported"),
+                    };
+                    format!("(sel-eqv {} {} {})",
+                            NUMBERS[src.resolve_name(self.schema, id)],
+                            self.values.get_or_insert(v),
+                            src_str
+                    )
+                }
+                BinaryOperator::And => {
+                    let left_sel = self.where_expr_to_sel(left, src, src_str);
+                    self.where_expr_to_sel(right, src, left_sel)
+                }
+                _ => unimplemented!("Can only convert AND and EQ")
+            }
+        } else {
+            unimplemented!("Cannot convert non binary ops")
+        }
+    }
+
     fn selection_to_smt(&mut self, wher: &Option<Expr>, src: &Vec<TableWithJoins>) -> String {
         // Get the query which we'll be filtering with this WHERE clause
         let relation = self.from_to_smt(&src);
 
         // If we're not filtering we can just return the underlying relation
-        if wher.is_none() {
-            relation     
-        } else if let Expr::BinaryOp {
-            left,
-            op: BinaryOperator::Eq,
-            right,
-        } = wher.as_ref().unwrap()
-        {
-            let (id, v) = match (left.as_ref(), right.as_ref()) {
-                // Accept things in either order
-                (Expr::Identifier(id), Expr::Value(v)) | (Expr::Value(v), Expr::Identifier(id)) => {
-                    (id, v)
-                }
-                _ => unimplemented!("Only equalities of identifiers to values are supported"),
-            };
-
-            format!(
-                "(sel-eqv {} {} {})",
-                NUMBERS[src.resolve_name(self.schema, id)],
-                self.values.get_or_insert(v),
-                relation 
-            )
-        } else {
-            unimplemented!("Only 'id = value' WHERE clauses are supported")
+        match wher {
+            None => relation,
+            Some(inner_wher) => self.where_expr_to_sel(inner_wher, src, relation),
         }
     }
 
@@ -251,4 +265,13 @@ fn select_col_value() {
     let sql_stmt_rev = "SELECT * FROM t1 WHERE 'foo' = name";
     let smt = schema.builder().to_smt(sql_stmt_rev);
     assert_eq!(smt, "(sel-eqv zero v0_foo t1)");
+}
+
+#[test]
+fn select_col_multi_value() {
+    let schema: Schema = toml::from_str(r#"t1 = ["name", "age"]"#).unwrap();
+
+    let sql_stmt = "SELECT * FROM t1 WHERE name = 'foo' AND age = 42";
+    let smt = schema.builder().to_smt(sql_stmt);
+    assert_eq!(smt, "(sel-eqv one v1_42 (sel-eqv zero v0_foo t1))")
 }
