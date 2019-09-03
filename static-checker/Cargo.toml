@@ -12,6 +12,10 @@ edition = "2018"
 name="check"
 path="bin/check.rs"
 
+[[bin]]
+name="sqlparse"
+path="bin/sql-parse.rs"
+
 [dependencies]
 serde = {version = "1.0.99", features=["derive"]}
 sqlparser = "0.4.0"
