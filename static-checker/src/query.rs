@@ -6,8 +6,8 @@ use sqlparser::parser::Parser;
 use crate::relation::{MultiId, ToRelation};
 use crate::Schema;
 use sqlparser::ast::{
-    BinaryOperator, Expr, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
-    TableWithJoins, Value,
+    BinaryOperator, Expr, JoinConstraint, JoinOperator, Query, Select, SelectItem, SetExpr,
+    Statement, TableFactor, TableWithJoins, Value,
 };
 use std::collections::HashMap;
 
@@ -128,18 +128,35 @@ impl<'a> SmtBuilder<'a> {
         }
     }
 
+    fn table_factor_to_smt(&mut self, tf: &TableFactor) -> String {
+        match tf {
+            TableFactor::Table { ref name, .. } => format!("{}", name),
+            TableFactor::NestedJoin(join) => self.twj_to_smt(join),
+            _ => unimplemented!(),
+        }
+    }
+
+    fn twj_to_smt(&mut self, twj: &TableWithJoins) -> String {
+        let mut relation = self.table_factor_to_smt(&twj.relation);
+
+        for join in twj.joins.iter() {
+            let subrelation = self.table_factor_to_smt(&join.relation);
+            match &join.join_operator {
+                JoinOperator::Inner(JoinConstraint::On(cond)) => {
+                    relation = self.where_expr_to_sel(
+                        &cond,
+                        twj,
+                        format!("(prod {} {})", relation, subrelation),
+                    )
+                }
+                op => unimplemented!("Unsupported join operator: {:?}", op),
+            }
+        }
+
+        relation
+    }
     fn from_to_smt(&mut self, from: &[TableWithJoins]) -> String {
-
-        let mut names = from.iter().map(|twj| {
-            if !twj.joins.is_empty() {
-                unimplemented!("JOIN in the from clause is not supported");
-            }
-
-            match twj.relation {
-                TableFactor::Table { ref name, .. } => format!("{}", name),
-                _ => unimplemented!(),
-            }
-        });
+        let mut names = from.iter().map(|twj| self.twj_to_smt(twj));
 
         let mut relation = names.next().unwrap();
         for n in names {
@@ -151,12 +168,7 @@ impl<'a> SmtBuilder<'a> {
 
     /// Takes the WHERE clause of a SELECT expression, and produces
     /// the smt select expression.
-    fn where_expr_to_sel(
-        &mut self,
-        wher: &Expr,
-        src: &Vec<TableWithJoins>,
-        src_str: String,
-    ) -> String {
+    fn where_expr_to_sel(&mut self, wher: &Expr, src: &dyn ToRelation, src_str: String) -> String {
         let (left, right, op) = if let Expr::BinaryOp { left, op, right } = wher {
             (left, right, op)
         } else {
@@ -169,27 +181,23 @@ impl<'a> SmtBuilder<'a> {
                 (id @ Expr::Identifier(_), Expr::Value(v))
                 | (id @ Expr::CompoundIdentifier(_), Expr::Value(v))
                 | (Expr::Value(v), id @ Expr::Identifier(_))
-                | (Expr::Value(v), id @ Expr::CompoundIdentifier(_)) => {
-                    format!(
-                        "(sel-eqv {} {} {})",
-                        NUMBERS[src.resolve_name(self.schema, &get_ident(id))],
-                        self.values.get_or_insert(v),
-                        src_str
-                    )
-                }
+                | (Expr::Value(v), id @ Expr::CompoundIdentifier(_)) => format!(
+                    "(sel-eqv {} {} {})",
+                    NUMBERS[src.resolve_name(self.schema, &get_ident(id))],
+                    self.values.get_or_insert(v),
+                    src_str
+                ),
                 (Expr::CompoundIdentifier(_), Expr::CompoundIdentifier(_))
                 | (Expr::CompoundIdentifier(_), Expr::Identifier(_))
                 | (Expr::Identifier(_), Expr::CompoundIdentifier(_))
-                | (Expr::Identifier(_), Expr::Identifier(_)) => {
-                    format!(
-                        "(sel-eq {} {} {})",
-                        NUMBERS[src.resolve_name(self.schema, &get_ident(left.as_ref()))],
-                        NUMBERS[src.resolve_name(self.schema, &get_ident(right.as_ref()))],
-                        src_str
-                    )
-                }
+                | (Expr::Identifier(_), Expr::Identifier(_)) => format!(
+                    "(sel-eq {} {} {})",
+                    NUMBERS[src.resolve_name(self.schema, &get_ident(left.as_ref()))],
+                    NUMBERS[src.resolve_name(self.schema, &get_ident(right.as_ref()))],
+                    src_str
+                ),
                 _ => unimplemented!("Only equalities of values or identifiers are supported"),
-            }
+            },
             BinaryOperator::And => {
                 let left_sel = self.where_expr_to_sel(left, src, src_str);
                 self.where_expr_to_sel(right, src, left_sel)
@@ -247,7 +255,7 @@ fn get_ident(e: &Expr) -> MultiId {
     match e {
         Expr::CompoundIdentifier(id) => id.clone(),
         Expr::Identifier(id) => vec![id.clone()],
-        _ => panic!("This function only works on exprs that are idents")
+        _ => panic!("This function only works on exprs that are idents"),
     }
 }
 
@@ -260,7 +268,6 @@ fn attr_list(indices: &[usize]) -> String {
             format!("(insert {} {})", NUMBERS[*num], query)
         })
 }
-
 
 #[test]
 fn whole_table_select() {
@@ -333,4 +340,35 @@ fn select_cart_product() {
     let sql_stmt = "SELECT * FROM user,comment WHERE user.uid = comment.uid";
     let smt = schema.builder().to_smt(sql_stmt);
     assert_eq!(smt, "(sel-eq zero four (prod user comment))")
+}
+
+#[test]
+fn select_simple_join() {
+    let schema: Schema = toml::from_str(
+        r#"
+        user = ["uid", "name", "age"]
+        comment = ["cid", "uid", "text"]
+    "#,
+    )
+    .unwrap();
+
+    let sql_stmt = "SELECT * FROM user JOIN comment ON user.uid = comment.uid";
+    let smt = schema.builder().to_smt(sql_stmt);
+    assert_eq!(smt, "(sel-eq zero four (prod user comment))")
+}
+
+#[test]
+fn selct_multi_join() {
+    let schema: Schema = toml::from_str(
+        r#"
+        user = ["uid", "name", "age"]
+        comment_user = ["oid", "cid", "uid"]
+        comment = ["cid", "text"]
+    "#,
+    )
+    .unwrap();
+
+    let sql_stmt = "SELECT comment.text FROM user JOIN comment_user ON user.uid = comment_user.uid JOIN comment ON comment.cid = comment_user.cid";
+    let smt = schema.builder().to_smt(sql_stmt);
+    assert_eq!(smt, "(proj (insert seven l_nil) (sel-eq six four (prod (sel-eq zero five (prod user comment_user)) comment)))")
 }

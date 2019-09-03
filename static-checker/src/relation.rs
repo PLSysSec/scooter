@@ -1,15 +1,14 @@
 use crate::Schema;
-use sqlparser::ast::{TableFactor, TableWithJoins};
+use sqlparser::ast::{Join, TableFactor, TableWithJoins};
 use std::collections::LinkedList;
-
 
 pub(crate) type MultiId = Vec<String>;
 pub type Relation = LinkedList<MultiId>;
 
 pub(crate) fn get_name(rel: &Relation, name: &dyn Resolvable) -> usize {
-    rel.iter().position(|cname| {
-        name.matches_name(cname)
-    }).unwrap()
+    rel.iter()
+        .position(|cname| name.matches_name(cname))
+        .unwrap()
 }
 
 pub(crate) trait Resolvable {
@@ -17,19 +16,19 @@ pub(crate) trait Resolvable {
 }
 
 impl Resolvable for &str {
-    fn matches_name(&self, name: &MultiId) -> bool{
+    fn matches_name(&self, name: &MultiId) -> bool {
         name.last().unwrap() == self
     }
 }
 
 impl Resolvable for String {
-    fn matches_name(&self, name: &MultiId) -> bool{
+    fn matches_name(&self, name: &MultiId) -> bool {
         name.last().unwrap() == self
     }
 }
 
 impl Resolvable for MultiId {
-    fn matches_name(&self, name: &MultiId) -> bool{
+    fn matches_name(&self, name: &MultiId) -> bool {
         let specificity = self.len();
 
         name.iter().rev().take(specificity).eq(self.iter().rev())
@@ -68,10 +67,17 @@ impl ToRelation for TableFactor {
 
 impl ToRelation for TableWithJoins {
     fn to_relation(&self, schema: &Schema) -> Relation {
-        if !self.joins.is_empty() {
-            unimplemented!("name resolution across joins is unsupported");
+        let mut relation = self.relation.to_relation(schema);
+        for join in &self.joins {
+            relation.append(&mut join.to_relation(schema));
         }
 
+        relation
+    }
+}
+
+impl ToRelation for Join {
+    fn to_relation(&self, schema: &Schema) -> Relation {
         self.relation.to_relation(schema)
     }
 }
@@ -80,6 +86,16 @@ impl ToRelation for Vec<TableWithJoins> {
     fn to_relation(&self, schema: &Schema) -> Relation {
         let mut rel = Relation::new();
         for twj in self {
+            rel.append(&mut twj.to_relation(schema))
+        }
+        rel
+    }
+}
+
+impl ToRelation for &[&TableWithJoins] {
+    fn to_relation(&self, schema: &Schema) -> Relation {
+        let mut rel = Relation::new();
+        for twj in self.iter() {
             rel.append(&mut twj.to_relation(schema))
         }
         rel
