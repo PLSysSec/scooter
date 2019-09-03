@@ -3,12 +3,13 @@ use sqlparser::dialect::GenericDialect;
 /// assertions
 use sqlparser::parser::Parser;
 
+use crate::relation::ToRelation;
+use crate::Schema;
 use sqlparser::ast::{
-    BinaryOperator, Expr, Query, Select, SelectItem, SetExpr, Statement, TableFactor, Value, TableWithJoins
+    BinaryOperator, Expr, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
+    TableWithJoins, Value,
 };
 use std::collections::HashMap;
-use crate::Schema;
-use crate::relation::Relation;
 
 use std::string::ToString;
 
@@ -47,21 +48,22 @@ fn alphanumericize(mut desc: String) -> String {
     desc
 }
 
-
-
 /// SmtBuilder contains all the information necessary to convert a SQL query into
 /// an SMT assertion
 #[derive(Debug)]
 pub struct SmtBuilder<'a> {
     schema: &'a Schema,
-    
+
     values: ValueMap,
 }
 
 impl Schema {
     /// A convenience method for getting an SmtBuilder for a schema
     pub fn builder(&self) -> SmtBuilder {
-        SmtBuilder { schema: self, values: ValueMap::new()}
+        SmtBuilder {
+            schema: self,
+            values: ValueMap::new(),
+        }
     }
 }
 
@@ -143,33 +145,36 @@ impl<'a> SmtBuilder<'a> {
 
     /// Takes the WHERE clause of a SELECT expression, and produces
     /// the smt select expression.
-    fn where_expr_to_sel(&mut self, wher: &Expr, src: &Vec<TableWithJoins>,
-                         src_str: String) -> String {
-        if let Expr::BinaryOp { left, op, right } = wher
-        {
-
+    fn where_expr_to_sel(
+        &mut self,
+        wher: &Expr,
+        src: &Vec<TableWithJoins>,
+        src_str: String,
+    ) -> String {
+        if let Expr::BinaryOp { left, op, right } = wher {
             match op {
                 BinaryOperator::Eq => {
                     let (id, v) = match (left.as_ref(), right.as_ref()) {
                         // Accept things in either order
-                        (Expr::Identifier(id), Expr::Value(v)) |
-                        (Expr::Value(v), Expr::Identifier(id)) => {
-                            (id, v)
-                        }
-                        _ => unimplemented!("Only conjunctions of equalities \
-                                             of identifiers to values are supported"),
+                        (Expr::Identifier(id), Expr::Value(v))
+                        | (Expr::Value(v), Expr::Identifier(id)) => (id, v),
+                        _ => unimplemented!(
+                            "Only conjunctions of equalities \
+                             of identifiers to values are supported"
+                        ),
                     };
-                    format!("(sel-eqv {} {} {})",
-                            NUMBERS[src.resolve_name(self.schema, id)],
-                            self.values.get_or_insert(v),
-                            src_str
+                    format!(
+                        "(sel-eqv {} {} {})",
+                        NUMBERS[src.resolve_name(self.schema, id)],
+                        self.values.get_or_insert(v),
+                        src_str
                     )
                 }
                 BinaryOperator::And => {
                     let left_sel = self.where_expr_to_sel(left, src, src_str);
                     self.where_expr_to_sel(right, src, left_sel)
                 }
-                _ => unimplemented!("Can only convert AND and EQ")
+                _ => unimplemented!("Can only convert AND and EQ"),
             }
         } else {
             unimplemented!("Cannot convert non binary ops")
@@ -204,13 +209,16 @@ impl<'a> SmtBuilder<'a> {
             return relation;
         }
 
-        let indices: Vec<_> = sel.projection.iter().map(|si| {
-            match si {
-                SelectItem::UnnamedExpr(Expr::Identifier(i)) => sel.from.resolve_name(&self.schema, &i),
-                _ => unimplemented!("Only raw identifiers are allowed for projection")
-            }
-        }).collect();
-
+        let indices: Vec<_> = sel
+            .projection
+            .iter()
+            .map(|si| match si {
+                SelectItem::UnnamedExpr(Expr::Identifier(i)) => {
+                    sel.from.resolve_name(&self.schema, &i)
+                }
+                _ => unimplemented!("Only raw identifiers are allowed for projection"),
+            })
+            .collect();
 
         return format!("(proj {} {})", attr_list(&indices), relation);
     }
@@ -218,11 +226,13 @@ impl<'a> SmtBuilder<'a> {
 
 /// Constructs an attr list from a slice of column indices. This is necessary for projection
 fn attr_list(indices: &[usize]) -> String {
-    indices.iter().rev().fold("l_nil".to_string(), |query, num| {
-        format!("(insert {} {})", NUMBERS[*num], query)
-    })
+    indices
+        .iter()
+        .rev()
+        .fold("l_nil".to_string(), |query, num| {
+            format!("(insert {} {})", NUMBERS[*num], query)
+        })
 }
-
 
 #[test]
 fn whole_table_select() {
@@ -232,7 +242,6 @@ fn whole_table_select() {
     let smt = schema.builder().to_smt(sql_stmt);
     assert_eq!(smt, "t1");
 }
-
 
 #[test]
 fn field_select() {
@@ -251,7 +260,6 @@ fn multifield_select() {
     let smt = schema.builder().to_smt(sql_stmt);
     assert_eq!(smt, "(proj (insert zero (insert two l_nil)) t1)");
 }
-        
 
 #[test]
 fn select_col_value() {
@@ -260,7 +268,6 @@ fn select_col_value() {
     let sql_stmt = "SELECT * FROM t1 WHERE name = 'foo'";
     let smt = schema.builder().to_smt(sql_stmt);
     assert_eq!(smt, "(sel-eqv zero v0_foo t1)");
-
 
     let sql_stmt_rev = "SELECT * FROM t1 WHERE 'foo' = name";
     let smt = schema.builder().to_smt(sql_stmt_rev);

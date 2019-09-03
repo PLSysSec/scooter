@@ -1,5 +1,5 @@
-use sqlparser::parser::Parser;
 use sqlparser::dialect::GenericDialect;
+use sqlparser::parser::Parser;
 
 fn main() {
     let mut args = std::env::args();

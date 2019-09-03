@@ -1,27 +1,26 @@
-use std::collections::HashMap;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 pub mod query;
 pub mod relation;
-
 
 /// Represents a collection of all Tables
 #[derive(Debug, Default, Deserialize)]
 #[serde(transparent)]
 pub struct Schema {
-    pub tables: HashMap<String, Table>
+    pub tables: HashMap<String, Table>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(transparent)]
 pub struct Table {
-    pub fields: Vec<Field>
+    pub fields: Vec<Field>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(transparent)]
 pub struct Field {
-    pub name: String
+    pub name: String,
 }
 
 #[test]
