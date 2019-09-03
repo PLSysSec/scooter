@@ -173,6 +173,38 @@
                            (sel-eqv a v r)))
                    :pattern ((sel-eqv a v (insert t r))))))
 
+; or-eq-sel function
+(declare-fun or-eq-cell ((List Attr) (List value) Tuple) bool)
+
+(assert (forall (t Tuple)
+                (not (or-eq-cell [] [] t))))
+
+(assert (forall ((a Attr) (as (List Attr))
+                 (v Val) (vs (List Val))
+                 (t Tuple))
+                (= (or-eq-cell (insert a as) (insert v vs))
+                   (or (= (get-cell a t) v)
+                       (or-eq-cell as vs)))))
+
+; sel-eqv-multi function
+(declare-fun sel-eqv-multi ((List Attr) (List Val) Relation) Relation)
+
+; sel-eqv-multi(a, v, []) = []
+(assert (forall ((a Attr) (v Val))
+                (! (= (sel-eqv-multi a v r_nil)
+                      r_nil)
+                   :pattern ((sel-eqv-multi a v r_nil)))))
+
+
+(assert (forall ((as (List Attr))
+                 (vs (List Val))
+                 (t Tuple)
+                 (r Relation))
+                (! (= (sel-eqv-multi a v (insert t r))
+                      (ite (or-eq-cell as vs t)
+                           (insert t (sel-eqv a v r))
+                           (sel-eqv a v r))))))
+
 ;; equi-join function
 ;; Input: Attr a1, Attr a2, Relation r1, Relation r2
 ;; OUtput: Relation r1 \bowtie_{r1.a1 = r2.a2} r2
