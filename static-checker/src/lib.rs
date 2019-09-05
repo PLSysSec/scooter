@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 pub mod query;
 pub mod relation;
+pub mod smt;
 
 /// Represents a collection of all Tables
 #[derive(Debug, Default, Deserialize)]

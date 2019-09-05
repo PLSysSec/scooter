@@ -40,6 +40,10 @@ impl ValueMap {
             v_name
         })
     }
+
+    fn names(&self) -> impl Iterator<Item=&String> {
+        self.values.values()
+    }
 }
 
 /// Removes all non-alphanumeric characters from a string
@@ -247,6 +251,17 @@ impl<'a> SmtBuilder<'a> {
             .collect();
 
         return format!("(proj {} {})", attr_list(&indices), relation);
+    }
+
+    /// This method generates the necessary definitions to make assertions about any
+    /// query built with this builder. This should be called after all queries have been
+    /// converted to smt. It consumes self, in order to prevent misuse, but we could loosen
+    /// this restriction if we see a reason in the future.
+    pub fn preamble(self) -> String {
+        let tables = self.schema.tables.keys().map(|t| format!("(declare-const {} Relation)\n", t));
+        let values = self.values.names().map(|v| format!("(declare-const {} Val)\n", v));
+
+        tables.chain(values).collect()
     }
 }
 
