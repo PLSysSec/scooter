@@ -134,7 +134,12 @@ impl<'a> SmtBuilder<'a> {
 
     fn table_factor_to_smt(&mut self, tf: &TableFactor) -> String {
         match tf {
-            TableFactor::Table { ref name, .. } => format!("{}", name),
+            TableFactor::Table { ref name, .. } => {
+                name.to_string()
+                // let indices:Vec<_> = (0..self.schema.tables[&name.to_string()].fields.len()).collect();
+
+                // format!("(proj {} {})", attr_list(&indices), name)
+            },
             TableFactor::NestedJoin(join) => self.twj_to_smt(join),
             _ => unimplemented!(),
         }
@@ -147,11 +152,22 @@ impl<'a> SmtBuilder<'a> {
             let subrelation = self.table_factor_to_smt(&join.relation);
             match &join.join_operator {
                 JoinOperator::Inner(JoinConstraint::On(cond)) => {
-                    relation = self.where_expr_to_sel(
-                        &cond,
-                        twj,
-                        format!("(prod {} {})", relation, subrelation),
-                    )
+
+                    // Equijoins allow us to use a special operator in the theory
+                    if let Expr::BinaryOp{ left, op: BinaryOperator::Eq, right} = cond {
+                        let left = twj.resolve_name(&self.schema, &get_ident(&left));
+                        let right = twj.resolve_name(&self.schema, &get_ident(&right));
+
+                        relation = format!("(equi-join {} {} {} {})", NUMBERS[left], NUMBERS[right], relation, subrelation)
+                    } else {
+                        // Fall back to cross-product for more complex joins
+                        relation = self.where_expr_to_sel(
+                            &cond,
+                            twj,
+                            format!("(prod {} {})", relation, subrelation),
+                        )
+                    }
+
                 }
                 op => unimplemented!("Unsupported join operator: {:?}", op),
             }
@@ -260,8 +276,12 @@ impl<'a> SmtBuilder<'a> {
     pub fn preamble(self) -> String {
         let tables = self.schema.tables.keys().map(|t| format!("(declare-const {} Relation)\n", t));
         let values = self.values.names().map(|v| format!("(declare-const {} Val)\n", v));
+        let len_asserts = self.schema.tables.iter().map(|(n, t)| {
+            let indices: Vec<_> = (0..t.fields.len()).collect();
+            format!("(assert (= {} (proj {} {})))\n", n, attr_list(&indices), n)
+        });
 
-        tables.chain(values).collect()
+        tables.chain(values).chain(len_asserts).collect()
     }
 }
 
@@ -369,7 +389,7 @@ fn select_simple_join() {
 
     let sql_stmt = "SELECT * FROM user JOIN comment ON user.uid = comment.uid";
     let smt = schema.builder().to_smt(sql_stmt);
-    assert_eq!(smt, "(sel-eq zero four (prod user comment))")
+    assert_eq!(smt, "(equi-join zero four user comment)")
 }
 
 #[test]
@@ -385,5 +405,5 @@ fn selct_multi_join() {
 
     let sql_stmt = "SELECT comment.text FROM user JOIN comment_user ON user.uid = comment_user.uid JOIN comment ON comment.cid = comment_user.cid";
     let smt = schema.builder().to_smt(sql_stmt);
-    assert_eq!(smt, "(proj (insert seven l_nil) (sel-eq six four (prod (sel-eq zero five (prod user comment_user)) comment)))")
+    assert_eq!(smt, "(proj (insert seven l_nil) (equi-join six four (equi-join zero five user comment_user) comment))")
 }
