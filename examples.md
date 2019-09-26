@@ -164,7 +164,7 @@ Message {
 ### Migration
 
 ```
-// changeField<T> Key -> T -> (Record -> T)
+// addField<T> Key -> T -> (Record -> T)
 Message.addField("bcc", [Id("User")], m -> [])
 ```
 
