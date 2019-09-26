@@ -33,10 +33,10 @@ User {
         write: u -> u.id
 }
 
-Message {
+Message:
     create: m -> [m.from]
     delete: none
-}
+
 
 Message {
     message: 
@@ -209,3 +209,137 @@ Message {
         write: none
 }
 ```
+
+
+# Twitter
+
+## Iteration 1. All public
+
+All tweets are public. No followers
+
+### Migration
+```
+createCollection("User", {
+    handle: String,
+    passHash: String
+})
+
+createCollection("Tweet", {
+    message: String,
+    author: Id("User")
+})
+```
+
+### Policy
+
+```
+User:
+    create: public,
+    delete: u -> u.id
+
+User {
+    handle: 
+        read: public
+        write: u -> u.id 
+    passHash: 
+        read: u -> u.id
+        write: u -> u.id
+}
+
+
+Tweet:
+    create: t -> t.author
+    delete: t -> t.author
+
+Tweet {
+    author:
+        write: none
+        read: public
+    message:
+        write: t -> t.author
+        read: public
+}
+```
+
+
+## Iteration 2. Followers
+
+In this iteration we want to introduce followers which are visible to all.
+Followers are now only used for aggregating a feed, no permissions are granted
+by being a follower.
+
+Due to the possible size of a followers list, we'll make it a separate DB element.
+
+### Migration
+
+```
+createCollection("Follow", {
+    target: Id("User"),
+    owner: Id("User")
+})
+```
+
+### Policy
+We allow all users to see who's following whom.
+
+```
+User:
+    create: public,
+    delete: u -> u.id
+
+User {
+    handle: 
+        read: public
+        write: u -> u.id 
+    passHash: 
+        read: u -> u.id
+        write: u -> u.id
+}
+
+
+Tweet:
+    create: t -> t.author
+    delete: t -> t.author
+
+Tweet {
+    author:
+        write: none
+        read: public
+    message:
+        write: t -> t.author
+        read: public
+}
+
+Follow:
+    create: f -> f.owner
+    delete: f -> f.owner
+
+Follow {
+    owner:
+        write: none
+        read: public
+    target:
+        write: none
+        read: public
+}
+```
+
+## Iteration 3. Blocking
+
+People have noticed there are some undesirable interactions happening on the site.
+They want to start blocking folks.
+
+### Migration
+
+```
+createCollection("Blocks", {
+    target: Id("User"),
+    owner: Id("User")
+})
+```
+
+### Policy
+The policy language currently can't support negations so this will have to be
+enforced in the application code. This is due to decidability issues.
+
+[TBD]
