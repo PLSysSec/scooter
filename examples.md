@@ -25,10 +25,10 @@ User:
     delete: u -> u.id
 
 User {
-    username: 
+    username:
         read: public
-        write: u -> u.id 
-    passHash: 
+        write: u -> u.id
+    passHash:
         read: u -> u.id
         write: u -> u.id
 }
@@ -39,10 +39,10 @@ Message:
 
 
 Message {
-    message: 
+    message:
         read: m -> [m.from, m.to]
         write: none
-    from: 
+    from:
         read: m -> [m.from, m.to]
         write: none
     to:
@@ -61,20 +61,20 @@ We want users to be able to delete messages they receive. But notably this shoul
 Message.addField("owner", Id("User"), m -> m.from)
 
 // Copy the message for each recipient
-Message.forEach(m -> 
+Message.forEach(m ->
     Message.create({
         owner: m.to,
         ...m
     })
 )
 ```
-
-
 ### Policy
 Due to the migration we know that m.owner = `m.to` v `m.from`.
 Thus all the field permissions on Message are allowed because:
-`m.to` ^ `m.from` => `m.to` v `m.from`. That is, the policy is less strict.
+`m.to` ^ `m.from` => `m.to` v `m.from`. That is, the new policy is more strict.
 However, the delete permission is a new grant.
+
+?? How do users create messages now? They need to create a copy for the recipient, right?
 
 
 ```
@@ -83,23 +83,23 @@ User:
     delete: u -> u.id
 
 User {
-    username: 
+    username:
         read: public
-        write: u -> u.id 
-    passHash: 
+        write: u -> u.id
+    passHash:
         read: u -> u.id
         write: u -> u.id
 }
 
 Message:
-    create: m -> [m.from]
+    create: m -> [m.from] // Slightly wrong: owner should be `to` or `from`
     delete: m -> [m.owner] !!!grant!!!
 
 Message {
-    message: 
+    message:
         read: m -> [m.owner]
         write: none
-    from: 
+    from:
         read: m -> [m.owner]
         write: none
     to:
@@ -117,8 +117,8 @@ Message {
 ### Migration
 
 ```
-// changeField<T> Key -> T -> (Record -> T)
-Message.changeField("to", [Id("User")], m -> [m.from])
+// changeField<T> Key -> T -> (Record -> T) -> ()
+Message.changeField("to", [Id("User")], m -> [m.to])
 ```
 
 ### Policy
@@ -130,10 +130,10 @@ User:
     delete: u -> u.id
 
 User {
-    username: 
+    username:
         read: public
-        write: u -> u.id 
-    passHash: 
+        write: u -> u.id
+    passHash:
         read: u -> u.id
         write: u -> u.id
 }
@@ -143,10 +143,10 @@ Message:
     delete: m -> [m.owner]
 
 Message {
-    message: 
+    message:
         read: m -> [m.owner]
         write: none
-    from: 
+    from:
         read: m -> [m.owner]
         write: none
     to:
@@ -164,14 +164,15 @@ Message {
 ### Migration
 
 ```
-// addField<T> Key -> T -> (Record -> T)
+// addField<T> Key -> T -> (Record -> T) -> ()
 Message.addField("bcc", [Id("User")], m -> [])
 ```
 
 ### Policy
 
-You can only read the bcc field if you are both the sender and the owner.
-This migration is allowable because all data in bcc is public (not derived from any db value)
+You can only read the bcc field if you are both the sender and the
+owner (this is redundant). This migration is allowable because all
+data in bcc is public (not derived from any db value)
 
 ```
 User:
@@ -179,10 +180,10 @@ User:
     delete: u -> u.id
 
 User {
-    username: 
+    username:
         read: public
-        write: u -> u.id 
-    passHash: 
+        write: u -> u.id
+    passHash:
         read: u -> u.id
         write: u -> u.id
 }
@@ -192,18 +193,18 @@ Message:
     delete: m -> [m.owner]
 
 Message {
-    message: 
+    message:
         read: m -> [m.owner]
         write: none
-    from: 
+    from:
         read: m -> [m.owner]
         write: none
     to:
         read: m -> [m.owner]
         write: none
     bcc:
-        read: m -> [m.owner] U [m.from]
-        write: 
+        read: m -> [m.owner] ^ [m.from]
+        write: none
     owner:
         read: m -> [m.owner]
         write: none
@@ -238,10 +239,10 @@ User:
     delete: u -> u.id
 
 User {
-    handle: 
+    handle:
         read: public
-        write: u -> u.id 
-    passHash: 
+        write: u -> u.id
+    passHash:
         read: u -> u.id
         write: u -> u.id
 }
@@ -288,10 +289,10 @@ User:
     delete: u -> u.id
 
 User {
-    handle: 
+    handle:
         read: public
-        write: u -> u.id 
-    passHash: 
+        write: u -> u.id
+    passHash:
         read: u -> u.id
         write: u -> u.id
 }
