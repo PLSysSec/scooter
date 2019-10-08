@@ -96,11 +96,50 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
+    // Mongo document conversion
+    let mongo_doc_impl = {
+        let doc_set_fields = fields.iter().map(|field| {
+            let field_ident = field.ident.as_ref().unwrap();
+            let field_str = ident.to_string();
+            quote! {
+                #field_str:&self.#field_ident
+            }
+        });
+        let doc_get_fields = fields.iter().map(|field| {
+            let field_ident = field.ident.as_ref().unwrap();
+            let field_str = ident.to_string();
+            let field_type = &field.ty;
+            quote! {
+                #field_ident: <#field_type>::from_bson(doc.remove(#field_str).unwrap())
+            }
+        });
+        quote! {
+            impl MongoDocument for #ident {
+                fn from_document(mut doc: mongodb::Document) -> Self {
+                    #ident {
+                        #(#doc_get_fields),*,
+                        id: Some(doc.get_object_id("_id").unwrap().clone())
+                    }
+                }
+                fn to_document(&self) -> mongodb::Document {
+                    let mut doc = doc! {
+                        #(#doc_set_fields),*
+                    };
+                    if let Some(id) = &self.id {
+                        doc.insert("_id", id.clone());
+                    };
+                    doc
+                }
+            }
+        }
+    };
+
     // Build the output, possibly using quasi-quotation
     let expanded = quote! {
         #input_with_id
         #getter_impl
         #resolved_type
+        #mongo_doc_impl
     };
 
     // Hand the output tokens back to the compiler

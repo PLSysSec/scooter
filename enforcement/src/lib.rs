@@ -2,6 +2,8 @@ use mongodb::oid::ObjectId;
 use mongodb::{bson, doc};
 use crate as enforcement;
 pub use enforcement_macros::collection;
+mod from_bson;
+pub use from_bson::*;
 
 type PrincipleId = ObjectId;
 
@@ -40,26 +42,6 @@ mod user_policies {
 
     pub fn username(_: &User) -> PolicyValue {
         PolicyValue::Public
-    }
-}
-
-impl MongoDocument for User {
-    fn from_document(doc: mongodb::Document) -> Self {
-        User {
-            username: doc.get_str("username").unwrap().to_string(),
-            pass_hash: doc.get_str("pass_hash").unwrap().to_string(),
-            id: Some(doc.get_object_id("_id").unwrap().clone()),
-        }
-    }
-    fn to_document(&self) -> mongodb::Document {
-        let mut doc = doc! {
-            "username": &self.username,
-            "pass_hash": &self.pass_hash,
-        };
-        if let Some(id) = &self.id {
-            doc.insert("_id", id.clone());
-        };
-        doc
     }
 }
 

@@ -10,3 +10,4 @@ edition = "2018"
 [dependencies]
 mongodb = '0.3.12'
 enforcement-macros = {path="./enforcement-macros"}
+serde = "*"
