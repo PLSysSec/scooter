@@ -102,7 +102,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             let field_ident = field.ident.as_ref().unwrap();
             let field_str = field_ident.to_string();
             quote! {
-                #field_str:&self.#field_ident
+                #field_str: self.#field_ident.to_bson()
             }
         });
         let doc_get_fields = fields.iter().map(|field| {
