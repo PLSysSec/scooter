@@ -1,12 +1,15 @@
 [package]
-name = "enforcement"
+name = "enforcement-macros"
 version = "0.1.0"
 authors = ["Alex Sanchez-Stern <alex.sanchezstern@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [lib]
+proc-macro=true
 
 [dependencies]
-mongodb = '0.3.12'
-enforcement-macros = {path="./enforcement-macros"}
+syn = "1.0"
+quote = "1.0"
+proc-macro-crate = "0.1.4"

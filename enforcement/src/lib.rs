@@ -1,5 +1,7 @@
 use mongodb::oid::ObjectId;
 use mongodb::{bson, doc};
+use crate as enforcement;
+pub use enforcement_macros::collection;
 
 type PrincipleId = ObjectId;
 
@@ -21,20 +23,13 @@ trait MongoDocument {
     fn from_document(doc: mongodb::Document) -> Self;
     fn to_document(&self) -> mongodb::Document;
 }
+pub type RecordId = ObjectId;
 
 // ----- THIS SHOULD ALL BE GENERATED ------
+#[collection(policy_module="user_policies")]
 pub struct User {
     username: String,
     pass_hash: String,
-    id: Option<ObjectId>,
-}
-
-/// A convenience struct that contains all viewable fields
-#[derive(Debug)]
-pub struct ResolvedUser {
-    pub username: Option<String>,
-    pub pass_hash: Option<String>,
-    pub id: Option<ObjectId>
 }
 
 mod user_policies {
@@ -45,33 +40,6 @@ mod user_policies {
 
     pub fn username(_: &User) -> PolicyValue {
         PolicyValue::Public
-    }
-}
-
-impl User {
-    pub fn fully_resolve(&self, id: &PrincipleId) -> ResolvedUser {
-        ResolvedUser {
-            username: self.get_username(id).map(|s| s.clone()),
-            pass_hash: self.get_pass_hash(id).map(|s| s.clone()),
-            id: self.id.clone()
-        }
-    }
-
-    pub fn get_username(&self, id: &PrincipleId) -> Option<&String> {
-        if !user_policies::username(self).accessible_by(id) {
-            None
-        } else {
-            Some(&self.username)
-        }
-    }
-
-    pub fn get_pass_hash(&self, id: &PrincipleId) -> Option<&String> {
-        if !user_policies::pass_hash(self).accessible_by(id) {
-            None
-        } else {
-            Some(&self.pass_hash)
-        }
-
     }
 }
 
@@ -97,18 +65,16 @@ impl MongoDocument for User {
 
 // -------- END GENERATED ------
 
-
 #[cfg(test)]
 mod test {
+    use crate::*;
     use mongodb::coll::Collection;
     use mongodb::db::ThreadedDatabase;
     use mongodb::Client;
     use mongodb::ThreadedClient;
-    use crate::*;
 
     #[allow(unused_must_use)]
     fn setup_db() -> (Collection) {
-
         let client = Client::connect("localhost", 27017).expect("Failed to initialize client.");
         let db = client.db("test");
 
@@ -123,17 +89,21 @@ mod test {
     #[test]
     fn insert_then_read() {
         let user_coll = setup_db();
-        let users: Vec<_> = [User {
-            username: "Alex".to_string(),
-            pass_hash: "alex_hash".to_string(),
-            id: None,
-        },
+        let users: Vec<_> = [
+            User {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+                id: None,
+            },
             User {
                 username: "John".to_string(),
                 pass_hash: "john_hash".to_string(),
                 id: None,
-            } 
-        ].into_iter().map(User::to_document).collect();
+            },
+        ]
+        .into_iter()
+        .map(User::to_document)
+        .collect();
 
         let insert_res = user_coll
             .insert_many(users, None)
@@ -152,7 +122,10 @@ mod test {
 
         let retrieved_alex = User::from_document(retrieved_doc);
 
-        assert_eq!("alex_hash", retrieved_alex.get_pass_hash(&uid_alex).unwrap());
+        assert_eq!(
+            "alex_hash",
+            retrieved_alex.get_pass_hash(&uid_alex).unwrap()
+        );
         assert_eq!(None, retrieved_alex.get_pass_hash(&uid_john));
     }
 }
