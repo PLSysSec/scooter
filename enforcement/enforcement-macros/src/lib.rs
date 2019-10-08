@@ -100,14 +100,14 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
     let mongo_doc_impl = {
         let doc_set_fields = fields.iter().map(|field| {
             let field_ident = field.ident.as_ref().unwrap();
-            let field_str = ident.to_string();
+            let field_str = field_ident.to_string();
             quote! {
                 #field_str:&self.#field_ident
             }
         });
         let doc_get_fields = fields.iter().map(|field| {
             let field_ident = field.ident.as_ref().unwrap();
-            let field_str = ident.to_string();
+            let field_str = field_ident.to_string();
             let field_type = &field.ty;
             quote! {
                 #field_ident: <#field_type>::from_bson(doc.remove(#field_str).unwrap())
