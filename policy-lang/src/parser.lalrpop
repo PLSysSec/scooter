@@ -1,0 +1,61 @@
+use crate::ast::*;
+grammar;
+
+pub GlobalPolicy: GlobalPolicy = {
+    <cp:CollectionPolicy*> => GlobalPolicy { collections: cp}
+}
+
+CollectionPolicy: CollectionPolicy = {
+    <i:Ident> "{" <fp:FieldPolicy*> "}"  => CollectionPolicy {
+        name: i,
+        fields: fp.into_iter().collect()
+    }
+}
+
+FieldPolicy: (String, FieldPolicy) = {
+    <i:Ident> "{" "read" ":" <r:Policy> "write" ":" <w:Policy> "}" => (i.to_string(), FieldPolicy {
+        read: r,
+        write: w
+    })
+}
+
+Policy: Policy = {
+    "public" => Policy::Public,
+    "none" => Policy::None,
+    PolicyFunc => Policy::Func(<>)
+}
+
+pub PolicyFunc: PolicyFunc = {
+    <i:Ident> "->" <e:QueryExpr> => PolicyFunc {
+        param: i,
+        expr: e
+    }
+}
+
+QueryExpr: Box<QueryExpr> = {
+    <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::BinOp(l, Operator::Or, r)),
+    QueryExpr2
+}
+
+QueryExpr2: Box<QueryExpr> = {
+    Path => Box::new(QueryExpr::Path(<>))
+}
+
+Operator: Operator = {
+    "+" => Operator::Or
+}
+
+Ident: String = {
+    <s:r"[a-zA-Z]\w*"> => s.to_string()
+}
+
+Path: Vec<String> = {
+    <v:(<Ident> ".")*> <i:Ident?> => match i {
+        None => v,
+        Some(i) => {
+            let mut v = v;
+            v.push(i);
+            v
+        }
+    }
+}
