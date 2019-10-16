@@ -33,16 +33,12 @@ pub PolicyFunc: PolicyFunc = {
 }
 
 QueryExpr: Box<QueryExpr> = {
-    <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::BinOp(l, Operator::Or, r)),
+    <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::Or(l, r)),
     QueryExpr2
 }
 
 QueryExpr2: Box<QueryExpr> = {
     Path => Box::new(QueryExpr::Path(<>))
-}
-
-Operator: Operator = {
-    "+" => Operator::Or
 }
 
 Ident: String = {

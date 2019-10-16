@@ -1,0 +1,11 @@
+User {
+    name {
+        read: public
+        write: none
+    }
+
+    pass_hash {
+        read: r -> r.id
+        write: r -> r.id
+    }
+}

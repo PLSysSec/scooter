@@ -3,13 +3,9 @@ use std::collections::HashMap;
 #[derive(Debug, PartialEq, Eq)]
 pub enum QueryExpr {
     Path(Vec<String>),
-    BinOp(Box<QueryExpr>, Operator, Box<QueryExpr>)
+    Or(Box<QueryExpr>, Box<QueryExpr>)
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Operator {
-    Or
-}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Policy {
