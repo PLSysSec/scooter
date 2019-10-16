@@ -30,11 +30,16 @@ fn gen_fields(cp: &CollectionPolicy) -> String {
 }
 
 fn gen_policy_func(name: &str, type_name: &str, policy: &Policy) -> String {
+    let param = match policy {
+        Policy::Func(f) => &f.param,
+        _ => "r"
+    };
+    
     format!(r#"
-        (define-fun {} ((r {})) Principles
+        (define-fun {} (({} {})) Principles
             {}
         )
-    "#, name, type_name, gen_func_body(policy))
+    "#, name, param, type_name, gen_func_body(policy))
 }
 
 fn gen_func_body(p: &Policy) -> String {
@@ -70,8 +75,6 @@ pub fn gen_full(gp_before: &GlobalPolicy, gp_after: &GlobalPolicy) -> String {
 }
 
 fn gen_collection_checks(cp_before: &CollectionPolicy, cp_after: &CollectionPolicy) -> String {
-    let iter = cp_after.fields.keys().zip(
-        cp_before.fields.values().zip(cp_after.fields.values()));
     let mut out = String::new();
     for f in cp_before.fields.keys() {
         out += &format!(r#"

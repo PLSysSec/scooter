@@ -1,0 +1,16 @@
+Message {
+    from {
+        read: m -> m.from + m.to
+        write: none
+    }
+
+    to {
+        read: m -> m.to + m.from
+        write: none
+    }
+
+    text {
+        read: m -> m.from
+        write: none
+    }
+}
