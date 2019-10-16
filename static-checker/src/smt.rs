@@ -74,42 +74,39 @@ pub fn gen_full(gp_before: &GlobalPolicy, gp_after: &GlobalPolicy) -> String {
     out
 }
 
+fn gen_check(diagnostic: &str, type_name: &str, p1: &Policy, p2: &Policy) -> String {
+    format!(r#"
+            (push) 
+            (echo "{}")
+            {}
+            {}
+            (assert (not (forall ((r {}) (v Value)) 
+                (=> (select (p2 r) v) (select (p1 r) v))
+            )))
+            (check-sat)
+            (pop)
+        "#, diagnostic,
+        gen_policy_func("p1", type_name, &p1),
+        gen_policy_func("p2", type_name, &p2),
+        type_name)
+}
+
 fn gen_collection_checks(cp_before: &CollectionPolicy, cp_after: &CollectionPolicy) -> String {
     let mut out = String::new();
     for f in cp_before.fields.keys() {
         // Reads
-        out += &format!(r#"
-            (push) 
-            (echo "{}")
-            {}
-            {}
-            (assert (not (forall ((r {}) (v Value)) 
-                (=> (select (p2 r) v) (select (p1 r) v))
-            )))
-            (check-sat)
-            (pop)
-        "#,
-        &format!("Checking {}.{} read", &cp_before.name, f),
-        gen_policy_func("p1", &cp_before.name, &cp_before.fields[f].read),
-        gen_policy_func("p2", &cp_before.name, &cp_after.fields[f].read),
-        &cp_after.name);
-
+        out += &gen_check(
+            &format!("Checking {}.{} read", &cp_before.name, f),
+            &cp_before.name,
+            &cp_before.fields[f].read,
+            &cp_after.fields[f].read);
+        
         // Writes
-        out += &format!(r#"
-            (push) 
-            (echo "{}")
-            {}
-            {}
-            (assert (not (forall ((r {}) (v Value)) 
-                (=> (select (p2 r) v) (select (p1 r) v))
-            )))
-            (check-sat)
-            (pop)
-        "#,
-        &format!("Checking {}.{} write", &cp_before.name, f),
-        gen_policy_func("p1", &cp_before.name, &cp_before.fields[f].write),
-        gen_policy_func("p2", &cp_before.name, &cp_after.fields[f].write),
-        &cp_after.name)
+        out += &gen_check(
+            &format!("Checking {}.{} write", &cp_before.name, f),
+            &cp_before.name,
+            &cp_before.fields[f].write,
+            &cp_after.fields[f].write);
     }
     out
 }
