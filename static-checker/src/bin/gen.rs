@@ -1,4 +1,4 @@
-use static_checker::*;
+use static_checker::smt::*;
 use policy_lang::*;
 use std::io::{self, Read};
 
