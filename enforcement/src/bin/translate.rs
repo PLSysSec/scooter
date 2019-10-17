@@ -23,7 +23,8 @@ fn policy_binder_var(policy : &ast::Policy) -> String {
     }
 }
 fn gen_schema_macros(policy : ast::GlobalPolicy) -> String {
-    let mut out = "use enforcement_macros::collection;\n".to_string();
+    let mut out = "use enforcement;\n\
+use enforcement_macros::collection;\n".to_string();
     for col in policy.collections.into_iter() {
         let mut col_struct = format!(r#"
 #[collection(policy_module="{}_policies")]
