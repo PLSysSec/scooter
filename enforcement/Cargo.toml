@@ -7,7 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 
+[[bin]]
+name = "translate"
+path = "src/bin/translate.rs"
+
 [dependencies]
 mongodb = '0.3.12'
 enforcement-macros = {path="./enforcement-macros"}
 serde = "*"
+policy-lang = {path = "../policy-lang"}
