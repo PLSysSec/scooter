@@ -37,7 +37,7 @@ mod {}_policies {{
 "#,
                                   col.name.to_ascii_lowercase());
         for (field_name, field_policy) in col.fields.into_iter() {
-            col_struct += &format!("    pub {}: String,\n", field_name).to_string();
+            col_struct += &format!("    {}: String,\n", field_name).to_string();
             pol_mod += &format!("    pub fn {}({}: &{}) -> PolicyValue {{\n",
                                 field_name, policy_binder_var(&field_policy.read),
                                 col.name).to_string();

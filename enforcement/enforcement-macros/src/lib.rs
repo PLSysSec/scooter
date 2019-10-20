@@ -59,6 +59,24 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             #(#field_getters)*
         }
     };
+    let constructor = {
+        let field_params = fields.iter().map(|field| {
+            let ident = field.ident.as_ref().unwrap();
+            let ty = &field.ty;
+            quote!{#ident:#ty}
+        });
+        let field_inits = fields.iter().map(|field| {
+            let ident = field.ident.as_ref().unwrap();
+            quote!{#ident}
+        });
+        let constructor_ident = format_ident!("mk_{}",
+                                              ident.to_string().to_ascii_lowercase());
+        quote!{
+            pub fn #constructor_ident(#(#field_params),*) -> #ident {
+                #ident{#(#field_inits),*,id:None}
+            }
+        }
+    };
     // Resolved type
     let resolved_type = {
         let optioned_fields = fields.iter().map(|field| {
@@ -138,6 +156,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #input_with_id
         #getter_impl
+        #constructor
         #resolved_type
         #mongo_doc_impl
     };

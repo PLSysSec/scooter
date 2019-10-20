@@ -29,16 +29,8 @@ mod test {
     fn insert_then_read() {
         let user_coll = setup_db();
         let users: Vec<_> = [
-            User {
-                username: "Alex".to_string(),
-                pass_hash: "alex_hash".to_string(),
-                id: None,
-            },
-            User {
-                username: "John".to_string(),
-                pass_hash: "john_hash".to_string(),
-                id: None,
-            },
+            mk_user("Alex".to_string(), "alex_hash".to_string()),
+            mk_user("John".to_string(), "john_hash".to_string()),
         ]
         .into_iter()
         .map(User::to_document)
