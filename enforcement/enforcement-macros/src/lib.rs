@@ -60,20 +60,33 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
     let constructor = {
-        let field_params = fields.iter().map(|field| {
-            let ident = field.ident.as_ref().unwrap();
-            let ty = &field.ty;
-            quote!{#ident:#ty}
+        let prop_ident = format_ident!("{}Props", ident);
+        let pub_fields = fields.iter().map(|field| {
+            let field_ident = field.ident.as_ref().unwrap();
+            let field_type = &field.ty;
+            let field_attrs = &field.attrs;
+            quote!{
+                #(#field_attrs)*
+                pub #field_ident: #field_type
+            }
         });
         let field_inits = fields.iter().map(|field| {
-            let ident = field.ident.as_ref().unwrap();
-            quote!{#ident}
+            let field_ident = field.ident.as_ref().unwrap();
+            quote!{
+                #field_ident: props.#field_ident
+            }
         });
-        let constructor_ident = format_ident!("mk_{}",
-                                              ident.to_string().to_ascii_lowercase());
         quote!{
-            pub fn #constructor_ident(#(#field_params),*) -> #ident {
-                #ident{#(#field_inits),*,id:None}
+            pub struct #prop_ident {
+                #(#pub_fields),*
+            }
+            impl #ident {
+                pub fn new(props : #prop_ident) -> #ident{
+                    #ident{
+                        #(#field_inits),*,
+                        id:None
+                    }
+                }
             }
         }
     };
