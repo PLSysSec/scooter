@@ -44,9 +44,10 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         let field_ident = field.ident.as_ref().unwrap();
         let field_type = &field.ty;
         let method_ident = format_ident!("get_{}", field_ident);
+        let reader_ident = format_ident!("read_{}", field_ident);
         quote!{
             pub fn #method_ident(&self, id: &PrincipleId) -> Option<&#field_type> {
-                if #policy_module::#field_ident(self).accessible_by(id) {
+                if #policy_module::#reader_ident(self).accessible_by(id) {
                     Some(&self.#field_ident)
                 } else {
                     None

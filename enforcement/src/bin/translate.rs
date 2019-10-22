@@ -22,6 +22,16 @@ fn policy_binder_var(policy : &ast::Policy) -> String {
         _ => "_".to_string(),
     }
 }
+fn gen_policy_body(policy : ast::Policy) -> String {
+    match policy {
+        ast::Policy::Public =>
+            "        PolicyValue::Public\n    }\n".to_string(),
+        ast::Policy::None =>
+            "        PolicyValue::Ids([])\n    }\n".to_string(),
+        ast::Policy::Func(f) =>
+            format!("        PolicyValue::Ids({})\n    }}\n", policyfunc_to_idlist(*f.expr)),
+    }
+}
 fn gen_schema_macros(policy : ast::GlobalPolicy) -> String {
     let mut out = "use enforcement::*;\n".to_string();
     for col in policy.collections.into_iter() {
@@ -38,18 +48,14 @@ mod {}_policies {{
                                   col.name.to_ascii_lowercase());
         for (field_name, field_policy) in col.fields.into_iter() {
             col_struct += &format!("    {}: String,\n", field_name).to_string();
-            pol_mod += &format!("    pub fn {}({}: &{}) -> PolicyValue {{\n",
+            pol_mod += &format!("    pub fn read_{}({}: &{}) -> PolicyValue {{\n",
                                 field_name, policy_binder_var(&field_policy.read),
                                 col.name).to_string();
-            match field_policy.read {
-                ast::Policy::Public =>
-                    pol_mod += &"        PolicyValue::Public\n".to_string(),
-                ast::Policy::None =>
-                    pol_mod += &"        PolicyValue::Ids([])\n".to_string(),
-                ast::Policy::Func(f) =>
-                    pol_mod += &format!("        PolicyValue::Ids({})\n", policyfunc_to_idlist(*f.expr)),
-            };
-            pol_mod += &"    }\n".to_string();
+            pol_mod += &gen_policy_body(field_policy.read);
+            pol_mod += &format!("    pub fn write_{}({}: &{}) -> PolicyValue {{\n",
+                                field_name, policy_binder_var(&field_policy.write),
+                                col.name).to_string();
+            pol_mod += &gen_policy_body(field_policy.write);
         }
         col_struct += &"}\n".to_string();
         pol_mod += &"}\n".to_string();
