@@ -1,5 +1,5 @@
-use mongodb::oid::ObjectId;
 pub use enforcement_macros::collection;
+use mongodb::oid::ObjectId;
 pub use mongodb::{bson, doc};
 mod from_bson;
 pub use from_bson::*;
