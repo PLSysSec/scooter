@@ -1,5 +1,5 @@
-use static_checker::*;
 use policy_lang::*;
+use static_checker::smt::*;
 use std::io::{self, Read};
 
 fn get_contents(fname: &str) -> io::Result<String> {
@@ -18,6 +18,6 @@ fn main() {
     let gp_after = parse_policy(&get_contents(&after).unwrap()).unwrap();
 
     let out = gen_full(&gp_before, &gp_after);
-    
+
     println!("{}", out);
 }
