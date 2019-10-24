@@ -25,7 +25,7 @@ fn policy_binder_var(policy: &ast::Policy) -> String {
 fn gen_policy_body(policy: ast::Policy) -> String {
     match policy {
         ast::Policy::Public => "        PolicyValue::Public\n    }\n".to_string(),
-        ast::Policy::None => "        PolicyValue::Ids([])\n    }\n".to_string(),
+        ast::Policy::None => "        PolicyValue::Ids(vec![])\n    }\n".to_string(),
         ast::Policy::Func(f) => format!(
             "        PolicyValue::Ids({})\n    }}\n",
             policyfunc_to_idlist(*f.expr)
