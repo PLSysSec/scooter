@@ -44,9 +44,10 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         let field_ident = field.ident.as_ref().unwrap();
         let field_type = &field.ty;
         let method_ident = format_ident!("get_{}", field_ident);
+        let reader_ident = format_ident!("read_{}", field_ident);
         quote!{
             pub fn #method_ident(&self, id: &PrincipleId) -> Option<&#field_type> {
-                if #policy_module::#field_ident(self).accessible_by(id) {
+                if #policy_module::#reader_ident(self).accessible_by(id) {
                     Some(&self.#field_ident)
                 } else {
                     None
@@ -57,6 +58,37 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
     let getter_impl = quote!{
         impl #ident {
             #(#field_getters)*
+        }
+    };
+    let constructor = {
+        let prop_ident = format_ident!("{}Props", ident);
+        let pub_fields = fields.iter().map(|field| {
+            let field_ident = field.ident.as_ref().unwrap();
+            let field_type = &field.ty;
+            let field_attrs = &field.attrs;
+            quote!{
+                #(#field_attrs)*
+                pub #field_ident: #field_type
+            }
+        });
+        let field_inits = fields.iter().map(|field| {
+            let field_ident = field.ident.as_ref().unwrap();
+            quote!{
+                #field_ident: props.#field_ident
+            }
+        });
+        quote!{
+            pub struct #prop_ident {
+                #(#pub_fields),*
+            }
+            impl #ident {
+                pub fn new(props : #prop_ident) -> #ident{
+                    #ident{
+                        #(#field_inits),*,
+                        id:None
+                    }
+                }
+            }
         }
     };
     // Resolved type
@@ -138,6 +170,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #input_with_id
         #getter_impl
+        #constructor
         #resolved_type
         #mongo_doc_impl
     };
