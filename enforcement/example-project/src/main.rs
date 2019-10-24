@@ -8,10 +8,6 @@ fn main() {
 mod test {
     use crate::*;
     use types::*;
-    use mongodb::coll::Collection;
-    use mongodb::db::ThreadedDatabase;
-    use mongodb::Client;
-    use mongodb::ThreadedClient;
 
     #[test]
     fn insert_then_read() {
