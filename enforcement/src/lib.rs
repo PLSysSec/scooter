@@ -25,43 +25,45 @@ pub trait MongoDocument {
     fn to_document(&self) -> mongodb::Document;
 }
 pub type RecordId = ObjectId;
-
-pub struct CheckedCollection <'a> {
-    name : &'a str,
-    inner_coll : Collection,
-}
-
-use mongodb::Document;
 use mongodb::coll::Collection;
 use mongodb::coll::results::InsertManyResult;
 use mongodb::db::ThreadedDatabase;
 use mongodb::Client;
 use mongodb::ThreadedClient;
+use std::marker::PhantomData;
 
-impl CheckedCollection <'_> {
-    pub fn new(db_name : &str) -> CheckedCollection {
+pub struct CheckedCollection <'a, T: MongoDocument> {
+    name : &'a str,
+    inner_coll : Collection,
+    element_type : PhantomData<T>,
+}
+
+impl <T: MongoDocument> CheckedCollection <'_, T> {
+    pub fn new(db_name : &str) -> CheckedCollection <T> {
         let client = Client::connect("localhost", 27017)
             .expect("Failed to initialize client.");
         let db = client.db(db_name);
         db.create_collection("User", None)
             .expect("Failed to create collection");
-        CheckedCollection {name:db_name.clone(), inner_coll: db.collection("User")}
+        CheckedCollection {name:db_name.clone(), inner_coll: db.collection("User"),
+                           element_type:PhantomData}
     }
-    pub fn insert_many(&self, items : Vec<Document>) -> Option<Vec<RecordId>> {
-        match self.inner_coll.insert_many(items, None) {
+    pub fn insert_many(&self, items : Vec<T>) -> Option<Vec<RecordId>> {
+        match self.inner_coll.insert_many(items.iter()
+                                          .map(T::to_document).collect(), None) {
             Result::Ok(InsertManyResult{inserted_ids: ids, ..}) =>
                 Some(ids.unwrap().values().map(|b| b.as_object_id().unwrap().clone()).collect()),
             _ => None
         }
     }
-    pub fn find_one(&self, filter : Document) -> Option<Document>{
-        match self.inner_coll.find_one(Some(filter), None) {
-            Result::Ok(Some(doc)) => Some(doc),
+    pub fn find_by_id(&self, id : RecordId) -> Option<T> {
+        match self.inner_coll.find_one(Some(doc! {"_id":id}), None) {
+            Result::Ok(Some(doc)) => Some(T::from_document(doc)),
             _ => None
         }
     }
 }
-impl Drop for CheckedCollection <'_>{
+impl<T> Drop for CheckedCollection <'_, T> where T : MongoDocument{
     fn drop(&mut self) {
         let client = Client::connect("localhost", 27017)
             .expect("Failed to initialize client.");
