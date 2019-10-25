@@ -54,8 +54,9 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         let field_type = &field.ty;
         let method_ident = format_ident!("get_{}", field_ident);
         let reader_ident = format_ident!("read_{}", field_ident);
-        quote!{
-            pub fn #method_ident(&self, id: &PrincipleId) -> Option<&#field_type> {
+        quote! {
+            #[allow(dead_code)]
+            pub fn #method_ident(&self, id: &Principle) -> Option<&#field_type> {
                 if #policy_module::#reader_ident(self).accessible_by(id) {
                     Some(&self.#field_ident)
                 } else {
