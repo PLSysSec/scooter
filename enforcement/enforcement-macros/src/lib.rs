@@ -70,6 +70,22 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             #(#field_getters)*
         }
     };
+    let field_setters = fields.iter().map(|field| {
+        let field_ident = field.ident.as_ref().unwrap();
+        let field_type = &field.ty;
+        let method_ident = format_ident!("set_{}", field_ident);
+        quote! {
+            #[allow(dead_code)]
+            pub fn #method_ident(&mut self, val : #field_type) {
+                self.#field_ident = val;
+            }
+        }
+    });
+    let setter_impl = quote! {
+        impl #ident {
+            #(#field_setters)*
+        }
+    };
     let constructor = {
         let prop_ident = format_ident!("{}Props", ident);
         let pub_fields = fields.iter().map(|field| {
@@ -207,18 +223,116 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
+    // Field enum
+    let fields_enum = {
+        let enum_ident = format_ident!("{}Fields", ident);
+        let field_enum_idents = fields.iter().map(|field| {
+            format_ident!("{}", capitalize_string(field.ident.as_ref()
+                                                  .unwrap().to_string()))
+        });
+        quote! {
+            pub enum #enum_ident {
+                #(#field_enum_idents),*
+            }
+        }
+    };
+
+    // implementations for checked "save" and "save_all" methods
+    let save_impl = {
+        let enum_ident = format_ident!("{}Fields", ident);
+        let ident_string = ident.to_string();
+        let field_check_arms = fields.iter().map(|field| {
+            let field_ident = field.ident.as_ref().unwrap();
+            let capitalized_ident = format_ident!("{}",
+                                                  capitalize_string(field_ident.to_string()));
+            let write_ident = format_ident!("write_{}", field_ident);
+            let read_ident = format_ident!("read_{}", field_ident);
+            quote!{
+                #enum_ident::#capitalized_ident => {
+                    if ! #policy_module::#write_ident(item)
+                        .accessible_by(&connection.principle()) ||
+                        ! #policy_module::#read_ident(item)
+                        .accessible_by(&connection.principle())
+                    {
+                        return false;
+                    }
+                }
+            }
+        });
+        let field_set_arms = fields.iter().map(|field| {
+            let field_ident = field.ident.as_ref().unwrap();
+            let capitalized_ident = format_ident!("{}",
+                                                  capitalize_string(field_ident.to_string()));
+            let get_ident = format_ident!("get_{}", field_ident);
+            let field_str = field_ident.to_string();
+            quote!{
+                #enum_ident::#capitalized_ident => {
+                    set_doc.insert(#field_str,
+                                   item.#get_ident(&connection.principle())
+                                   .expect("Can't save fields without read permissions!"))
+                }
+            }
+        });
+        quote!{
+            impl #ident {
+                pub fn save_all(connection: AuthConn, items: Vec<&#ident>, fields: Vec<#enum_ident>) -> bool {
+                    for item in items.iter() {
+                        for field in fields.iter() {
+                            match field {
+                                #(#field_check_arms),*
+                            };
+                        }
+                    }
+                    for item in items.into_iter() {
+                        let get_doc = doc! {
+                            "_id": item.id.clone().expect("Tried to modify an object not from the database!")
+                        };
+                        let mut set_doc = bson::Document::new();
+                        for field in fields.iter() {
+                            match field {
+                                #(#field_set_arms),*
+                            };
+                        }
+                        connection
+                            .conn()
+                            .mongo_conn
+                            .collection(#ident_string)
+                            .update_one(get_doc, doc! {"$set": set_doc}, None)
+                            .unwrap();
+                    }
+                    true
+                }
+                pub fn save(&self, connection: AuthConn, fields: Vec<UserFields>) -> bool{
+                    User::save_all(connection, vec![&self], fields)
+                }
+            }
+        }
+    };
 
     // Build the output, possibly using quasi-quotation
     let expanded = quote! {
         use mongodb::db::ThreadedDatabase;
         #input_with_id
         #getter_impl
+        #setter_impl
         #constructor
         #resolved_type
         #mongo_doc_impl
         #dbcoll_impl
+        #fields_enum
+        #save_impl
     };
 
     // Hand the output tokens back to the compiler
     TokenStream::from(expanded)
+}
+
+fn capitalize_string(s : String) -> String {
+    let mut result_string = s;
+    if let Some(r) = result_string.get_mut(0..1) {
+        r.make_ascii_uppercase();
+    } else {
+        unreachable!("Cannot capitalize something without any letters!")
+    }
+    result_string
 }

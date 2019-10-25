@@ -46,5 +46,27 @@ mod test {
         );
     }
 
+    #[test]
+    fn set_password() {
+        let db_conn = DBConn::new("test2");
+        let alex_id = User::insert_many(
+            db_conn.as_princ(Principle::Public),
+            vec![user! {username: "Alex".to_string(),
+            pass_hash: "alex_hash".to_string(),}],
+        )
+        .unwrap()
+        .pop()
+        .expect("Didn't get any ids back!");
+        let mut alex_obj =
+            User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
+        alex_obj.set_pass_hash("monster_mash".to_string());
+        assert!(
+            alex_obj.save(
+                db_conn.as_princ(Principle::Id(alex_id.clone())),
+                vec! [UserFields::Pass_hash]));
+        assert!(
+            !alex_obj.save(
+                db_conn.as_princ(Principle::Public),
+                vec! [UserFields::Pass_hash]));
     }
 }
