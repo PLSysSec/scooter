@@ -9,7 +9,6 @@ mod test {
     use crate::*;
     use types::*;
 
-
     #[test]
     fn insert_then_read() {
         let db_conn = DBConn::new("test2");
@@ -60,13 +59,13 @@ mod test {
         let mut alex_obj =
             User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
         alex_obj.set_pass_hash("monster_mash".to_string());
-        assert!(
-            alex_obj.save(
-                db_conn.as_princ(Principle::Id(alex_id.clone())),
-                vec! [UserFields::Pass_hash]));
-        assert!(
-            !alex_obj.save(
-                db_conn.as_princ(Principle::Public),
-                vec! [UserFields::Pass_hash]));
+        assert!(alex_obj.save(
+            db_conn.as_princ(Principle::Id(alex_id.clone())),
+            vec![UserFields::Pass_hash]
+        ));
+        assert!(!alex_obj.save(
+            db_conn.as_princ(Principle::Public),
+            vec![UserFields::Pass_hash]
+        ));
     }
 }
