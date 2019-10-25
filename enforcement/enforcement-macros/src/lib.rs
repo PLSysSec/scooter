@@ -1,9 +1,12 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::{quote, ToTokens, format_ident};
-use syn::{parse_macro_input, Attribute, AttributeArgs, DeriveInput, Meta, NestedMeta, Lit, Data, DataStruct, Fields};
 use proc_macro_crate::crate_name;
+use quote::{format_ident, quote, ToTokens};
+use syn::{
+    parse_macro_input, Attribute, AttributeArgs, Data, DataStruct, DeriveInput, Fields, Lit, Meta,
+    NestedMeta,
+};
 
 #[proc_macro_attribute]
 pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
@@ -14,11 +17,14 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         NestedMeta::Meta(Meta::NameValue(m)) => m,
         _ => panic!("Expects argument of the form policy_module=<module>"),
     };
-    assert_eq!(mv.path.get_ident().expect("Bad identifier as argument"), "policy_module",
-               "Only valid argument is \"policy_module\"");
+    assert_eq!(
+        mv.path.get_ident().expect("Bad identifier as argument"),
+        "policy_module",
+        "Only valid argument is \"policy_module\""
+    );
     let policy_module = match mv.lit {
         Lit::Str(s) => format_ident!("{}", s.value()),
-        _ => panic!("Expects a string argument for policy_module")
+        _ => panic!("Expects a string argument for policy_module"),
     };
     let enforcement_crate_name = format_ident!("enforcement");
 
@@ -26,13 +32,16 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
     let ident = input.ident;
     let fields = match input.data {
-        Data::Struct(DataStruct { fields: Fields::Named(fs), .. }) => fs.named,
-        _ => panic!("Collections must be structs with named fields")
+        Data::Struct(DataStruct {
+            fields: Fields::Named(fs),
+            ..
+        }) => fs.named,
+        _ => panic!("Collections must be structs with named fields"),
     };
     let input_vis = input.vis;
     let input_with_id = {
         let fields_iter = fields.iter();
-        quote!{
+        quote! {
             #input_vis struct #ident {
                 #(#fields_iter),*,
                 pub id: Option<#enforcement_crate_name::RecordId>
@@ -55,7 +64,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     });
-    let getter_impl = quote!{
+    let getter_impl = quote! {
         impl #ident {
             #(#field_getters)*
         }
@@ -66,18 +75,18 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             let field_ident = field.ident.as_ref().unwrap();
             let field_type = &field.ty;
             let field_attrs = &field.attrs;
-            quote!{
+            quote! {
                 #(#field_attrs)*
                 pub #field_ident: #field_type
             }
         });
         let field_inits = fields.iter().map(|field| {
             let field_ident = field.ident.as_ref().unwrap();
-            quote!{
+            quote! {
                 #field_ident: props.#field_ident
             }
         });
-        quote!{
+        quote! {
             pub struct #prop_ident {
                 #(#pub_fields),*
             }
@@ -98,7 +107,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             let field_type = &field.ty;
             let field_vis = &field.vis;
             let field_attrs = &field.attrs;
-            quote!{
+            quote! {
                 #(#field_attrs)*
                 #field_vis #field_ident: Option<#field_type>
             }
@@ -107,7 +116,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         let field_builders = fields.iter().map(|field| {
             let field_ident = field.ident.as_ref().unwrap();
             let method_ident = format_ident!("get_{}", field_ident);
-            quote!{
+            quote! {
                 #field_ident: self.#method_ident(id).map(|s| s.clone())
             }
         });
