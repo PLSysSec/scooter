@@ -9,9 +9,11 @@ mod test {
     use crate::*;
     use types::*;
 
+
     #[test]
     fn insert_then_read() {
-        let user_coll = <CheckedCollection<User>>::new("test2");
+        let db_conn = DBConn::new("test2");
+
         let users: Vec<_> = vec![
             user! {
                 username: "Alex".to_string(),
@@ -23,18 +25,26 @@ mod test {
             },
         ];
 
-        let uids = user_coll.insert_many(users).unwrap();
+        let uids = User::insert_many(db_conn.as_princ(Principle::Public), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
 
-        let retrieved_alex = user_coll.find_by_id(uid_alex.clone()).unwrap();
+        let retrieved_alex =
+            User::find_by_id(db_conn.as_princ(Principle::Public), uid_alex.clone()).unwrap();
 
         assert_eq!(
             "alex_hash",
-            retrieved_alex.get_pass_hash(&uid_alex).unwrap()
+            retrieved_alex
+                .get_pass_hash(&Principle::Id(uid_alex.clone()))
+                .unwrap()
         );
-        assert_eq!(None, retrieved_alex.get_pass_hash(&uid_john));
+        assert_eq!(
+            None,
+            retrieved_alex.get_pass_hash(&Principle::Id(uid_john.clone()))
+        );
+    }
+
     }
 }

@@ -127,7 +127,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                 id: Option<#enforcement_crate_name::RecordId>
             }
             impl #ident {
-                pub fn fully_resolve(&self, id: &PrincipleId) -> #resolved_ident {
+                pub fn fully_resolve(&self, id: &Principle) -> #resolved_ident {
                     #resolved_ident {
                         #(#field_builders),*,
                         id: self.id.clone()
@@ -174,14 +174,48 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     };
+    let dbcoll_impl = {
+        let ident_string = ident.to_string();
+        quote!{
+            impl DBCollection for #ident {
+                fn find_by_id(connection: AuthConn, id: RecordId) -> Option<Self> {
+                    match connection
+                        .conn()
+                        .mongo_conn
+                        .collection(#ident_string)
+                        .find_one(Some(doc! {"_id":id}), None)
+                    {
+                        Result::Ok(Some(doc)) => Some(#ident::from_document(doc)),
+                        _ => None,
+                    }
+                }
+                fn insert_many(connection: AuthConn, items: Vec<Self>) -> Option<Vec<RecordId>> {
+                    match connection.conn().mongo_conn.collection(#ident_string)
+                        .insert_many(items.iter().map(#ident::to_document).collect(), None)
+                    {
+                        Result::Ok(mongodb::coll::results::InsertManyResult {
+                            inserted_ids: Some(ids), ..
+                        }) => Some(
+                            // Unwrap is safe because these are guaranteed to be ids
+                            ids.values().map(|b| b.as_object_id().unwrap().clone())
+                                .collect()),
+                       _ => None,
+                    }
+                }
+            }
+        }
+    };
+
 
     // Build the output, possibly using quasi-quotation
     let expanded = quote! {
+        use mongodb::db::ThreadedDatabase;
         #input_with_id
         #getter_impl
         #constructor
         #resolved_type
         #mongo_doc_impl
+        #dbcoll_impl
     };
 
     // Hand the output tokens back to the compiler
