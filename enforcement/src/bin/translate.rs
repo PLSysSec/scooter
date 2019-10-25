@@ -73,6 +73,16 @@ mod {}_policies {{
         col_struct += &"}\n".to_string();
         pol_mod += &"}\n".to_string();
         out += &(col_struct + &pol_mod);
+
+        out += &format!("
+#[macro_export]
+macro_rules! {} {{
+    ($($key:ident : $value:expr),*$(,)?) => {{{{
+        {}::new({}Props {{
+            $($key : $value),*
+        }})
+    }}}}
+}}", col.name.to_ascii_lowercase(), col.name, col.name);
     }
     out
 }

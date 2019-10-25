@@ -13,14 +13,14 @@ mod test {
     fn insert_then_read() {
         let user_coll = <CheckedCollection<User>>::new("test2");
         let users: Vec<_> = vec![
-            User::new(UserProps {
+            user! {
                 username: "Alex".to_string(),
                 pass_hash: "alex_hash".to_string(),
-            }),
-            User::new(UserProps {
+            },
+            user! {
                 username: "John".to_string(),
                 pass_hash: "john_hash".to_string(),
-            }),
+            },
         ];
 
         let uids = user_coll.insert_many(users).unwrap();
