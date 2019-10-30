@@ -31,6 +31,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the actual struct, and retrieve it's fields
     let input = parse_macro_input!(item as DeriveInput);
     let ident = input.ident;
+    let ident_string = ident.to_string();
     let fields = match input.data {
         Data::Struct(DataStruct {
             fields: Fields::Named(fs),
@@ -117,8 +118,9 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     };
-    // Resolved type
-    let resolved_type = {
+    // Partial type
+    let partial_ident = format_ident!("Partial{}", ident);
+    let partial_type = {
         let optioned_fields = fields.iter().map(|field| {
             let field_ident = field.ident.as_ref().unwrap();
             let field_type = &field.ty;
@@ -129,7 +131,6 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                 #field_vis #field_ident: Option<#field_type>
             }
         });
-        let resolved_ident = format_ident!("Resolved{}", ident);
         let field_builders = fields.iter().map(|field| {
             let field_ident = field.ident.as_ref().unwrap();
             let method_ident = format_ident!("get_{}", field_ident);
@@ -139,13 +140,13 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         });
         quote! {
             #[derive(Debug)]
-            #input_vis struct #resolved_ident {
+            #input_vis struct #partial_ident {
                 #(#optioned_fields),*,
                 id: Option<#enforcement_crate_name::RecordId>
             }
             impl #ident {
-                pub fn fully_resolve(&self, id: &Principle) -> #resolved_ident {
-                    #resolved_ident {
+                pub fn fully_resolve(&self, id: &Principle) -> #partial_ident {
+                    #partial_ident {
                         #(#field_builders),*,
                         id: self.id.clone()
                     }
@@ -224,8 +225,8 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     // Field enum
+    let enum_ident = format_ident!("{}Fields", ident);
     let fields_enum = {
-        let enum_ident = format_ident!("{}Fields", ident);
         let field_enum_idents = fields.iter().map(|field| {
             format_ident!("{}", capitalize_string(field.ident.as_ref()
                                                   .unwrap().to_string()))
@@ -316,7 +317,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         #getter_impl
         #setter_impl
         #constructor
-        #resolved_type
+        #partial_type
         #mongo_doc_impl
         #dbcoll_impl
         #fields_enum
