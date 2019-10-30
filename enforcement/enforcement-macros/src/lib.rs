@@ -124,11 +124,10 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         let optioned_fields = fields.iter().map(|field| {
             let field_ident = field.ident.as_ref().unwrap();
             let field_type = &field.ty;
-            let field_vis = &field.vis;
             let field_attrs = &field.attrs;
             quote! {
                 #(#field_attrs)*
-                #field_vis #field_ident: Option<#field_type>
+                pub #field_ident: Option<#field_type>
             }
         });
         let field_builders = fields.iter().map(|field| {
@@ -193,7 +192,6 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
     let dbcoll_impl = {
-        let ident_string = ident.to_string();
         quote!{
             impl DBCollection for #ident {
                 fn find_by_id(connection: AuthConn, id: RecordId) -> Option<Self> {
@@ -240,47 +238,45 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
 
     // implementations for checked "save" and "save_all" methods
     let save_impl = {
-        let enum_ident = format_ident!("{}Fields", ident);
-        let ident_string = ident.to_string();
-        let field_check_arms = fields.iter().map(|field| {
-            let field_ident = field.ident.as_ref().unwrap();
-            let capitalized_ident = format_ident!("{}",
-                                                  capitalize_string(field_ident.to_string()));
-            let write_ident = format_ident!("write_{}", field_ident);
-            let read_ident = format_ident!("read_{}", field_ident);
-            quote!{
-                #enum_ident::#capitalized_ident => {
-                    if ! #policy_module::#write_ident(item)
-                        .accessible_by(&connection.principle()) ||
-                        ! #policy_module::#read_ident(item)
-                        .accessible_by(&connection.principle())
-                    {
-                        return false;
+        let save_all_impl = {
+            let field_check_both_arms = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                let capitalized_ident = format_ident!("{}",
+                                                      capitalize_string(field_ident.to_string()));
+                let write_ident = format_ident!("write_{}", field_ident);
+                let read_ident = format_ident!("read_{}", field_ident);
+                quote!{
+                    #enum_ident::#capitalized_ident => {
+                        if ! #policy_module::#write_ident(item)
+                            .accessible_by(&connection.principle()) ||
+                            ! #policy_module::#read_ident(item)
+                            .accessible_by(&connection.principle())
+                        {
+                            return false;
+                        }
                     }
                 }
-            }
-        });
-        let field_set_arms = fields.iter().map(|field| {
-            let field_ident = field.ident.as_ref().unwrap();
-            let capitalized_ident = format_ident!("{}",
-                                                  capitalize_string(field_ident.to_string()));
-            let get_ident = format_ident!("get_{}", field_ident);
-            let field_str = field_ident.to_string();
-            quote!{
-                #enum_ident::#capitalized_ident => {
-                    set_doc.insert(#field_str,
-                                   item.#get_ident(&connection.principle())
-                                   .expect("Can't save fields without read permissions!"))
+            });
+            let field_set_arms = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                let capitalized_ident = format_ident!("{}",
+                                                      capitalize_string(field_ident.to_string()));
+                let get_ident = format_ident!("get_{}", field_ident);
+                let field_str = field_ident.to_string();
+                quote!{
+                    #enum_ident::#capitalized_ident => {
+                        set_doc.insert(#field_str,
+                                       item.#get_ident(&connection.principle())
+                                       .expect("Can't save fields without read permissions!"))
+                    }
                 }
-            }
-        });
-        quote!{
-            impl #ident {
+            });
+            quote!{
                 pub fn save_all(connection: AuthConn, items: Vec<&#ident>, fields: Vec<#enum_ident>) -> bool {
                     for item in items.iter() {
                         for field in fields.iter() {
                             match field {
-                                #(#field_check_arms),*
+                                #(#field_check_both_arms),*
                             };
                         }
                     }
@@ -303,8 +299,75 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                     true
                 }
+            }
+        };
+        let save_partial_impl = {
+            let field_check_write_partial_arms = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                let write_ident = format_ident!("write_{}", field_ident);
+                quote!{
+                    if item.#field_ident.is_some() &&
+                        ! #policy_module::#write_ident(&full_item)
+                        .accessible_by(&connection.principle()) {
+                            return false
+                    }
+                }
+            });
+            let field_set_partial_arms = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                let field_str = field_ident.to_string();
+                quote!{
+                    if let Some(v) = &item.#field_ident {
+                        set_doc.insert(#field_str, v.clone());
+                    }
+                }
+            });
+            quote!{
+                pub fn save_all_partial(connection: AuthConn, items: Vec<&#partial_ident>) -> bool {
+                    for item in items.iter() {
+                        let get_doc = doc! {
+                            "_id": item.id.clone()
+                                .expect("Tried to modify an object not from the database!")
+                        };
+                        let full_item = #ident::from_document(
+                            connection
+                                .conn()
+                                .mongo_conn
+                                .collection(#ident_string)
+                                .find_one(Some(doc! {"_id":item.id.clone().unwrap()}),
+                                          None)
+                                .unwrap()
+                                .expect("Tried to modify an object not from the database!"));
+                        #(#field_check_write_partial_arms)*
+                    }
+                    for item in items.into_iter() {
+                        let get_doc = doc! {
+                            "_id": item.id.clone().expect("Tried to modify an object not from the database!")
+                        };
+                        let mut set_doc = bson::Document::new();
+                        #(#field_set_partial_arms)*
+                        connection
+                            .conn()
+                            .mongo_conn
+                            .collection(#ident_string)
+                            .update_one(get_doc, doc! {"$set": set_doc}, None)
+                            .unwrap();
+                    }
+                    true
+                }
+            }
+        };
+        quote!{
+            impl #ident {
+                #save_all_impl
+                #save_partial_impl
                 pub fn save(&self, connection: AuthConn, fields: Vec<UserFields>) -> bool{
-                    User::save_all(connection, vec![&self], fields)
+                    #ident::save_all(connection, vec![&self], fields)
+                }
+            }
+            impl #partial_ident {
+                pub fn save_partial(&self, connection: AuthConn) -> bool{
+                    #ident::save_all_partial(connection, vec![&self])
                 }
             }
         }

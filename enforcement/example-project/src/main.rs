@@ -57,15 +57,16 @@ mod test {
         .pop()
         .expect("Didn't get any ids back!");
         let mut alex_obj =
-            User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
-        alex_obj.set_pass_hash("monster_mash".to_string());
-        assert!(alex_obj.save(
-            db_conn.as_princ(Principle::Id(alex_id.clone())),
-            vec![UserFields::Pass_hash]
-        ));
-        assert!(!alex_obj.save(
-            db_conn.as_princ(Principle::Public),
-            vec![UserFields::Pass_hash]
-        ));
+            User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap()
+            .fully_resolve(&Principle::Public);
+
+        // Write only the pass hash
+        alex_obj.pass_hash = Some("monster_mash".to_string());
+        alex_obj.username = None;
+
+        assert!(alex_obj.save_partial(
+            db_conn.as_princ(Principle::Id(alex_id.clone()))));
+        assert!(!alex_obj.save_partial(
+            db_conn.as_princ(Principle::Public)));
     }
 }
