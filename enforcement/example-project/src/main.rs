@@ -25,24 +25,21 @@ mod test {
         ];
 
         let uids = User::insert_many(db_conn.as_princ(Principle::Public), users).unwrap();
-        let (uid_alex, uid_john) = match uids.as_slice() {
+        let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
 
-        let retrieved_alex =
+        let retrieved_alex = User::find_by_id(
+            db_conn.as_princ(Principle::Id(uid_alex.clone())),
+            uid_alex.clone(),
+        )
+        .unwrap();
+        let publicly_retrieved_alex =
             User::find_by_id(db_conn.as_princ(Principle::Public), uid_alex.clone()).unwrap();
 
-        assert_eq!(
-            "alex_hash",
-            retrieved_alex
-                .get_pass_hash(&Principle::Id(uid_alex.clone()))
-                .unwrap()
-        );
-        assert_eq!(
-            None,
-            retrieved_alex.get_pass_hash(&Principle::Id(uid_john.clone()))
-        );
+        assert_eq!(Some("alex_hash".to_string()), retrieved_alex.pass_hash);
+        assert_eq!(None, publicly_retrieved_alex.pass_hash);
     }
 
     #[test]
@@ -57,16 +54,39 @@ mod test {
         .pop()
         .expect("Didn't get any ids back!");
         let mut alex_obj =
-            User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap()
-            .fully_resolve(&Principle::Public);
+            User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
 
         // Write only the pass hash
         alex_obj.pass_hash = Some("monster_mash".to_string());
         alex_obj.username = None;
 
-        assert!(alex_obj.save_partial(
-            db_conn.as_princ(Principle::Id(alex_id.clone()))));
-        assert!(!alex_obj.save_partial(
-            db_conn.as_princ(Principle::Public)));
+        assert!(!alex_obj.save(db_conn.as_princ(Principle::Public)));
+        {
+            let retrieved_alex = User::find_by_id(
+                db_conn.as_princ(Principle::Id(alex_id.clone())),
+                alex_id.clone(),
+            )
+                .unwrap();
+            let publicly_retrieved_alex =
+                User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
+
+            assert_eq!(Some("alex_hash".to_string()), retrieved_alex.pass_hash);
+            assert_eq!(None, publicly_retrieved_alex.pass_hash);
+        }
+        assert!(alex_obj.save(db_conn.as_princ(Principle::Id(alex_id.clone()))));
+
+
+        {
+            let retrieved_alex = User::find_by_id(
+                db_conn.as_princ(Principle::Id(alex_id.clone())),
+                alex_id.clone(),
+            )
+                .unwrap();
+            let publicly_retrieved_alex =
+                User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
+
+            assert_eq!(Some("monster_mash".to_string()), retrieved_alex.pass_hash);
+            assert_eq!(None, publicly_retrieved_alex.pass_hash);
+        }
     }
 }
