@@ -25,12 +25,12 @@ mod tests {
         let p = parse_policy(
             r#"
             User {
-                name {
+                name : String {
                     read: public
                     write: none
                 }
 
-                pass_hash {
+                pass_hash : String {
                     read: u -> u.id
                     write: u -> u.id
                 }
@@ -49,6 +49,7 @@ mod tests {
                         h.insert(
                             "name".to_string(),
                             FieldPolicy {
+                                ty: FieldType::String,
                                 read: Policy::Public,
                                 write: Policy::None,
                             },
@@ -56,6 +57,7 @@ mod tests {
                         h.insert(
                             "pass_hash".to_string(),
                             FieldPolicy {
+                                ty: FieldType::String,
                                 read: Policy::Func(PolicyFunc {
                                     param: "u".to_string(),
                                     expr: Box::new(QueryExpr::Path(vec![

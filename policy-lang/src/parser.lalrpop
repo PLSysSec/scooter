@@ -13,10 +13,19 @@ CollectionPolicy: CollectionPolicy<String> = {
 }
 
 FieldPolicy: (String, FieldPolicy<String>) = {
-    <i:Ident> "{" "read" ":" <r:Policy> "write" ":" <w:Policy> "}" => (i.to_string(), FieldPolicy {
-        read: r,
-        write: w
-    })
+    <i:Ident> ":" <t: FieldType> "{" "read" ":" <r:Policy> "write" ":" <w:Policy> "}" =>
+        (i.to_string(), FieldPolicy {
+            ty: t,
+            read: r,
+            write: w
+        })
+}
+
+FieldType: FieldType = {
+    "String" => FieldType::String,
+    "I32" => FieldType::I32,
+    "I64" => FieldType::I64,
+    "F64" => FieldType::F64,
 }
 
 Policy: Policy<String> = {

@@ -229,6 +229,7 @@ fn resolve_collection_policy(
 
     let fields = cp.fields.iter().map(|(fname, fpolicy)| {
         (ty_ctx.field(type_id, &fname).ident(), ast::FieldPolicy {
+            ty: fpolicy.ty.clone(),
             read: resolve_policy(ty_ctx, ctx, type_id, &fpolicy.read),
             write: resolve_policy(ty_ctx, ctx, type_id, &fpolicy.write),
         })

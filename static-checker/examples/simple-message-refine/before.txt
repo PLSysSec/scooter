@@ -1,15 +1,15 @@
 Message {
-    from {
+    from : String {
         read: m -> m.from + m.to
         write: none
     }
 
-    to {
+    to : String {
         read: m -> m.from + m.to
         write: none
     }
 
-    text {
+    text : String {
         read: m -> m.to + m.from
         write: none
     }

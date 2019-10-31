@@ -17,10 +17,12 @@ mod test {
             user! {
                 username: "Alex".to_string(),
                 pass_hash: "alex_hash".to_string(),
+                num_followers: 0,
             },
             user! {
                 username: "John".to_string(),
                 pass_hash: "john_hash".to_string(),
+                num_followers: 0,
             },
         ];
 
@@ -48,7 +50,9 @@ mod test {
         let alex_id = User::insert_many(
             db_conn.as_princ(Principle::Public),
             vec![user! {username: "Alex".to_string(),
-            pass_hash: "alex_hash".to_string(),}],
+                        pass_hash: "alex_hash".to_string(),
+                        num_followers: 0,
+            }],
         )
         .unwrap()
         .pop()
@@ -59,6 +63,7 @@ mod test {
         // Write only the pass hash
         alex_obj.pass_hash = Some("monster_mash".to_string());
         alex_obj.username = None;
+        alex_obj.num_followers = None;
 
         assert!(!alex_obj.save(db_conn.as_princ(Principle::Public)));
         {
@@ -66,7 +71,7 @@ mod test {
                 db_conn.as_princ(Principle::Id(alex_id.clone())),
                 alex_id.clone(),
             )
-                .unwrap();
+            .unwrap();
             let publicly_retrieved_alex =
                 User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
 
@@ -75,13 +80,12 @@ mod test {
         }
         assert!(alex_obj.save(db_conn.as_princ(Principle::Id(alex_id.clone()))));
 
-
         {
             let retrieved_alex = User::find_by_id(
                 db_conn.as_princ(Principle::Id(alex_id.clone())),
                 alex_id.clone(),
             )
-                .unwrap();
+            .unwrap();
             let publicly_retrieved_alex =
                 User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
 

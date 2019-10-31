@@ -1,10 +1,10 @@
 User {
-    name {
+    name : String {
         read: public
         write: none
     }
 
-    pass_hash {
+    pass_hash : String {
         read: none
         write: r -> r.id
     }

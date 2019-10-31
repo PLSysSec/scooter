@@ -1,11 +1,16 @@
 User {
-    username {
+    username : String {
         read: public
         write: none
     }
 
-    pass_hash {
+    pass_hash : String {
         read: r -> r.id
         write: r -> r.id
+    }
+
+    num_followers : I64 {
+        read: public
+        write: none
     }
 }
