@@ -8,57 +8,85 @@ fn main() {
 mod test {
     use crate::*;
     use types::*;
-    use mongodb::coll::Collection;
-    use mongodb::db::ThreadedDatabase;
-    use mongodb::Client;
-    use mongodb::ThreadedClient;
 
-    #[allow(unused_must_use)]
-    fn setup_db() -> (Collection) {
-        let client = Client::connect("localhost", 27017).expect("Failed to initialize client.");
-        let db = client.db("test");
-
-        // Clean out the collection
-        db.drop_collection("User");
-        db.create_collection("User", None);
-
-        // Return ref to collection
-        db.collection("User")
-    }
     #[test]
     fn insert_then_read() {
-        let user_coll = setup_db();
-        let users: Vec<_> = [
-            User::new(UserProps{username: "Alex".to_string(),
-                                pass_hash: "alex_hash".to_string()}),
-            User::new(UserProps{username: "John".to_string(),
-                                pass_hash: "john_hash".to_string()})
-        ]
-        .into_iter()
-        .map(User::to_document)
-        .collect();
+        let db_conn = DBConn::new("test2");
 
-        let insert_res = user_coll
-            .insert_many(users, None)
-            .unwrap()
-            .inserted_ids
-            .unwrap();
+        let users: Vec<_> = vec![
+            user! {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+            },
+            user! {
+                username: "John".to_string(),
+                pass_hash: "john_hash".to_string(),
+            },
+        ];
 
-        let mut uids = insert_res.values().map(|b| b.as_object_id().unwrap());
-        let uid_alex = uids.next().unwrap();
-        let uid_john = uids.next().unwrap();
+        let uids = User::insert_many(db_conn.as_princ(Principle::Public), users).unwrap();
+        let (uid_alex, _uid_john) = match uids.as_slice() {
+            [id1, id2] => (id1, id2),
+            _ => panic!("Not the right number of returned ids"),
+        };
 
-        let retrieved_doc = user_coll
-            .find_one(Some(doc! {"_id": uid_alex.clone()}), None)
-            .unwrap()
-            .unwrap();
+        let retrieved_alex = User::find_by_id(
+            db_conn.as_princ(Principle::Id(uid_alex.clone())),
+            uid_alex.clone(),
+        )
+        .unwrap();
+        let publicly_retrieved_alex =
+            User::find_by_id(db_conn.as_princ(Principle::Public), uid_alex.clone()).unwrap();
 
-        let retrieved_alex = User::from_document(retrieved_doc);
+        assert_eq!(Some("alex_hash".to_string()), retrieved_alex.pass_hash);
+        assert_eq!(None, publicly_retrieved_alex.pass_hash);
+    }
 
-        assert_eq!(
-            "alex_hash",
-            retrieved_alex.get_pass_hash(&uid_alex).unwrap()
-        );
-        assert_eq!(None, retrieved_alex.get_pass_hash(&uid_john));
+    #[test]
+    fn set_password() {
+        let db_conn = DBConn::new("test2");
+        let alex_id = User::insert_many(
+            db_conn.as_princ(Principle::Public),
+            vec![user! {username: "Alex".to_string(),
+            pass_hash: "alex_hash".to_string(),}],
+        )
+        .unwrap()
+        .pop()
+        .expect("Didn't get any ids back!");
+        let mut alex_obj =
+            User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
+
+        // Write only the pass hash
+        alex_obj.pass_hash = Some("monster_mash".to_string());
+        alex_obj.username = None;
+
+        assert!(!alex_obj.save(db_conn.as_princ(Principle::Public)));
+        {
+            let retrieved_alex = User::find_by_id(
+                db_conn.as_princ(Principle::Id(alex_id.clone())),
+                alex_id.clone(),
+            )
+                .unwrap();
+            let publicly_retrieved_alex =
+                User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
+
+            assert_eq!(Some("alex_hash".to_string()), retrieved_alex.pass_hash);
+            assert_eq!(None, publicly_retrieved_alex.pass_hash);
+        }
+        assert!(alex_obj.save(db_conn.as_princ(Principle::Id(alex_id.clone()))));
+
+
+        {
+            let retrieved_alex = User::find_by_id(
+                db_conn.as_princ(Principle::Id(alex_id.clone())),
+                alex_id.clone(),
+            )
+                .unwrap();
+            let publicly_retrieved_alex =
+                User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
+
+            assert_eq!(Some("monster_mash".to_string()), retrieved_alex.pass_hash);
+            assert_eq!(None, publicly_retrieved_alex.pass_hash);
+        }
     }
 }
