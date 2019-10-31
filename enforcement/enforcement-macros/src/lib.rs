@@ -137,22 +137,64 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                 #field_ident: self.#method_ident(id).map(|s| s.clone())
             }
         });
+        let builder_fields = optioned_fields.clone();
+        let builder = {
+            let builder_ident = format_ident!("Build{}", ident);
+            let field_inits = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                quote! { #field_ident: None }
+            });
+            let field_adders = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                let field_type = &field.ty;
+                quote! {
+                    pub fn #field_ident(&mut self, val: #field_type) -> & mut #builder_ident{
+                        self.#field_ident = Some(val);
+                        self
+                    }
+                }
+            });
+            let field_setters = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                quote! {
+                    #field_ident: self.#field_ident.clone()
+                }
+            });
+            quote! {
+                #input_vis struct #builder_ident {
+                    #(#builder_fields),*,
+                    id: #enforcement_crate_name::RecordId
+                }
+                impl #builder_ident {
+                    pub fn new(object_id: RecordId) -> #builder_ident{
+                        #builder_ident { #(#field_inits),*, id: object_id }
+                    }
+                    #(#field_adders)*
+                    pub fn finalize(&self) -> #partial_ident {
+                        #partial_ident {#(#field_setters),*,id:self.id.clone()}
+                    }
+                }
+            }
+        };
         quote! {
             #[derive(Debug)]
             #input_vis struct #partial_ident {
                 #(#optioned_fields),*,
-                id: Option<#enforcement_crate_name::RecordId>
+                id: #enforcement_crate_name::RecordId
             }
             impl #ident {
                 pub fn fully_resolve(&self, id: &Principle) -> #partial_ident {
                     #partial_ident {
                         #(#field_builders),*,
                         id: self.id.clone()
+                            .expect("Can't resolve an object without an id!")
                     }
                 }
             }
+            #builder
         }
     };
+
 
     // Mongo document conversion
     let mongo_doc_impl = {
@@ -218,14 +260,13 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     for item in items.iter() {
                         let get_doc = doc! {
                             "_id": item.id.clone()
-                                .expect("Tried to modify an object not from the database!")
                         };
                         let full_item = #ident::from_document(
                             connection
                                 .conn()
                                 .mongo_conn
                                 .collection(#ident_string)
-                                .find_one(Some(doc! {"_id":item.id.clone().unwrap()}),
+                                .find_one(Some(doc! {"_id":item.id.clone()}),
                                           None)
                                 .unwrap()
                                 .expect("Tried to modify an object not from the database!"));
@@ -233,7 +274,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                     for item in items.into_iter() {
                         let get_doc = doc! {
-                            "_id": item.id.clone().expect("Tried to modify an object not from the database!")
+                            "_id": item.id.clone()
                         };
                         let mut set_doc = bson::Document::new();
                         #(#field_set_partial_arms)*

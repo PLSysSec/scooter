@@ -57,13 +57,9 @@ mod test {
         .unwrap()
         .pop()
         .expect("Didn't get any ids back!");
-        let mut alex_obj =
-            User::find_by_id(db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
 
         // Write only the pass hash
-        alex_obj.pass_hash = Some("monster_mash".to_string());
-        alex_obj.username = None;
-        alex_obj.num_followers = None;
+        let alex_obj = BuildUser::new(alex_id.clone()).pass_hash("monster_mash".to_string()).finalize();
 
         assert!(!alex_obj.save(db_conn.as_princ(Principle::Public)));
         {
