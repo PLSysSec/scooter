@@ -10,11 +10,9 @@ pub fn gen_full(gp_before: ast::GlobalPolicy<String>, gp_after: ast::GlobalPolic
 
     let mut out = gen_preamble(&mut tcx);
 
-    for (cp_b, cp_a) in res_b
-        .values()
-        .zip(res_a.values())
+    for (tid, cp_b) in res_b
     {
-        out += &gen_collection_checks(&mut tcx, cp_b, cp_a);
+        out += &gen_collection_checks(&mut tcx, &cp_b, &res_a[&tid]);
     }
 
     out
@@ -55,7 +53,7 @@ fn gen_preamble(tcx: &mut ir::TyCtx) -> String {
 }
 
 fn gen_collection_checks(tcx: &ir::TyCtx, cp_b: &ir::CollectionPolicy, cp_a: &ir::CollectionPolicy) -> String {
-    assert_eq!(cp_a.type_id, cp_b.type_id);
+    assert_eq!(cp_a.type_id, cp_b.type_id, "{:?}\n~~~\n{:?}", tcx.get_type(cp_a.type_id), tcx.get_type(cp_b.type_id));
     let coll_tid = cp_a.type_id;
 
     let mut out = String::new();
@@ -65,7 +63,7 @@ fn gen_collection_checks(tcx: &ir::TyCtx, cp_b: &ir::CollectionPolicy, cp_a: &ir
         _ => unreachable!("Malformed policy")
     };
 
-    for f in coll.fields.values() {
+    for (n, f) in coll.fields.iter() {
         if tcx.get_ident(f.ident()).raw() == "id" {
             continue;
         }
