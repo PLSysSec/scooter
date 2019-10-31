@@ -1,43 +1,43 @@
 use crate::ast::*;
 grammar;
 
-pub GlobalPolicy: GlobalPolicy = {
+pub GlobalPolicy: GlobalPolicy<String> = {
     <cp:CollectionPolicy*> => GlobalPolicy { collections: cp}
 }
 
-CollectionPolicy: CollectionPolicy = {
+CollectionPolicy: CollectionPolicy<String> = {
     <i:Ident> "{" <fp:FieldPolicy*> "}"  => CollectionPolicy {
         name: i,
         fields: fp.into_iter().collect()
     }
 }
 
-FieldPolicy: (String, FieldPolicy) = {
+FieldPolicy: (String, FieldPolicy<String>) = {
     <i:Ident> "{" "read" ":" <r:Policy> "write" ":" <w:Policy> "}" => (i.to_string(), FieldPolicy {
         read: r,
         write: w
     })
 }
 
-Policy: Policy = {
+Policy: Policy<String> = {
     "public" => Policy::Public,
     "none" => Policy::None,
     PolicyFunc => Policy::Func(<>)
 }
 
-pub PolicyFunc: PolicyFunc = {
+PolicyFunc: PolicyFunc<String> = {
     <i:Ident> "->" <e:QueryExpr> => PolicyFunc {
         param: i,
         expr: e
     }
 }
 
-QueryExpr: Box<QueryExpr> = {
+QueryExpr: Box<QueryExpr<String>> = {
     <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::Or(l, r)),
     QueryExpr2
 }
 
-QueryExpr2: Box<QueryExpr> = {
+QueryExpr2: Box<QueryExpr<String>> = {
     Path => Box::new(QueryExpr::Path(<>))
 }
 

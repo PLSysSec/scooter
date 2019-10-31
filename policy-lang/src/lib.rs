@@ -1,18 +1,14 @@
 pub mod ast;
-//mod parser;
+pub mod ir;
+
 use lalrpop_util::lalrpop_mod;
 use std::error::Error;
 
 #[allow(dead_code)]
 lalrpop_mod!(parser);
 
-pub fn parse_policy_func<'a>(input: &'a str) -> Result<ast::PolicyFunc, Box<dyn Error + 'a>> {
-    parser::PolicyFuncParser::new()
-        .parse(input)
-        .map_err::<Box<dyn Error>, _>(|e| Box::new(e))
-}
-
-pub fn parse_policy<'a>(input: &'a str) -> Result<ast::GlobalPolicy, Box<dyn Error + 'a>> {
+pub type GlobalPolicyParseTree = ast::GlobalPolicy<String>;
+pub fn parse_policy<'a>(input: &'a str) -> Result<GlobalPolicyParseTree, Box<dyn Error + 'a>> {
     parser::GlobalPolicyParser::new()
         .parse(input)
         .map_err::<Box<dyn Error>, _>(|e| Box::new(e))
@@ -23,11 +19,6 @@ mod tests {
     use super::*;
     use ast::*;
     use std::collections::HashMap;
-
-    #[test]
-    fn it_works() {
-        parse_policy_func("a -> a.b + b.c").unwrap();
-    }
 
     #[test]
     fn simple_policy() {
