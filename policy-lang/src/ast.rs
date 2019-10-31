@@ -46,6 +46,7 @@ pub enum FieldType {
     I64,
     I32,
     F64,
+    RecordId,
 }
 
 impl fmt::Display for FieldType {
@@ -55,6 +56,7 @@ impl fmt::Display for FieldType {
             FieldType::I64 => write!(f, "i64"),
             FieldType::I32 => write!(f, "i32"),
             FieldType::F64 => write!(f, "f64"),
+            FieldType::RecordId => write!(f, "RecordId"),
         }
     }
 }
