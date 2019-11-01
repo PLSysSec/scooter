@@ -1,6 +1,5 @@
 use policy_lang::ir;
 use policy_lang::ast;
-use std::fmt::Write;
 
 pub fn gen_full(gp_before: ast::GlobalPolicy<String>, gp_after: ast::GlobalPolicy<String>) -> String {
     let mut tcx = ir::extract_types(&gp_before);
@@ -22,7 +21,7 @@ pub fn gen_full(gp_before: ast::GlobalPolicy<String>, gp_after: ast::GlobalPolic
 fn gen_preamble(tcx: &mut ir::TyCtx) -> String {
     let mut out = String::new();
 
-    write!(out, r#"
+    out += &format!( r#"
         (declare-sort Value)
         (define-sort Principles () (Array Value Bool))
         (declare-const empty Principles)
@@ -36,13 +35,13 @@ fn gen_preamble(tcx: &mut ir::TyCtx) -> String {
 
     for c in tcx.collections() {
         let fs: String = c.fields.values().map(|f| gen_field(tcx, f)).collect();
-        write!(out, 
+        out += &format!( 
             "(declare-datatypes (({0} 0)) ((({0} {1}))))\n",
             mangled_ident(tcx, c.name),
             fs
         );
 
-        write!(out,
+        out += &format!(
             "(assert (forall ((a {0}) (b {0})) (=> (= ({1} a) ({1} b)) (= a b))))",
             mangled_ident(tcx, c.name),
             mangled_ident(tcx, c.fields["id"].ident())
@@ -64,7 +63,7 @@ fn gen_collection_checks(tcx: &ir::TyCtx, cp_b: &ir::CollectionPolicy, cp_a: &ir
     };
 
     for (n, f) in coll.fields.iter() {
-        if tcx.get_ident(f.ident()).raw() == "id" {
+        if n == "id" {
             continue;
         }
         out += &gen_policy_check(tcx, coll.name, f.ident(), &cp_b.fields[&f.ident()].read, &cp_a.fields[&f.ident()].read);
@@ -109,7 +108,7 @@ fn gen_policy(tcx: &ir::TyCtx, fn_name: &str, type_name: ir::IdentId, policy: &i
         ast::Policy::None => "empty".to_string(),
     };
 
-    write!(out,
+    out += &format!(
         r#"
         (define-fun {} (({} {})) Principles
             {}
@@ -170,7 +169,7 @@ impl SmtLowerer {
             };
 
         for id in idents {
-            write!(out, "({} Value)", gen_ident(id))
+            out += &format!( "({} Value)", gen_ident(id))
         }
     }
 
