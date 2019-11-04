@@ -304,6 +304,12 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
                 fn insert_many(connection: AuthConn, items: Vec<Self>) -> Option<Vec<RecordId>> {
+                    for item in items.iter() {
+                        if ! #policy_module::create(&item)
+                            .accessible_by(&connection.principle()) {
+                                return None
+                            }
+                    }
                     match connection.conn().mongo_conn.collection(#ident_string)
                         .insert_many(items.iter().map(#ident::to_document).collect(), None)
                     {

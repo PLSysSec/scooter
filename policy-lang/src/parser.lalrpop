@@ -6,14 +6,16 @@ pub GlobalPolicy: GlobalPolicy<String> = {
 }
 
 CollectionPolicy: CollectionPolicy<String> = {
-    <i:Ident> "{" <fp:FieldPolicy*> "}"  => CollectionPolicy {
+    <i:Ident> "{" "create" ":" <cp:Policy> "," "delete" ":" <dp:Policy> "," <fp:FieldPolicy*> "}"  => CollectionPolicy {
         name: i,
+        create: cp,
+        delete: dp,
         fields: fp.into_iter().collect()
     }
 }
 
 FieldPolicy: (String, FieldPolicy<String>) = {
-    <i:Ident> ":" <t: FieldType> "{" "read" ":" <r:Policy> "write" ":" <w:Policy> "}" =>
+    <i:Ident> ":" <t: FieldType> "{" "read" ":" <r:Policy> "," "write" ":" <w:Policy> "," "}" "," =>
         (i.to_string(), FieldPolicy {
             ty: t,
             read: r,

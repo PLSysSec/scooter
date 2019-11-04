@@ -51,6 +51,16 @@ mod {}_policies {{
 "#,
             col.name.to_ascii_lowercase()
         );
+        pol_mod += &format!(
+            "    pub fn create({}: &{}) -> PolicyValue {{\n",
+            policy_binder_var(&col.create),
+            col.name).to_string();
+        pol_mod += &gen_policy_body(col.create);
+        pol_mod += &format!(
+            "    pub fn delete({}: &{}) -> PolicyValue {{\n",
+            policy_binder_var(&col.delete),
+            col.name).to_string();
+        pol_mod += &gen_policy_body(col.delete);
         for (field_name, field_policy) in col.fields.into_iter() {
             col_struct += &format!("    {}: {},\n", field_name, field_policy.ty).to_string();
             pol_mod += &format!(

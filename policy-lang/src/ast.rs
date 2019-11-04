@@ -30,6 +30,8 @@ pub struct GlobalPolicy<ID: Hash + Eq> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct CollectionPolicy<ID: Hash + Eq> {
     pub name: ID,
+    pub create: Policy<ID>,
+    pub delete: Policy<ID>,
     pub fields: HashMap<ID, FieldPolicy<ID>>
 }
 
