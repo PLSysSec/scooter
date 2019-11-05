@@ -1,16 +1,18 @@
 Message {
+    create: public,
+    delete: none,
     from : String {
-        read: m -> m.from + m.to
-        write: none
-    }
+        read: m -> m.from + m.to,
+        write: none,
+    },
 
     to : String {
-        read: m -> m.from + m.to
-        write: none
-    }
+        read: m -> m.from + m.to,
+        write: none,
+    },
 
     text : String {
-        read: m -> m.to + m.from
-        write: none
-    }
+        read: m -> m.to + m.from,
+        write: none,
+    },
 }

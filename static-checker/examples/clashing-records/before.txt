@@ -1,5 +1,9 @@
 User {
+    create: public,
+    delete: none,
 }
 
 Message {
+    create: public,
+    delete: none,
 }
