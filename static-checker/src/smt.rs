@@ -35,7 +35,7 @@ fn gen_preamble(tcx: &mut ir::TyCtx) -> String {
 
     for c in tcx.collections() {
         let fs: String = c.fields.values().map(|f| gen_field(tcx, f)).collect();
-        out += &format!( 
+        out += &format!(
             "(declare-datatypes (({0} 0)) ((({0} {1}))))\n",
             mangled_ident(tcx, c.name),
             fs
@@ -66,27 +66,29 @@ fn gen_collection_checks(tcx: &ir::TyCtx, cp_b: &ir::CollectionPolicy, cp_a: &ir
         if n == "id" {
             continue;
         }
-        out += &gen_policy_check(tcx, coll.name, f.ident(), &cp_b.fields[&f.ident()].read, &cp_a.fields[&f.ident()].read);
-        out += &gen_policy_check(tcx, coll.name, f.ident(), &cp_b.fields[&f.ident()].write, &cp_a.fields[&f.ident()].write);
+        out += &gen_policy_check(tcx, coll.name, mangled_ident(tcx, f.ident()), &cp_b.fields[&f.ident()].read, &cp_a.fields[&f.ident()].read);
+        out += &gen_policy_check(tcx, coll.name, mangled_ident(tcx, f.ident()), &cp_b.fields[&f.ident()].write, &cp_a.fields[&f.ident()].write);
     }
+    out += &gen_policy_check(tcx, coll.name, "create".to_string(), &cp_b.create_policy, &cp_a.create_policy);
+    out += &gen_policy_check(tcx, coll.name, "delete".to_string(), &cp_b.delete_policy, &cp_a.delete_policy);
 
     out
 }
 
-fn gen_policy_check(tcx: &ir::TyCtx, coll_type_name: ir::IdentId, f: ir::IdentId, fp_b: &ir::Policy, fp_a: &ir::Policy) -> String {
+fn gen_policy_check(tcx: &ir::TyCtx, coll_type_name: ir::IdentId, f_str: String, fp_b: &ir::Policy, fp_a: &ir::Policy) -> String {
     format!(
         r#"
-            (push) 
+            (push)
             (echo "Checking {}")
             {}
             {}
-            (assert (not (forall ((r {}) (v Value)) 
+            (assert (not (forall ((r {}) (v Value))
                 (=> (select (p_after r) v) (select (p_before r) v))
             )))
             (check-sat)
             (pop)
         "#,
-        tcx.get_ident(f).raw(),
+        f_str,
         gen_policy(tcx, "p_before", coll_type_name, &fp_b),
         gen_policy(tcx, "p_after", coll_type_name, &fp_a),
         mangled_ident(tcx, coll_type_name)

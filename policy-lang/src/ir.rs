@@ -199,6 +199,8 @@ impl Ident {
 pub type CompletePolicy = HashMap<TypeId, CollectionPolicy>;
 pub struct CollectionPolicy {
     pub type_id: TypeId,
+    pub create_policy: ast::Policy<IdentId>,
+    pub delete_policy: ast::Policy<IdentId>,
     pub fields: HashMap<IdentId, ast::FieldPolicy<IdentId>>,
 }
 
@@ -227,6 +229,9 @@ fn resolve_collection_policy(
 ) -> CollectionPolicy {
     let type_id = ctx.name_to_type[&cp.name];
 
+    let create_policy = resolve_policy(ty_ctx, ctx, type_id, &cp.create);
+    let delete_policy = resolve_policy(ty_ctx, ctx, type_id, &cp.delete);
+
     let fields = cp.fields.iter().map(|(fname, fpolicy)| {
         (ty_ctx.field(type_id, &fname).ident(), ast::FieldPolicy {
             ty: fpolicy.ty.clone(),
@@ -237,6 +242,8 @@ fn resolve_collection_policy(
 
     CollectionPolicy {
         type_id,
+        create_policy,
+        delete_policy,
         fields
     }
 }
