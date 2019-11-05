@@ -59,7 +59,9 @@ mod test {
         .expect("Didn't get any ids back!");
 
         // Write only the pass hash
-        let alex_obj = BuildUser::new(alex_id.clone()).pass_hash("monster_mash".to_string()).finalize();
+        let alex_obj = BuildUser::new(alex_id.clone())
+            .pass_hash("monster_mash".to_string())
+            .finalize();
 
         assert!(!alex_obj.save(db_conn.as_princ(Principle::Public)));
         {
@@ -88,5 +90,27 @@ mod test {
             assert_eq!(Some("monster_mash".to_string()), retrieved_alex.pass_hash);
             assert_eq!(None, publicly_retrieved_alex.pass_hash);
         }
+    }
+
+    #[test]
+    fn fail_delete_user() {
+        let db_conn = DBConn::new("test2");
+
+        let alex_id = User::insert_many(
+            db_conn.as_princ(Principle::Public),
+            vec![user! {username: "Alex".to_string(),
+                        pass_hash: "alex_hash".to_string(),
+                        num_followers: 0,
+            }],
+        )
+        .unwrap()
+        .pop()
+        .expect("Didn't get any ids back!");
+
+        let result = User::delete_by_id(
+            db_conn.as_princ(Principle::Id(alex_id.clone())),
+            alex_id.clone(),
+        );
+        assert!(!result);
     }
 }

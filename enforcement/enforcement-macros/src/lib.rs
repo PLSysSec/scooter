@@ -322,6 +322,29 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                        _ => None,
                     }
                 }
+                fn delete_by_id(connection: AuthConn, id: RecordId) -> bool {
+                    match connection
+                        .conn()
+                        .mongo_conn
+                        .collection(#ident_string)
+                        .find_one(Some(doc! {"_id":id.clone()}), None)
+                    {
+                        Result::Ok(Some(doc)) =>
+                            if ! #policy_module::delete(&#ident::from_document(doc))
+                            .accessible_by(&connection.principle()){
+                                return false
+                            }
+                        _ => return false
+                    };
+                    match connection.conn().mongo_conn.collection(#ident_string)
+                        .delete_one(doc! {"_id":id}, None)
+                    {
+                        Result::Ok(mongodb::coll::results::DeleteResult {
+                            acknowledged: True, ..
+                        }) => true,
+                        _ => false
+                    }
+                }
                 #save_all_impl
             }
         }
