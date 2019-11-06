@@ -350,20 +350,6 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    // Field enum
-    let enum_ident = format_ident!("{}Fields", ident);
-    let fields_enum = {
-        let field_enum_idents = fields.iter().map(|field| {
-            format_ident!("{}", capitalize_string(field.ident.as_ref()
-                                                  .unwrap().to_string()))
-        });
-        quote! {
-            pub enum #enum_ident {
-                #(#field_enum_idents),*
-            }
-        }
-    };
-
     // implementations for ".save" helper method on partials
     let save_impl = {
         quote!{
@@ -385,7 +371,6 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         #partial_type
         #mongo_doc_impl
         #dbcoll_impl
-        #fields_enum
         #save_impl
     };
 
