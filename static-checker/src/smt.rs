@@ -56,7 +56,7 @@ fn gen_policy_check(ird: &IrData, cid: Id<Collection>, fp_1: &Policy, fp_2: &Pol
             (push) 
             {}
             {}
-            (assert (not (forall ((r {}) (v Value)) 
+            (assert (not (forall ((r {}) (v Value))
                 (=> (select (p_after r) v) (select (p_before r) v))
             )))
             (check-sat)
