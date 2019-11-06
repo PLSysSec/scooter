@@ -1,11 +1,11 @@
 use crate::ast::*;
 grammar;
 
-pub GlobalPolicy: GlobalPolicy<String> = {
+pub GlobalPolicy: GlobalPolicy = {
     <cp:CollectionPolicy*> => GlobalPolicy { collections: cp}
 }
 
-CollectionPolicy: CollectionPolicy<String> = {
+CollectionPolicy: CollectionPolicy = {
     <i:Ident> "{" "create" ":" <cp:Policy> "," "delete" ":" <dp:Policy> "," <fp:FieldPolicy*> "}"  => CollectionPolicy {
         name: i,
         create: cp,
@@ -14,7 +14,7 @@ CollectionPolicy: CollectionPolicy<String> = {
     }
 }
 
-FieldPolicy: (String, FieldPolicy<String>) = {
+FieldPolicy: (String, FieldPolicy) = {
     <i:Ident> ":" <t: FieldType> "{" "read" ":" <r:Policy> "," "write" ":" <w:Policy> "," "}" "," =>
         (i.to_string(), FieldPolicy {
             ty: t,
@@ -30,25 +30,25 @@ FieldType: FieldType = {
     "F64" => FieldType::F64,
 }
 
-Policy: Policy<String> = {
+Policy: Policy = {
     "public" => Policy::Public,
     "none" => Policy::None,
     PolicyFunc => Policy::Func(<>)
 }
 
-PolicyFunc: PolicyFunc<String> = {
+PolicyFunc: PolicyFunc = {
     <i:Ident> "->" <e:QueryExpr> => PolicyFunc {
         param: i,
         expr: e
     }
 }
 
-QueryExpr: Box<QueryExpr<String>> = {
+QueryExpr: Box<QueryExpr> = {
     <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::Or(l, r)),
     QueryExpr2
 }
 
-QueryExpr2: Box<QueryExpr<String>> = {
+QueryExpr2: Box<QueryExpr> = {
     Path => Box::new(QueryExpr::Path(<>))
 }
 

@@ -1,311 +1,159 @@
 use crate::ast;
 use std::collections::HashMap;
+use id_arena::{Arena, Id};
+use std::rc::Rc;
+
+mod lower;
+pub use lower::*;
+
+mod expr;
+use expr::*;
 
 #[derive(Debug)]
-pub enum Type {
-    Prim(Prim),
-    Id(TypeId),
-    Collection(Collection),
+pub struct Ident(Rc<(u32, String)>);
+static mut IDENT_CT: u32 = 0;
+
+impl Ident {
+    fn new(s: impl ToString) -> Self {
+        unsafe {
+            IDENT_CT += 1;
+            Ident(Rc::new((IDENT_CT, s.to_string())))
+        }
+    }
+
+    fn eq_str(&self, s: impl AsRef<str>) -> bool {
+        (self.0).1 == s.as_ref()
+    }
 }
 
+
+
+/// Describes a variable definition
 #[derive(Debug)]
-pub enum Prim {
-    Any,
-}
+pub struct Def(Id<Def>, Ident);
 
+/// Describes a database collection
 #[derive(Debug)]
 pub struct Collection {
-    pub name: IdentId,
-    pub fields: HashMap<String, Field>,
+    id: Id<Collection>,
+    name: Ident,
+    fields: HashMap<String, Id<Def>>,
 }
 
-#[derive(Debug)]
-pub struct Field(IdentId, TypeId);
-impl Field {
-    pub fn ident(&self) -> IdentId {
-        self.0
-    }
-
-    pub fn type_id(&self) -> TypeId {
-        self.1
+impl Collection {
+    fn typ(&self) -> Type {
+        Type::Collection(self.id)
     }
 }
 
-#[derive(Debug)]
-pub struct TyCtx {
-    types: Vec<Type>,
-    idents: Vec<Ident>,
-    ident_types: HashMap<IdentId, TypeId>,
+/// Describes a type such as "String" or "Id(User)"
+#[derive(Debug, Clone)]
+pub enum Type {
+    /// Right now, the IR doesn't model primitive types like "String"
+    Value,
+    Id(Id<Collection>),
+    Collection(Id<Collection>),
 }
 
-/// A default TyCtx already contains the primitive types
-impl Default for TyCtx {
-    fn default() -> TyCtx {
-        TyCtx {
-            types: vec![Type::Prim(Prim::Any)],
-            idents: Default::default(),
-            ident_types: Default::default(),
-        }
-    }
+
+#[derive(Debug, Default)]
+pub struct IrData {
+    colls: Arena<Collection>,
+    defs: Arena<Def>,
+    exprs: Arena<Expr>,
+    expr_types: HashMap<Id<Expr>, Type>,
+    def_types: HashMap<Id<Def>, Type>,
 }
 
-impl TyCtx {
-    pub fn collections(&self) -> impl Iterator<Item=&Collection> {
-        self.types.iter().filter_map(|t| match t {
-            Type::Collection(c) => Some(c),
-            _ => None
-        })
+impl IrData {
+    pub fn collections(&self) -> impl Iterator<Item=(Id<Collection>, &Collection)> {
+        self.colls.iter()
     }
 
-    pub fn all_types(&self) -> impl Iterator<Item=&Type> {
-        self.types.iter()
+    fn create_def(&mut self, name: impl ToString, typ: Type) -> Id<Def>{
+        let did = self.defs.alloc_with_id(|id| Def(id, Ident::new(name.to_string())));
+        self.def_types.insert(did, typ);
+        did
     }
 
-    fn new_type(&mut self, typ: Type) {
-        self.types.push(typ);
-    }
+    // pub fn get_type_name(&self, t: &Type) -> String {
+    //     match t {
+    //         Type::Prim(Prim::Any) => "Any".to_string(),
+    //         Type::Id(tid) => format!("Id({})", self.get_type_name(self.get_type(*tid))),
+    //         Type::Collection(c) => self.get_ident(c.name).0.clone(),
+    //     }
+    // }
 
-    fn new_ident(&mut self, s: impl ToString) -> IdentId {
-        self.idents.push(Ident(s.to_string()));
-        IdentId(self.idents.len() - 1)
-    }
-
-    fn ascribe_type(&mut self, id: IdentId, tid: TypeId) {
-        assert!(id.0 < self.idents.len());
-        assert!(tid.0 < self.types.len());
-
-        self.ident_types.insert(id, tid);
-    }
-
-    pub fn get_type(&self, tid: TypeId) -> &Type {
-        &self.types[tid.0]
-    }
-
-    pub fn get_ident(&self, id: IdentId) -> &Ident {
-        &self.idents[id.0]
-    }
-
-    pub fn type_of(&self, id: IdentId) -> &Ident {
-        &self.idents[id.0]
-    }
-
-    pub fn get_type_name(&self, t: &Type) -> String {
-        match t {
-            Type::Prim(Prim::Any) => "Any".to_string(),
-            Type::Id(tid) => format!("Id({})", self.get_type_name(self.get_type(*tid))),
-            Type::Collection(c) => self.get_ident(c.name).0.clone(),
-        }
-    }
-
-    pub fn field(&self, tid: TypeId, fname: &str)  -> &Field {
-        match self.get_type(tid) {
-            Type::Collection(Collection { fields, ..}) => &fields[fname],
+    pub fn field(&self, cid: Id<Collection>, fname: &str)  -> Id<Def> {
+        match self.colls.get(cid) {
+            Some(Collection { fields, ..}) => fields[fname],
             _ => panic!("Only collections types have fields")
         }
     }
-}
 
-struct LocalCtx {
-    pub name_to_ident: HashMap<String, IdentId>,
-    pub name_to_type: HashMap<String, TypeId>,
-}
+    pub fn lower(&mut self, gp: &ast::GlobalPolicy) -> CompletePolicy {
+        let mut l = Lowerer {
+            ird: self,
+            def_map: HashMap::new()
+        };
 
-impl LocalCtx {
-    pub fn from_ty_ctx(ty_ctx: &TyCtx) -> LocalCtx {
-        let mut name_to_type = HashMap::<String, TypeId>::new();
-        for (i, t) in ty_ctx.types.iter().enumerate() {
-            name_to_type.insert(ty_ctx.get_type_name(t), TypeId(i));
-        }
-
-        LocalCtx {
-            name_to_ident: Default::default(),
-            name_to_type,
-        }
+        l.lower_policies(gp)
     }
 }
 
-pub fn extract_types(gp: &ast::GlobalPolicy<String>) -> TyCtx {
-    let mut ty_ctx = Default::default();
-    let mut ctx = LocalCtx::from_ty_ctx(&ty_ctx);
+pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
+    // Due to mutability shenanigancs, we have to use an deconstructed IrDatat
+    // that we will assemble at the end of the function
+    let mut colls = Arena::<Collection>::new();
+    let mut defs = Arena::<Def>::new();
+    let mut def_types = HashMap::<Id<Def>, Type>::new();
 
-    // Pre-populate name_to_type.
-    //
+    let mut name_to_coll = HashMap::<String, Id<Collection>>::new();
+
+    // Create a collection for each collection definition, but without any of the fields
     // Consider this example:
     //
     // User {
-    //    best_friend: Id(User)
+    //    contact: Id(Email)
     // }
     //
-    // To describe the best_friend field, we need the TypeId for User. This
-    // means we need to pregenerate the TypeIds for all types before we generate
-    // the Type object. This works out because TypeIds correspond to indices in
-    // declaration order.
-    for (i, coll_pol) in gp.collections.iter().enumerate() {
-        ctx.name_to_type
-            // We add the types len since it is prepopulated with built-in types
-            // If we didn't add this, our collection names would map to built-ins
-            .insert(coll_pol.name.clone(), TypeId(i + ty_ctx.types.len()));
+    // Email {}
+    //
+    // To fully define User, we'll require a stable reference to the Email collection, which is defined later.
+    // This is why we first create each collection as if it had no fields, then go back later and insert the fields
+    // once every collection has an id
+    for coll_pol in gp.collections.iter() {
+        let coll_id = colls.alloc_with_id(|id| Collection {
+            id,
+            name: Ident::new(&coll_pol.name),
+            fields: HashMap::new()
+        });
+
+        name_to_coll.insert(coll_pol.name.clone(), coll_id);
     }
 
-    // Generate the actual collection types
     for coll_pol in gp.collections.iter() {
-        let mut coll = Collection {
-            name: ty_ctx.new_ident(coll_pol.name.clone()),
-            fields: HashMap::new(),
-        };
+        let coll_id = name_to_coll[&coll_pol.name];
+        // Unwrap is safe here because of our mapping we stored
+        let coll = colls.get_mut(coll_id).unwrap();
 
-        coll.fields.insert("id".to_string(), Field(ty_ctx.new_ident("id".to_string()), TypeId(0)));
+        // The id field is inferred
+        let id_field = defs.alloc_with_id(|id| Def(id, Ident::new("id")));
+        def_types.insert(id_field, Type::Id(coll_id));
+        coll.fields.insert("id".to_string(), id_field);
 
         // Populate the fields
         for (fname, _) in coll_pol.fields.iter() {
-            coll.fields.insert(
-                fname.clone(),
-                // The field ident should be fresh and we can rely on our prepopulated name -> type mapping
-                // TODO: Make this use real types
-                Field(ty_ctx.new_ident(format!("{}.{}", &coll_pol.name, &fname)), TypeId(0)),
-                
-            );
+            let field_did = defs.alloc_with_id(|id| Def(id, Ident::new(fname)));
+            def_types.insert(id_field, Type::Value);
+            coll.fields.insert(fname.clone(), field_did);
         }
-
-        // We don't need the tid back, since we manually calculated it earlier
-        let _ = ty_ctx.new_type(Type::Collection(coll));
     }
 
-    ty_ctx
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub struct IdentId(usize);
-impl From<IdentId> for usize {
-    fn from(id: IdentId) -> usize {
-        id.0
+    IrData {
+        colls,
+        defs,
+        def_types,
+        ..Default::default()
     }
-}
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub struct TypeId(usize);
-impl From<TypeId> for usize {
-    fn from(tid: TypeId) -> usize {
-        tid.0
-    }
-}
-
-#[derive(Debug)]
-pub struct Ident(String);
-impl Ident {
-    pub fn raw(&self) -> &str {
-        &self.0
-    }
-}
-pub type CompletePolicy = HashMap<TypeId, CollectionPolicy>;
-pub struct CollectionPolicy {
-    pub type_id: TypeId,
-    pub fields: HashMap<IdentId, ast::FieldPolicy<IdentId>>,
-}
-
-pub type PolicyFunc = ast::PolicyFunc<IdentId>;
-pub type Policy = ast::Policy<IdentId>;
-pub type QueryExpr = ast::QueryExpr<IdentId>;
-
-pub fn resolve(ty_ctx: &mut TyCtx, gp: ast::GlobalPolicy<String>) -> CompletePolicy {
-    let mut ctx = LocalCtx::from_ty_ctx(ty_ctx);
-
-    gp.collections
-        .into_iter()
-        .map(|cp| {
-            (
-                ctx.name_to_type[&cp.name],
-                resolve_collection_policy(ty_ctx, &mut ctx, cp),
-            )
-        })
-        .collect()
-}
-
-fn resolve_collection_policy(
-    ty_ctx: &mut TyCtx,
-    ctx: &mut LocalCtx,
-    cp: ast::CollectionPolicy<String>,
-) -> CollectionPolicy {
-    let type_id = ctx.name_to_type[&cp.name];
-
-    let fields = cp.fields.iter().map(|(fname, fpolicy)| {
-        (ty_ctx.field(type_id, &fname).ident(), ast::FieldPolicy {
-            ty: fpolicy.ty.clone(),
-            read: resolve_policy(ty_ctx, ctx, type_id, &fpolicy.read),
-            write: resolve_policy(ty_ctx, ctx, type_id, &fpolicy.write),
-        })
-    }).collect();
-
-    CollectionPolicy {
-        type_id,
-        fields
-    }
-}
-
-fn resolve_policy(
-    ty_ctx: &mut TyCtx,
-    ctx: &mut LocalCtx,
-    coll_tid: TypeId,
-    p: &ast::Policy<String>,
-) -> ast::Policy<IdentId> {
-    use ast::Policy;
-
-    match p {
-        Policy::Public => Policy::Public,
-        Policy::None => Policy::None,
-        Policy::Func(pf) => Policy::Func(resolve_policy_func(ty_ctx, ctx, coll_tid, pf))
-    }
-}
-
-fn resolve_policy_func(
-    ty_ctx: &mut TyCtx,
-    ctx: &mut LocalCtx,
-    coll_tid: TypeId,
-    pf: &ast::PolicyFunc<String>,
-) -> ast::PolicyFunc<IdentId> {
-    use ast::PolicyFunc;
-
-    let param = ty_ctx.new_ident(pf.param.clone());
-    ctx.name_to_ident.insert(pf.param.clone(), param);
-    ty_ctx.ascribe_type(param, coll_tid);
-
-    PolicyFunc {
-        param,
-        expr: resolve_query_expr(ty_ctx, ctx, &pf.expr)
-    }
-}
-
-fn resolve_query_expr(
-    ty_ctx: &mut TyCtx,
-    ctx: &mut LocalCtx,
-    qe: &ast::QueryExpr<String>,
-) -> Box<ast::QueryExpr<IdentId>> {
-    use ast::QueryExpr;
-
-    let low_expr = match qe {
-        QueryExpr::Or(l, r) => QueryExpr::Or(
-            resolve_query_expr(ty_ctx, ctx, &l), 
-            resolve_query_expr(ty_ctx, ctx, &r)
-        ),
-        QueryExpr::Path(p) => {
-            let mut low_p = Vec::with_capacity(p.len());
-
-            let mut segs = p.into_iter();
-            let first_seg = segs.next().unwrap();
-            let first_ident = ctx.name_to_ident[first_seg];
-
-            low_p.push(first_ident);
-
-            let mut curr_type = ty_ctx.ident_types[&first_ident];
-
-            while let Some(seg) = segs.next() {
-                let Field(id, tid) = ty_ctx.field(curr_type, seg);
-                low_p.push(*id);
-                curr_type = *tid;
-            }
-
-            QueryExpr::Path(low_p)
-        }
-    };
-
-    Box::new(low_expr)
 }

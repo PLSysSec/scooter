@@ -7,7 +7,7 @@ use std::error::Error;
 #[allow(dead_code)]
 lalrpop_mod!(parser);
 
-pub type GlobalPolicyParseTree = ast::GlobalPolicy<String>;
+pub type GlobalPolicyParseTree = ast::GlobalPolicy;
 pub fn parse_policy<'a>(input: &'a str) -> Result<GlobalPolicyParseTree, Box<dyn Error + 'a>> {
     parser::GlobalPolicyParser::new()
         .parse(input)

@@ -1,45 +1,44 @@
 use std::collections::HashMap;
-use std::hash::Hash;
 use std::fmt;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum QueryExpr<ID> {
-    Path(Vec<ID>),
-    Or(Box<QueryExpr<ID>>, Box<QueryExpr<ID>>)
+pub enum QueryExpr {
+    Path(Vec<String>),
+    Or(Box<QueryExpr>, Box<QueryExpr>)
 }
 
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum Policy<ID> {
+pub enum Policy {
     Public,
     None,
-    Func(PolicyFunc<ID>)
+    Func(PolicyFunc)
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct PolicyFunc<ID> {
-    pub param: ID,
-    pub expr: Box<QueryExpr<ID>>
+pub struct PolicyFunc {
+    pub param: String,
+    pub expr: Box<QueryExpr>
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct GlobalPolicy<ID: Hash + Eq> {
-    pub collections: Vec<CollectionPolicy<ID>>
+pub struct GlobalPolicy{
+    pub collections: Vec<CollectionPolicy>
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct CollectionPolicy<ID: Hash + Eq> {
-    pub name: ID,
-    pub create: Policy<ID>,
-    pub delete: Policy<ID>,
-    pub fields: HashMap<ID, FieldPolicy<ID>>
+pub struct CollectionPolicy {
+    pub name: String,
+    pub create: Policy,
+    pub delete: Policy,
+    pub fields: HashMap<String, FieldPolicy>
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct FieldPolicy<ID> {
+pub struct FieldPolicy {
     pub ty: FieldType,
-    pub read: Policy<ID>,
-    pub write: Policy<ID>
+    pub read: Policy,
+    pub write: Policy
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -48,7 +47,7 @@ pub enum FieldType {
     I64,
     I32,
     F64,
-    RecordId,
+    RecordString,
 }
 
 impl fmt::Display for FieldType {
@@ -58,7 +57,7 @@ impl fmt::Display for FieldType {
             FieldType::I64 => write!(f, "i64"),
             FieldType::I32 => write!(f, "i32"),
             FieldType::F64 => write!(f, "f64"),
-            FieldType::RecordId => write!(f, "RecordId"),
+            FieldType::RecordString => write!(f, "RecordString"),
         }
     }
 }
