@@ -40,7 +40,7 @@ fn gen_field_checks(ird: &IrData, cid: Id<Collection>, fp_1: &FieldPolicy, fp_2:
     let mut out = String::new();
 
     out += &gen_echo("");
-    out += &gen_echo(&ird.def(fp_1.field_id).name.1);
+    out += &gen_echo(&ird[fp_1.field_id].name.1);
     out += &gen_echo("read:");
     out += &gen_policy_check(ird, cid, &fp_1.read, &fp_2.read);
     out += &gen_echo("edit:");
@@ -64,7 +64,7 @@ fn gen_policy_check(ird: &IrData, cid: Id<Collection>, fp_1: &Policy, fp_2: &Pol
         "#,
         gen_policy(ird, "p_before", cid, &fp_1),
         gen_policy(ird, "p_after", cid, &fp_2),
-        mangled_ident(&ird.collection(cid).name)
+        mangled_ident(&ird[cid].name)
     )
 }
 
@@ -72,7 +72,7 @@ fn gen_policy(ird: &IrData, fn_name: &str, cid: Id<Collection>, policy: &Policy)
     let mut out = String::new();
 
     let param = match policy {
-        Policy::Func(f) => mangled_ident(&ird.def(f.param).name),
+        Policy::Func(f) => mangled_ident(&ird[f.param].name),
         // Note, this is safe because it won't conflict, but yikes is it scary
         _ => "r".to_string(),
     };
@@ -91,7 +91,7 @@ fn gen_policy(ird: &IrData, fn_name: &str, cid: Id<Collection>, policy: &Policy)
         "#,
         fn_name,
         param,
-        mangled_ident(&ird.collection(cid).name),
+        mangled_ident(&ird[cid].name),
         body
     );
 
@@ -99,12 +99,12 @@ fn gen_policy(ird: &IrData, fn_name: &str, cid: Id<Collection>, policy: &Policy)
 }
 
 fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
-    let expr = ird.expr(eid);
+    let expr = &ird[eid];
     match expr.kind {
         ExprKind::Or(l, r) => format!("((_ map or) {} {})", gen_query_expr(ird, l), gen_query_expr(ird, r)),
         ExprKind::Var(_) => unimplemented!("We don't parse this yet"),
         ExprKind::Path(obj, field) => {
-            format!("(insert empty ({} {}))", mangled_ident(&ird.def(field).name), mangled_ident(&ird.def(obj).name))
+            format!("(insert empty ({} {}))", mangled_ident(&ird[field].name), mangled_ident(&ird[obj].name))
         }
     }
 }
@@ -144,7 +144,7 @@ fn gen_preamble(ird: &IrData) -> String {
 }
 
 fn gen_field(ird: &IrData, f: Id<Def>) -> String {
-    let def = ird.def(f);
+    let def = &ird[f];
 
     format!("({} Value)", mangled_ident(&def.name))
 }

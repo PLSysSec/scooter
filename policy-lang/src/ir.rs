@@ -83,10 +83,6 @@ impl IrData {
         &self.colls[cid]
     }
 
-    pub fn def_type(&self, did: Id<Def>) -> &Type {
-        &self.def_types[&did]
-    }
-
     pub fn def(&self, did: Id<Def>) -> &Def {
         &self.defs[did]
     }
@@ -95,7 +91,7 @@ impl IrData {
         &self.exprs[eid]
     }
 
-    pub fn type_of(&self, did: Id<Def>) -> &Type {
+    pub fn def_type(&self, did: Id<Def>) -> &Type {
         &self.def_types.get(&did).expect("Unable to find type for def")
     }
 
@@ -110,7 +106,7 @@ impl IrData {
 
     pub fn field(&self, cid: Id<Collection>, fname: &str) -> &Def {
         match self.colls.get(cid) {
-            Some(Collection { fields, .. }) => self.def(fields[fname]),
+            Some(Collection { fields, .. }) => &self[fields[fname]],
             _ => panic!("Only collections types have fields"),
         }
     }
@@ -185,5 +181,38 @@ pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
         defs,
         def_types,
         ..Default::default()
+    }
+}
+
+macro_rules! impl_index {
+    ($t:ty, $coll:ident) => {
+        impl std::ops::Index<Id<$t>> for IrData {
+            type Output = $t;
+
+            fn index(&self, id: Id<$t>) -> &Self::Output {
+                &self.$coll[id]
+            }
+        }
+    }
+}
+
+
+impl_index!(Def, defs);
+impl_index!(Expr, exprs);
+impl_index!(Collection, colls);
+
+trait TypeResolver<T> {
+    fn type_of(&self, id: Id<T>) -> &Type;
+}
+
+impl TypeResolver<Expr> for IrData {
+    fn type_of(&self, id: Id<Expr>) -> &Type {
+        &self.expr_types[&id]
+    }
+}
+
+impl TypeResolver<Def> for IrData {
+    fn type_of(&self, id: Id<Def>) -> &Type {
+        &self.def_types[&id]
     }
 }
