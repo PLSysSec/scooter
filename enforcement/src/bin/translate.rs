@@ -16,13 +16,13 @@ fn main() {
 
     println!("{}", out);
 }
-fn policy_binder_var(policy: &ast::Policy<String>) -> String {
+fn policy_binder_var(policy: &ast::Policy) -> String {
     match policy {
         ast::Policy::Func(pfunc) => pfunc.param.clone(),
         _ => "_".to_string(),
     }
 }
-fn gen_policy_body(policy: ast::Policy<String>) -> String {
+fn gen_policy_body(policy: ast::Policy) -> String {
     match policy {
         ast::Policy::Public => "        PolicyValue::Public\n    }\n".to_string(),
         ast::Policy::None => "        PolicyValue::Ids(vec![])\n    }\n".to_string(),
@@ -32,7 +32,7 @@ fn gen_policy_body(policy: ast::Policy<String>) -> String {
         ),
     }
 }
-fn gen_schema_macros(policy: ast::GlobalPolicy<String>) -> String {
+fn gen_schema_macros(policy: ast::GlobalPolicy) -> String {
     let mut out = "use enforcement::*;\n".to_string();
     for col in policy.collections.into_iter() {
         let mut col_struct = format!(
@@ -96,7 +96,7 @@ macro_rules! {} {{
     }
     out
 }
-fn policyfunc_to_idlist(f: ast::QueryExpr<String>) -> String {
+fn policyfunc_to_idlist(f: ast::QueryExpr) -> String {
     match f {
         ast::QueryExpr::Or(q1, q2) => format!(
             "{} + {}",
