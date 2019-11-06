@@ -20,12 +20,12 @@ User {
 Message {
     create: public,
     delete: none,
-    from : RecordId {
+    from : Id(User) {
         read: m -> m.from + m.to,
         write: none,
     },
 
-    to : RecordId {
+    to : Id(User) {
         read: m -> m.to + m.from,
         write: none,
     },

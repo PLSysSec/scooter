@@ -1,21 +1,34 @@
 use policy_lang::*;
 use std::io::{self, Read};
+use std::path::Path;
+use std::fs::File;
+use std::io::Write;
+use std::env;
 
-fn get_contents(fname: &str) -> io::Result<String> {
+pub fn translate_policy_file(in_name: impl ToString,
+                             out_name: impl ToString){
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let dest_path = Path::new(&out_dir).join(out_name.to_string());
+    let in_dir = env::current_dir().unwrap();
+    let policy_path = Path::new(&in_dir).join(in_name.to_string());
+    // panic!("{}, {}", policy_path.to_str().unwrap(), dest_path.to_str().unwrap());
+    translate(policy_path, dest_path);
+}
+
+pub fn translate(policy_path: impl AsRef<Path>, out_path: impl AsRef<Path>) {
+    let path = policy_path.as_ref();
+    let parsed_policy = parse_policy(&get_contents(path).unwrap()).unwrap();
+    let out = gen_schema_macros(parsed_policy);
+    let mut f = File::create(&out_path).unwrap();
+    f.write(out.as_bytes()).unwrap();
+}
+
+fn get_contents(fname: &Path) -> io::Result<String> {
     let mut out = String::new();
     std::fs::File::open(fname)?.read_to_string(&mut out)?;
     Ok(out)
 }
-fn main() {
-    let mut args = std::env::args();
-    args.next().unwrap();
-    let policy_file_in = args.next().unwrap();
-    let parsed_policy = parse_policy(&get_contents(&policy_file_in).unwrap()).unwrap();
 
-    let out = gen_schema_macros(parsed_policy);
-
-    println!("{}", out);
-}
 fn policy_binder_var(policy: &ast::Policy) -> String {
     match policy {
         ast::Policy::Func(pfunc) => pfunc.param.clone(),
@@ -62,7 +75,7 @@ mod {}_policies {{
             col.name).to_string();
         pol_mod += &gen_policy_body(col.delete);
         for (field_name, field_policy) in col.fields.into_iter() {
-            col_struct += &format!("    {}: {},\n", field_name, field_policy.ty).to_string();
+            col_struct += &format!("    {}: {},\n", field_name, lower_ty(field_policy.ty)).to_string();
             pol_mod += &format!(
                 "    pub fn read_{}({}: &{}) -> PolicyValue {{\n",
                 field_name,
@@ -104,5 +117,12 @@ fn policyfunc_to_idlist(f: ast::QueryExpr) -> String {
             policyfunc_to_idlist(*q2)
         ),
         ast::QueryExpr::Path(strings) => format!("{}.to_record_id_vec()", strings.join(".")),
+    }
+}
+
+fn lower_ty(ty : ast::FieldType) -> String {
+    match ty {
+        ast::FieldType::Id(_) => "RecordId".to_string(),
+        _ => format!("{}", ty).to_string(),
     }
 }

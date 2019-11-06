@@ -4,6 +4,7 @@ pub use mongodb::{bson, doc};
 mod from_bson;
 pub use from_bson::*;
 use serde::{Serialize, Deserialize};
+pub mod translate;
 
 
 #[derive(Clone, Debug, Eq, PartialEq)]
