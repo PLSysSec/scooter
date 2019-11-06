@@ -25,15 +25,17 @@ mod tests {
         let p = parse_policy(
             r#"
             User {
+                create: public,
+                delete: none,
                 name : String {
-                    read: public
-                    write: none
-                }
+                    read: public,
+                    write: none,
+                },
 
                 pass_hash : String {
-                    read: u -> u.id
-                    write: u -> u.id
-                }
+                    read: u -> u.id,
+                    write: u -> u.id,
+                },
             }
         "#,
         )
@@ -44,6 +46,8 @@ mod tests {
             GlobalPolicy {
                 collections: vec![CollectionPolicy {
                     name: "User".to_string(),
+                    create: Policy::Public,
+                    delete: Policy::None,
                     fields: {
                         let mut h = HashMap::new();
                         h.insert(
