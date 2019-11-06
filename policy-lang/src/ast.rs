@@ -4,26 +4,25 @@ use std::fmt;
 #[derive(Debug, PartialEq, Eq)]
 pub enum QueryExpr {
     Path(Vec<String>),
-    Or(Box<QueryExpr>, Box<QueryExpr>)
+    Or(Box<QueryExpr>, Box<QueryExpr>),
 }
-
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Policy {
     Public,
     None,
-    Func(PolicyFunc)
+    Func(PolicyFunc),
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct PolicyFunc {
     pub param: String,
-    pub expr: Box<QueryExpr>
+    pub expr: Box<QueryExpr>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct GlobalPolicy{
-    pub collections: Vec<CollectionPolicy>
+pub struct GlobalPolicy {
+    pub collections: Vec<CollectionPolicy>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -31,14 +30,14 @@ pub struct CollectionPolicy {
     pub name: String,
     pub create: Policy,
     pub delete: Policy,
-    pub fields: HashMap<String, FieldPolicy>
+    pub fields: HashMap<String, FieldPolicy>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct FieldPolicy {
     pub ty: FieldType,
     pub read: Policy,
-    pub write: Policy
+    pub write: Policy,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

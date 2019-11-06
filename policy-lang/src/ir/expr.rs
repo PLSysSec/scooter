@@ -1,9 +1,9 @@
-use id_arena::Id;
 use super::*;
+use id_arena::Id;
 #[derive(Debug)]
 pub struct Expr {
-    pub(crate) id: Id<Expr>,
-    pub(crate) kind: ExprKind
+    pub id: Id<Expr>,
+    pub kind: ExprKind,
 }
 
 #[derive(Debug)]
@@ -15,6 +15,6 @@ pub enum ExprKind {
 
 #[derive(Debug)]
 pub struct Lambda {
-    pub(crate) param: Id<Def>,
-    pub(crate) body: Id<Expr>,
+    pub param: Id<Def>,
+    pub body: Id<Expr>,
 }

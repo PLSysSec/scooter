@@ -1,8 +1,8 @@
-use id_arena::Id;
+pub use id_arena::Id;
 
-use crate::ast;
 use super::expr::*;
 use super::*;
+use crate::ast;
 
 #[derive(Debug, Default)]
 pub struct CompletePolicy {
@@ -10,24 +10,34 @@ pub struct CompletePolicy {
     colls: HashMap<Id<Collection>, CollectionPolicy>,
 }
 
+impl CompletePolicy {
+    pub fn collection_policy(&self, cid: Id<Collection>) -> &CollectionPolicy {
+        &self.colls[&cid]
+    }
+
+    pub fn field_policy(&self, fid: Id<Def>) -> &FieldPolicy {
+        &self.fields[&fid]
+    }
+}
+
 #[derive(Debug)]
 pub struct CollectionPolicy {
-    create: Policy,
-    delete: Policy,
+    pub create: Policy,
+    pub delete: Policy,
 }
 
 #[derive(Debug)]
 pub struct FieldPolicy {
-    field_id: Id<Def>,
-    read: Policy,
-    edit: Policy,
+    pub field_id: Id<Def>,
+    pub read: Policy,
+    pub edit: Policy,
 }
 
 #[derive(Debug)]
 pub enum Policy {
     Public,
     None,
-    Func(Lambda)
+    Func(Lambda),
 }
 
 pub(crate) struct Lowerer<'a> {
@@ -37,7 +47,10 @@ pub(crate) struct Lowerer<'a> {
 
 impl Lowerer<'_> {
     fn get_def(&self, name: &String) -> Id<Def> {
-        *self.def_map.get(name).expect(&format!("Use of undeclared identifier '{}' in policy", name))
+        *self.def_map.get(name).expect(&format!(
+            "Use of undeclared identifier '{}' in policy",
+            name
+        ))
     }
 
     pub fn lower_policies(&mut self, gp: &ast::GlobalPolicy) -> CompletePolicy {
@@ -45,8 +58,12 @@ impl Lowerer<'_> {
 
         for ast_coll_pol in gp.collections.iter() {
             let (id, c_typ) = {
-                let (id, c) = self.ird.collections().find(|(_, c)| c.name.eq_str(&ast_coll_pol.name)).unwrap();
-                (id, c.typ())
+                let c = self
+                    .ird
+                    .collections()
+                    .find(|c| c.name.eq_str(&ast_coll_pol.name))
+                    .unwrap();
+                (c.id, c.typ())
             };
             let coll_pol = CollectionPolicy {
                 create: self.lower_field_policy(c_typ.clone(), &ast_coll_pol.create),
@@ -56,7 +73,7 @@ impl Lowerer<'_> {
             comp_policy.colls.insert(id, coll_pol);
 
             for (n, p) in ast_coll_pol.fields.iter() {
-                let field_id = self.ird.field(id, n);
+                let field_id = self.ird.field(id, n).id;
 
                 let fp = FieldPolicy {
                     field_id,
@@ -75,7 +92,7 @@ impl Lowerer<'_> {
         match p {
             ast::Policy::Public => Policy::Public,
             ast::Policy::None => Policy::None,
-            ast::Policy::Func(f) => Policy::Func(self.lower_policy_func(param_type, f))
+            ast::Policy::Func(f) => Policy::Func(self.lower_policy_func(param_type, f)),
         }
     }
 
@@ -89,33 +106,36 @@ impl Lowerer<'_> {
                 self.def_map.insert(pf.param.clone(), did);
             }
             None => {
-                self.def_map.remove(&pf.param).expect("This should be unreachable");
+                self.def_map
+                    .remove(&pf.param)
+                    .expect("This should be unreachable");
             }
         }
 
-        Lambda {
-            param,
-            body
-        }
+        Lambda { param, body }
     }
 
     fn lower_expr(&mut self, qe: &ast::QueryExpr) -> Id<Expr> {
         let kind = match qe {
             ast::QueryExpr::Or(le1, le2) => {
                 ExprKind::Or(self.lower_expr(le1), self.lower_expr(le2))
-            },
-            ast::QueryExpr::Path(p) => {
-                match p.as_slice() {
-                    [v] => ExprKind::Var(self.get_def(&v)),
-                    [v, m] => ExprKind::Path(self.get_def(&v), self.get_def(&m)),
-                    _ => unreachable!("Longer paths can never be valid by construction")
-                }
             }
+            ast::QueryExpr::Path(p) => match p.as_slice() {
+                [v] => ExprKind::Var(self.get_def(&v)),
+                [v, m] => {
+                    let obj = self.get_def(&v);
+                    let cid = match self.ird.type_of(obj) {
+                        Type::Collection(cid) =>  *cid,
+                        _ => panic!("Attempted to access field {} of {} which is not an object", &m, &v),
+                    };
+                    
+                    let field = self.ird.field(cid, &m).id;
+                    ExprKind::Path(obj, field)
+                }
+                _ => unreachable!("Longer paths can never be valid by construction"),
+            },
         };
 
-        self.ird.exprs.alloc_with_id(|id| Expr {
-            id,
-            kind,
-        })
+        self.ird.exprs.alloc_with_id(|id| Expr { id, kind })
     }
 }
