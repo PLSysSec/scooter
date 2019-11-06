@@ -59,8 +59,7 @@ impl Collection {
 /// Describes a type such as "String" or "Id(User)"
 #[derive(Debug, Clone)]
 pub enum Type {
-    /// Right now, the IR doesn't model primitive types like "String"
-    Value,
+    String,
     Id(Id<Collection>),
     Collection(Id<Collection>),
 }
@@ -176,12 +175,19 @@ pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
         coll.fields.insert("id".to_string(), id_field);
 
         // Populate the fields
-        for (fname, _) in coll_pol.fields.iter() {
+        for (fname, fpol) in coll_pol.fields.iter() {
             let field_did = defs.alloc_with_id(|id| Def {
                 id,
                 name: Ident::new(fname),
             });
-            def_types.insert(id_field, Type::Value);
+
+            let field_type = match &fpol.ty {
+                ast::FieldType::String => Type::String,
+                ast::FieldType::Id(cname) => Type::Id(name_to_coll[cname]),
+                _ => unimplemented!("Field type {:?} not supported by ir", fpol.ty)
+            };
+
+            def_types.insert(id_field, field_type);
             coll.fields.insert(fname.clone(), field_did);
         }
     }

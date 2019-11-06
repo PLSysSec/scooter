@@ -1,10 +1,9 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use proc_macro_crate::crate_name;
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, Attribute, AttributeArgs, Data, DataStruct, DeriveInput, Fields, Lit, Meta,
+    parse_macro_input, AttributeArgs, Data, DataStruct, DeriveInput, Fields, Lit, Meta,
     NestedMeta,
 };
 
@@ -379,14 +378,4 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
 
     // Hand the output tokens back to the compiler
     TokenStream::from(expanded)
-}
-
-fn capitalize_string(s : String) -> String {
-    let mut result_string = s;
-    if let Some(r) = result_string.get_mut(0..1) {
-        r.make_ascii_uppercase();
-    } else {
-        unreachable!("Cannot capitalize something without any letters!")
-    }
-    result_string
 }

@@ -1,12 +1,14 @@
+User {}
+
 Message {
     create: public,
     delete: none,
-    from : String {
+    from : Id(User) {
         read: m -> m.from + m.to,
         write: none,
     },
 
-    to : String {
+    to : Id(User) {
         read: m -> m.to + m.from,
         write: none,
     },

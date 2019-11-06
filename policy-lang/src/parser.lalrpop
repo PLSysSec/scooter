@@ -28,7 +28,7 @@ FieldType: FieldType = {
     "I32" => FieldType::I32,
     "I64" => FieldType::I64,
     "F64" => FieldType::F64,
-    "RecordId" => FieldType::RecordId,
+    "Id" "(" <coll:Ident> ")" => FieldType::Id(coll),
 }
 
 Policy: Policy = {
