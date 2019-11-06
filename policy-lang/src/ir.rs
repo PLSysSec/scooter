@@ -65,6 +65,9 @@ pub enum Type {
     Collection(Id<Collection>),
 }
 
+/// IrData contains the type and name resolution data resulting from lowering the AST to a CompletePolicy.
+/// When comparing policies, you'll use the same IrData to analyze both of them
+/// so that all the type resolutions line up.
 #[derive(Debug, Default)]
 pub struct IrData {
     colls: Arena<Collection>,
@@ -75,22 +78,27 @@ pub struct IrData {
 }
 
 impl IrData {
+    /// Creates an iterator of all the collections within the IrData
     pub fn collections(&self) -> impl Iterator<Item = &Collection> {
         self.colls.iter().map(|(_, c)| c)
     }
 
+    /// Resolves an Id<Collection>. It's identical to running `&ird[coll_id]`
     pub fn collection(&self, cid: Id<Collection>) -> &Collection {
         &self.colls[cid]
     }
 
+    /// Resolves an Id<Def>. It's identical to running `&ird[def_id]`
     pub fn def(&self, did: Id<Def>) -> &Def {
         &self.defs[did]
     }
 
+    /// Resolves an Id<Expr>. It's identical to running `&ird[epr_id]`
     pub fn expr(&self, eid: Id<Expr>) -> &Expr {
         &self.exprs[eid]
     }
 
+    /// Finds the type of a given def
     pub fn def_type(&self, did: Id<Def>) -> &Type {
         &self.def_types.get(&did).expect("Unable to find type for def")
     }
@@ -103,14 +111,14 @@ impl IrData {
         self.def_types.insert(did, typ);
         did
     }
+    
 
+    /// A convenience method that handles the multiple lookups required to get the field definition
     pub fn field(&self, cid: Id<Collection>, fname: &str) -> &Def {
-        match self.colls.get(cid) {
-            Some(Collection { fields, .. }) => &self[fields[fname]],
-            _ => panic!("Only collections types have fields"),
-        }
+        &self[self[cid].fields[fname]]
     }
 
+    /// Lowers the ast to its IR representation, accruing information into the IrData struct
     pub fn lower(&mut self, gp: &ast::GlobalPolicy) -> CompletePolicy {
         let mut l = Lowerer {
             ird: self,
@@ -121,6 +129,8 @@ impl IrData {
     }
 }
 
+/// Creates an IrData based around the types present in a single AST.
+/// This step is separated from the lower phase so that we can resolve each AST relative to the same set of types.
 pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
     // Due to mutability shenanigancs, we have to use an deconstructed IrDatat
     // that we will assemble at the end of the function
