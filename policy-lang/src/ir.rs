@@ -93,7 +93,7 @@ impl IrData {
         &self.defs[did]
     }
 
-    /// Resolves an Id<Expr>. It's identical to running `&ird[epr_id]`
+    /// Resolves an Id<Expr>. It's identical to running `&ird[expr_id]`
     pub fn expr(&self, eid: Id<Expr>) -> &Expr {
         &self.exprs[eid]
     }
