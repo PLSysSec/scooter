@@ -16,3 +16,22 @@ User {
         write: none,
     },
 }
+
+Message {
+    create: public,
+    delete: none,
+    from : RecordId {
+        read: m -> m.from + m.to,
+        write: none,
+    },
+
+    to : RecordId {
+        read: m -> m.to + m.from,
+        write: none,
+    },
+
+    text : String {
+        read: m -> m.from,
+        write: none,
+    },
+}

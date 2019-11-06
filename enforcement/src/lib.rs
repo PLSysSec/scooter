@@ -3,6 +3,7 @@ use mongodb::oid::ObjectId;
 pub use mongodb::{bson, doc};
 mod from_bson;
 pub use from_bson::*;
+use serde::{Serialize, Deserialize};
 
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -30,7 +31,38 @@ pub trait MongoDocument {
     fn from_document(doc: mongodb::Document) -> Self;
     fn to_document(&self) -> mongodb::Document;
 }
-pub type RecordId = ObjectId;
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RecordId(ObjectId);
+
+pub trait ToRecordIdVec {
+    fn to_record_id_vec(&self) -> Vec<RecordId>;
+}
+impl ToRecordIdVec for RecordId {
+    fn to_record_id_vec(&self) -> Vec<RecordId>{
+        vec![self.clone()]
+    }
+}
+impl ToRecordIdVec for Option<RecordId> {
+    fn to_record_id_vec(&self) -> Vec<RecordId>{
+        vec![self.clone().unwrap()]
+    }
+}
+
+impl From<RecordId> for ObjectId {
+    fn from(id: RecordId) -> ObjectId {
+        id.0
+    }
+}
+impl From<ObjectId> for RecordId {
+    fn from(id: ObjectId) -> RecordId {
+        RecordId(id)
+    }
+}
+impl From<RecordId> for mongodb::Bson {
+    fn from(id: RecordId) -> mongodb::Bson {
+        id.0.into()
+    }
+}
 use mongodb::db::Database;
 use mongodb::Client;
 use mongodb::ThreadedClient;

@@ -99,10 +99,10 @@ macro_rules! {} {{
 fn policyfunc_to_idlist(f: ast::QueryExpr) -> String {
     match f {
         ast::QueryExpr::Or(q1, q2) => format!(
-            "{} + {}",
+            "{}.into_iter().chain({}).collect()",
             policyfunc_to_idlist(*q1),
             policyfunc_to_idlist(*q2)
         ),
-        ast::QueryExpr::Path(strings) => format!("{}.iter().cloned().collect()", strings.join(".")),
+        ast::QueryExpr::Path(strings) => format!("{}.to_record_id_vec()", strings.join(".")),
     }
 }

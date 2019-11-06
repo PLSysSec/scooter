@@ -14,5 +14,5 @@ path = "src/bin/translate.rs"
 [dependencies]
 mongodb = '0.3.12'
 enforcement-macros = {path="./enforcement-macros"}
-serde = "*"
+serde = { version = "1.0", features = ["derive"] }
 policy-lang = {path = "../policy-lang"}

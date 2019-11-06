@@ -218,7 +218,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                 fn from_document(mut doc: mongodb::Document) -> Self {
                     #ident {
                         #(#doc_get_fields),*,
-                        id: Some(doc.get_object_id("_id").unwrap().clone())
+                        id: Some(doc.get_object_id("_id").unwrap().clone().into())
                     }
                 }
                 fn to_document(&self) -> mongodb::Document {
@@ -257,6 +257,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             });
             quote!{
                 fn save_all(connection: AuthConn, items: Vec<&#partial_ident>) -> bool {
+                    use mongodb::db::ThreadedDatabase;
                     for item in items.iter() {
                         let get_doc = doc! {
                             "_id": item.id.clone()
@@ -293,6 +294,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             impl DBCollection for #ident {
                 type Partial=#partial_ident;
                 fn find_by_id(connection: AuthConn, id: RecordId) -> Option<Self::Partial> {
+                    use mongodb::db::ThreadedDatabase;
                     match connection
                         .conn()
                         .mongo_conn
@@ -304,6 +306,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
                 fn insert_many(connection: AuthConn, items: Vec<Self>) -> Option<Vec<RecordId>> {
+                    use mongodb::db::ThreadedDatabase;
                     for item in items.iter() {
                         if ! #policy_module::create(&item)
                             .accessible_by(&connection.principle()) {
@@ -317,12 +320,13 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                             inserted_ids: Some(ids), ..
                         }) => Some(
                             // Unwrap is safe because these are guaranteed to be ids
-                            ids.values().map(|b| b.as_object_id().unwrap().clone())
+                            ids.values().map(|b| b.as_object_id().unwrap().clone().into())
                                 .collect()),
                        _ => None,
                     }
                 }
                 fn delete_by_id(connection: AuthConn, id: RecordId) -> bool {
+                    use mongodb::db::ThreadedDatabase;
                     match connection
                         .conn()
                         .mongo_conn
@@ -363,7 +367,6 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
 
     // Build the output, possibly using quasi-quotation
     let expanded = quote! {
-        use mongodb::db::ThreadedDatabase;
         #input_with_id
         #getter_impl
         #setter_impl
