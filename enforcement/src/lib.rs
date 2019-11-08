@@ -62,8 +62,8 @@ impl <T> fmt::Debug for TypedRecordId<T> where T: DBCollection {
 }
 
 impl <T> TypedRecordId<T> where T: DBCollection{
-    pub fn lookup(&self, conn: AuthConn) -> Option<T::Partial> {
-        T::find_by_id(&conn, self.clone().into())
+    pub fn lookup(&self, conn: &AuthConn) -> Option<T::Partial> {
+        T::find_by_id(conn, self.clone().into())
     }
 }
 

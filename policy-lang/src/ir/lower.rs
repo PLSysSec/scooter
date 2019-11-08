@@ -121,14 +121,14 @@ impl Lowerer<'_> {
                 ExprKind::Or(self.lower_expr(le1), self.lower_expr(le2))
             }
             ast::QueryExpr::Path(p) => match p.as_slice() {
-                [v] => ExprKind::Var(self.get_def(&v)),
+                [v] => ExprKind::Var(self.get_def(v.into())),
                 [v, m] => {
                     let obj = self.get_def(&v);
                     let cid = match self.ird.type_of(obj) {
                         Type::Collection(cid) =>  *cid,
                         _ => panic!("Attempted to access field {} of {} which is not an object", &m, &v),
                     };
-                    
+
                     let field = self.ird.field(cid, &m).id;
                     ExprKind::Path(obj, field)
                 }

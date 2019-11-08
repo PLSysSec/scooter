@@ -123,11 +123,21 @@ fn policyfunc_to_idlist(f: ast::QueryExpr) -> String {
             policyfunc_to_idlist(*q1),
             policyfunc_to_idlist(*q2)
         ),
-        ast::QueryExpr::Path(strings) => format!("{}.to_record_id_vec()", strings.join(".")),
+        ast::QueryExpr::Path(strings) => format!("{}.to_record_id_vec()",
+                                                 lower_path(strings)),
     }
 }
 
-fn lower_ty(ty : ast::FieldType) -> String {
+fn lower_path(p: Vec<String>) -> String {
+    let result = p.into_iter().map(|s|
+                 match s.as_ref() {
+                     "lookup" => "lookup(conn).unwrap()".to_string(),
+                     _ => s.clone()
+                 }).collect::<Vec<String>>().join(".");
+    result
+}
+
+fn lower_ty(ty: ast::FieldType) -> String {
     match ty {
         ast::FieldType::Id(ty) => format!("TypedRecordId<{}>", ty).to_string(),
         _ => format!("{}", ty).to_string(),
