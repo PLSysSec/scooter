@@ -56,8 +56,8 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         let reader_ident = format_ident!("read_{}", field_ident);
         quote! {
             #[allow(dead_code)]
-            pub fn #method_ident(&self, id: &Principle) -> Option<&#field_type> {
-                if #policy_module::#reader_ident(self).accessible_by(id) {
+            pub fn #method_ident(&self, conn: &AuthConn) -> Option<&#field_type> {
+                if #policy_module::#reader_ident(self, conn).accessible_by(&conn.principle()) {
                     Some(&self.#field_ident)
                 } else {
                     None
@@ -133,7 +133,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             let field_ident = field.ident.as_ref().unwrap();
             let method_ident = format_ident!("get_{}", field_ident);
             quote! {
-                #field_ident: self.#method_ident(id).map(|s| s.clone())
+                #field_ident: self.#method_ident(conn).map(|s| s.clone())
             }
         });
         let builder_fields = optioned_fields.clone();
@@ -182,7 +182,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                 id: #enforcement_crate_name::RecordId
             }
             impl #ident {
-                pub fn fully_resolve(&self, id: &Principle) -> #partial_ident {
+                pub fn fully_resolve(&self, conn: &AuthConn) -> #partial_ident {
                     #partial_ident {
                         #(#field_builders),*,
                         id: self.id.clone()
@@ -239,7 +239,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                 let write_ident = format_ident!("write_{}", field_ident);
                 quote!{
                     if item.#field_ident.is_some() &&
-                        ! #policy_module::#write_ident(&full_item)
+                        ! #policy_module::#write_ident(&full_item, &connection)
                         .accessible_by(&connection.principle()) {
                             return false
                     }
@@ -300,14 +300,14 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                         .collection(#ident_string)
                         .find_one(Some(doc! {"_id":id}), None)
                     {
-                        Result::Ok(Some(doc)) => Some(#ident::from_document(doc).fully_resolve(&connection.principle())),
+                        Result::Ok(Some(doc)) => Some(#ident::from_document(doc).fully_resolve(connection)),
                         _ => None,
                     }
                 }
                 fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<RecordId>> {
                     use mongodb::db::ThreadedDatabase;
                     for item in items.iter() {
-                        if ! #policy_module::create(&item)
+                        if ! #policy_module::create(&item, connection)
                             .accessible_by(&connection.principle()) {
                                 return None
                             }
@@ -333,7 +333,8 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                         .find_one(Some(doc! {"_id":id.clone()}), None)
                     {
                         Result::Ok(Some(doc)) =>
-                            if ! #policy_module::delete(&#ident::from_document(doc))
+                            if ! #policy_module::delete(&#ident::from_document(doc),
+                                                        connection)
                             .accessible_by(&connection.principle()){
                                 return false
                             }

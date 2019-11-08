@@ -11,7 +11,6 @@ pub fn translate_policy_file(in_name: impl ToString,
     let dest_path = Path::new(&out_dir).join(out_name.to_string());
     let in_dir = env::current_dir().unwrap();
     let policy_path = Path::new(&in_dir).join(in_name.to_string());
-    // panic!("{}, {}", policy_path.to_str().unwrap(), dest_path.to_str().unwrap());
     translate(policy_path, dest_path);
 }
 
@@ -65,19 +64,25 @@ mod {}_policies {{
             col.name.to_ascii_lowercase()
         );
         pol_mod += &format!(
-            "    pub fn create({}: &{}) -> PolicyValue {{\n",
+            "    #[allow(unused_variables)]").to_string();
+        pol_mod += &format!(
+            "    pub fn create({}: &{}, conn: &AuthConn) -> PolicyValue {{\n",
             policy_binder_var(&col.create),
             col.name).to_string();
         pol_mod += &gen_policy_body(col.create);
         pol_mod += &format!(
-            "    pub fn delete({}: &{}) -> PolicyValue {{\n",
+            "    #[allow(unused_variables)]").to_string();
+        pol_mod += &format!(
+            "    pub fn delete({}: &{}, conn: &AuthConn) -> PolicyValue {{\n",
             policy_binder_var(&col.delete),
             col.name).to_string();
         pol_mod += &gen_policy_body(col.delete);
         for (field_name, field_policy) in col.fields.into_iter() {
             col_struct += &format!("    {}: {},\n", field_name, lower_ty(field_policy.ty)).to_string();
             pol_mod += &format!(
-                "    pub fn read_{}({}: &{}) -> PolicyValue {{\n",
+                "    #[allow(unused_variables)]").to_string();
+            pol_mod += &format!(
+                "    pub fn read_{}({}: &{}, conn: &AuthConn) -> PolicyValue {{\n",
                 field_name,
                 policy_binder_var(&field_policy.read),
                 col.name
@@ -85,7 +90,9 @@ mod {}_policies {{
             .to_string();
             pol_mod += &gen_policy_body(field_policy.read);
             pol_mod += &format!(
-                "    pub fn write_{}({}: &{}) -> PolicyValue {{\n",
+                "    #[allow(unused_variables)]").to_string();
+            pol_mod += &format!(
+                "    pub fn write_{}({}: &{}, conn: &AuthConn) -> PolicyValue {{\n",
                 field_name,
                 policy_binder_var(&field_policy.write),
                 col.name
