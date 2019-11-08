@@ -151,8 +151,8 @@ impl <'a> AuthConn <'a>{
 
 pub trait DBCollection: Sized {
     type Partial;
-    fn find_by_id(connection: AuthConn, id: RecordId) -> Option<Self::Partial>;
-    fn insert_many(connection: AuthConn, items: Vec<Self>) -> Option<Vec<RecordId>>;
-    fn save_all(connection: AuthConn, items: Vec<&Self::Partial>) -> bool;
-    fn delete_by_id(connection: AuthConn, id: RecordId) -> bool;
+    fn find_by_id(connection: &AuthConn, id: RecordId) -> Option<Self::Partial>;
+    fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<RecordId>>;
+    fn save_all(connection: &AuthConn, items: Vec<&Self::Partial>) -> bool;
+    fn delete_by_id(connection: &AuthConn, id: RecordId) -> bool;
 }

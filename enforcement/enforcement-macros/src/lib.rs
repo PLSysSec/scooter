@@ -255,7 +255,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                 }
             });
             quote!{
-                fn save_all(connection: AuthConn, items: Vec<&#partial_ident>) -> bool {
+                fn save_all(connection: &AuthConn, items: Vec<&#partial_ident>) -> bool {
                     use mongodb::db::ThreadedDatabase;
                     for item in items.iter() {
                         let get_doc = doc! {
@@ -292,7 +292,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         quote!{
             impl DBCollection for #ident {
                 type Partial=#partial_ident;
-                fn find_by_id(connection: AuthConn, id: RecordId) -> Option<Self::Partial> {
+                fn find_by_id(connection: &AuthConn, id: RecordId) -> Option<Self::Partial> {
                     use mongodb::db::ThreadedDatabase;
                     match connection
                         .conn()
@@ -304,7 +304,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                         _ => None,
                     }
                 }
-                fn insert_many(connection: AuthConn, items: Vec<Self>) -> Option<Vec<RecordId>> {
+                fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<RecordId>> {
                     use mongodb::db::ThreadedDatabase;
                     for item in items.iter() {
                         if ! #policy_module::create(&item)
@@ -324,7 +324,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                        _ => None,
                     }
                 }
-                fn delete_by_id(connection: AuthConn, id: RecordId) -> bool {
+                fn delete_by_id(connection: &AuthConn, id: RecordId) -> bool {
                     use mongodb::db::ThreadedDatabase;
                     match connection
                         .conn()
@@ -357,8 +357,8 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
     let save_impl = {
         quote!{
             impl #partial_ident {
-                pub fn save(&self, connection: AuthConn) -> bool{
-                    #ident::save_all(connection, vec![self])
+                pub fn save(&self, connection: &AuthConn) -> bool{
+                    #ident::save_all(&connection, vec![self])
                 }
             }
         }
