@@ -122,7 +122,7 @@ fn policyfunc_to_idlist(f: ast::QueryExpr) -> String {
 
 fn lower_ty(ty : ast::FieldType) -> String {
     match ty {
-        ast::FieldType::Id(_) => "RecordId".to_string(),
+        ast::FieldType::Id(ty) => format!("TypedRecordId<{}>", ty).to_string(),
         _ => format!("{}", ty).to_string(),
     }
 }
