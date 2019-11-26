@@ -16,5 +16,3 @@ id-arena = "2.2.1"
 policy-lang = {path = "../policy-lang"}
 
 mongodb = '0.3.12'
-migration-macros = {path="./migration-macros"}
-serde = { version = "1.0", features = ["derive"] }
