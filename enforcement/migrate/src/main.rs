@@ -1,9 +1,10 @@
 use migration_lang;
 use policy_lang;
 
-use migration_lang::ast::CommandList;
+use migration_lang::ast::{Command, CommandAction, CommandList};
 use policy_lang::ir::*;
 
+use std::collections::HashMap;
 use std::io::{self, Read};
 
 fn main() {
@@ -68,12 +69,36 @@ fn interpret_policy(
 }
 fn apply_commands(
     doc: Document,
-    command_list: &CommandList,
+    command_list: &Vec<CommandAction>,
     policy_env: &IrData,
-    policy_ir: &CompletePolicy,
+    _policy_ir: &CompletePolicy,
 ) -> Document {
-    unimplemented!();
+    let mut result_doc = doc;
+    for command in command_list.iter() {
+        match command {
+            CommandAction::RemoveColumn { col: col_name } => {
+                policy_env
+                    .collections()
+                    .find(|&col| col.name.1 == *col_name)
+                    .expect("Couldn't find column to remove in policy.");
+                result_doc
+                    .remove(col_name)
+                    .expect("Couldn't find column to remove in data.");
+            }
+        };
+    }
+    result_doc
 }
-fn group_commandlist_by_collection(migration_ast: CommandList) -> Vec<(String, CommandList)> {
-    unimplemented!();
+fn group_commandlist_by_collection(cmds: CommandList) -> Vec<(String, Vec<CommandAction>)> {
+    let mut col_map: HashMap<String, Vec<CommandAction>> = HashMap::new();
+    for command in cmds.0 {
+        let Command { table, action } = command;
+        match col_map.get_mut(&table) {
+            Some(v) => v.push(action),
+            None => {
+                col_map.insert(table, vec![action]);
+            }
+        };
+    }
+    col_map.into_iter().collect()
 }

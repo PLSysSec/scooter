@@ -7,7 +7,7 @@ pub CommandList: CommandList = {
 
 Command: Command = {
     <t:Ident> "::" "RemoveColumn" "(" <c:Ident> ")" =>
-        Command::RemoveColumn {table: t, col: c}
+        Command{table: t, action: CommandAction::RemoveColumn {col: c}}
 }
 // Func: Func = {
 //     <i:Ident> "->" <e:Expr> => Func {
