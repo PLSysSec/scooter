@@ -25,9 +25,10 @@ mod tests {
             "#).unwrap();
 
         assert_eq!(p,
-                   CommandList(vec![Command::RemoveColumn{
+                   CommandList(vec![Command{
                        table:"User".to_string(),
-                       col:"num_followers".to_string()
-                   }]));
+                       action:CommandAction::RemoveColumn{
+                           col:"num_followers".to_string()
+                       }}]));
     }
 }
