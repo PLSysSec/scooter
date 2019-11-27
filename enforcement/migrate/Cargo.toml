@@ -1,18 +1,16 @@
 [package]
-name = "enforcement"
+name = "migrate"
 version = "0.1.0"
 authors = ["Alex Sanchez-Stern <alex.sanchezstern@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[lib]
 
 [[bin]]
 name = "migrate"
-path = "src/bin/migrate.rs"
+path = "src/main.rs"
 
 [dependencies]
 mongodb = '0.3.12'
-enforcement-macros = {path="./enforcement-macros"}
-serde = { version = "1.0", features = ["derive"] }
-policy-lang = {path = "../policy-lang"}
+policy-lang = {path = "../../policy-lang"}
+migration-lang = {path = "../../migration-lang"}
