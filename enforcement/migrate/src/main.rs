@@ -14,9 +14,11 @@ fn main() {
     let db_name = args.next().expect("Not enough arguments");
     let policy_file = args.next().expect("Not enough arguments");
     let migration_file = args.next().expect("Not enough arguments");
-    migrate(db_name,
-            get_contents(Path::new(&policy_file)).expect("Couldn't open policy file"),
-            get_contents(Path::new(&migration_file)).expect("Couldn't open migration file"));
+    migrate(
+        db_name,
+        get_contents(Path::new(&policy_file)).expect("Couldn't open policy file"),
+        get_contents(Path::new(&migration_file)).expect("Couldn't open migration file"),
+    );
 }
 fn get_contents(fname: &Path) -> io::Result<String> {
     let mut out = String::new();
@@ -24,13 +26,12 @@ fn get_contents(fname: &Path) -> io::Result<String> {
     Ok(out)
 }
 pub fn migrate(db_name: String, policy_text: String, migration_text: String) {
-    let policy_ast = policy_lang::parse_policy(&policy_text)
-        .expect("Couldn't parse policy");
-    let migration_ast = migration_lang::parse_migration(&migration_text)
-        .expect("Couldn't parse migration");
+    let policy_ast = policy_lang::parse_policy(&policy_text).expect("Couldn't parse policy");
+    let migration_ast =
+        migration_lang::parse_migration(&migration_text).expect("Couldn't parse migration");
     let mut policy_env = extract_types(&policy_ast);
     let policy_ir = policy_env.lower(&policy_ast);
-    interpret_policy(db_name, migration_ast, policy_env, policy_ir)
+    interpret_migration(db_name, migration_ast, policy_env, policy_ir)
 }
 
 #[cfg(test)]
@@ -40,13 +41,15 @@ mod tests {
     use mongodb::{bson, doc};
 
     mod types;
-    use types::*;
-    use enforcement::*;
     use crate::*;
+    use enforcement::*;
     use std::path::Path;
+    use types::*;
     #[test]
     fn remove_num_followers() {
+        let col_name = "User".to_string();
         let db_conn = DBConn::new("test");
+        db_conn.mongo_conn.collection(&col_name).drop().unwrap();
 
         let users: Vec<_> = vec![
             user! {
@@ -60,42 +63,66 @@ mod tests {
                 num_followers: "0".to_string(),
             },
         ];
-        let col_name = "User".to_string();
         let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
-        migrate(col_name.clone(),
-                get_contents(Path::new(&std::env::current_dir().unwrap())
-                             .join("policy.txt".to_string()).as_ref()).unwrap(),
-                r#"
+        migrate(
+            "test".to_string(),
+            get_contents(
+                Path::new(&std::env::current_dir().unwrap())
+                    .join("policy.txt".to_string())
+                    .as_ref(),
+            )
+            .unwrap(),
+            r#"
                 User::RemoveColumn(num_followers)
-                "#.to_string());
-        let alex_result_doc = db_conn.mongo_conn
+                "#
+            .to_string(),
+        );
+        let alex_result_doc = db_conn
+            .mongo_conn
             .collection(&col_name)
-            .find_one(Some(doc!{"_id": uid_alex.clone()}), None).unwrap().unwrap();
-        let john_result_doc = db_conn.mongo_conn
+            .find_one(Some(doc! {"_id": uid_alex.clone()}), None)
+            .unwrap()
+            .unwrap();
+        let john_result_doc = db_conn
+            .mongo_conn
             .collection(&col_name)
-            .find_one(Some(doc!{"_id": uid_john.clone()}), None).unwrap().unwrap();
+            .find_one(Some(doc! {"_id": uid_john.clone()}), None)
+            .unwrap()
+            .unwrap();
 
         // Make sure the right thing got removed
         assert!(!alex_result_doc.contains_key("num_followers"));
         assert!(!john_result_doc.contains_key("num_followers"));
 
         // Make sure nothing else got removed
-        assert_eq!(alex_result_doc.get_str("username")
-                   .expect("Couldn't find username key after migration"),
-                   "Alex");
-        assert_eq!(john_result_doc.get_str("username")
-                   .expect("Couldn't find username key after migration"),
-                   "John");
-        assert_eq!(alex_result_doc.get_str("pass_hash")
-                   .expect("Couldn't find pass_hash key after migration"),
-                   "alex_hash");
-        assert_eq!(john_result_doc.get_str("pass_hash")
-                   .expect("Couldn't find pass_hash key after migration"),
-                   "john_hash");
+        assert_eq!(
+            alex_result_doc
+                .get_str("username")
+                .expect("Couldn't find username key after migration"),
+            "Alex"
+        );
+        assert_eq!(
+            john_result_doc
+                .get_str("username")
+                .expect("Couldn't find username key after migration"),
+            "John"
+        );
+        assert_eq!(
+            alex_result_doc
+                .get_str("pass_hash")
+                .expect("Couldn't find pass_hash key after migration"),
+            "alex_hash"
+        );
+        assert_eq!(
+            john_result_doc
+                .get_str("pass_hash")
+                .expect("Couldn't find pass_hash key after migration"),
+            "john_hash"
+        );
     }
 }
 
@@ -104,7 +131,7 @@ use mongodb::Client;
 use mongodb::Document;
 use mongodb::ThreadedClient;
 use mongodb::{bson, doc};
-fn interpret_policy(
+fn interpret_migration(
     db_name: String,
     migration_ast: CommandList,
     policy_env: IrData,
@@ -116,39 +143,35 @@ fn interpret_policy(
         .db(&db_name);
 
     for (col_name, col_cmds) in collection_groups.into_iter() {
-        let mut items_old = db_conn.collection(&col_name).find(None, None).unwrap();
-        while items_old.has_next().unwrap() {
-            let old_batch = items_old.drain_current_batch().unwrap();
-            let new_batch: Vec<Document> = old_batch
-                .into_iter()
-                .map(|item| apply_commands(item, &col_cmds, &policy_env, &policy_ir))
-                .collect();
-            for item in new_batch.into_iter() {
-                db_conn
-                    .collection(&col_name)
-                    .replace_one(
-                        doc! {"_id":item.get_object_id("_id").unwrap().clone()},
-                        item,
-                        None,
-                    )
-                    .expect("Couldn't replace document.");
-            }
+        let items_old = db_conn.collection(&col_name).find(None, None).unwrap();
+        for item in items_old.into_iter() {
+            let item = item.unwrap();
+            let item_id = item.get_object_id("_id").unwrap().clone();
+            let policy_collection = policy_env
+                .collections()
+                .find(|&col| col.name.1 == *col_name)
+                .expect("Couldn't find collection in policy");
+            let updated_item = apply_commands(item, &col_cmds, &policy_collection, &policy_ir);
+            db_conn
+                .collection(&col_name)
+                .replace_one(doc! {"_id":item_id}, updated_item, None)
+                .expect("Couldn't replace document");
         }
     }
 }
 fn apply_commands(
     doc: Document,
     command_list: &Vec<CommandAction>,
-    policy_env: &IrData,
+    policy_collection: &Collection,
     _policy_ir: &CompletePolicy,
 ) -> Document {
     let mut result_doc = doc;
     for command in command_list.iter() {
         match command {
             CommandAction::RemoveColumn { col: col_name } => {
-                policy_env
-                    .collections()
-                    .find(|&col| col.name.1 == *col_name)
+                policy_collection
+                    .fields()
+                    .find(|entry| entry.0 == col_name)
                     .expect("Couldn't find column to remove in policy.");
                 result_doc
                     .remove(col_name)

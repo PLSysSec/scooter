@@ -1,0 +1,18 @@
+User {
+    create: public,
+    delete: none,
+    username : String {
+        read: public,
+        write: none,
+    },
+
+    pass_hash : String {
+        read: r -> r.id,
+        write: r -> r.id,
+    },
+
+    num_followers : String {
+        read: public,
+        write: none,
+    },
+}
