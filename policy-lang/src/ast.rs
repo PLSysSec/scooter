@@ -60,3 +60,17 @@ impl fmt::Display for FieldType {
         }
     }
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct MigrationCommandList(pub Vec<MigrationCommand>);
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct MigrationCommand {
+    pub table: String,
+    pub action: MigrationAction,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum MigrationAction {
+    RemoveColumn{col: String}
+}

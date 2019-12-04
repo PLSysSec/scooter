@@ -67,3 +67,14 @@ Path: Vec<String> = {
         }
     }
 }
+
+// Migration Lang stuff
+
+pub MigrationCommandList: MigrationCommandList = {
+    <cp:MigrationCommand*> => MigrationCommandList(cp)
+}
+
+MigrationCommand: MigrationCommand = {
+    <t:Ident> "::" "RemoveColumn" "(" <c:Ident> ")" =>
+        MigrationCommand{table: t, action: MigrationAction::RemoveColumn {col: c}}
+}

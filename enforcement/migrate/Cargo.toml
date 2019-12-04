@@ -13,7 +13,6 @@ path = "src/main.rs"
 [dependencies]
 mongodb = '0.3.12'
 policy-lang = {path = "../../policy-lang"}
-migration-lang = {path = "../../migration-lang"}
 enforcement = {path=".."}
 
 [build-dependencies]

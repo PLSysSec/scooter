@@ -13,7 +13,11 @@ pub fn parse_policy<'a>(input: &'a str) -> Result<GlobalPolicyParseTree, Box<dyn
         .parse(input)
         .map_err::<Box<dyn Error>, _>(|e| Box::new(e))
 }
-
+pub fn parse_migration<'a>(input: &'a str) -> Result<ast::MigrationCommandList, Box<dyn Error + 'a>> {
+    parser::MigrationCommandListParser::new()
+        .parse(input)
+        .map_err::<Box<dyn Error>, _>(|e| Box::new(e))
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,5 +87,19 @@ mod tests {
                 }]
             }
         )
+    }
+    #[test]
+    fn simple_migration() {
+        let p = parse_migration(
+            r#"
+            User::RemoveColumn(num_followers)
+            "#).unwrap();
+
+        assert_eq!(p,
+                   MigrationCommandList(vec![MigrationCommand{
+                       table:"User".to_string(),
+                       action:MigrationAction::RemoveColumn{
+                           col:"num_followers".to_string()
+                       }}]));
     }
 }

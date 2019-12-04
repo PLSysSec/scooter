@@ -1,7 +1,6 @@
-use migration_lang;
 use policy_lang;
 
-use migration_lang::ast::{Command, CommandAction, CommandList};
+use policy_lang::ast::*;
 use policy_lang::ir::*;
 
 use std::collections::HashMap;
@@ -49,7 +48,7 @@ pub fn migrate(db_name: String, policy_text: String, migration_text: String) {
     let policy_ast = policy_lang::parse_policy(&policy_text).expect("Couldn't parse policy");
     // Parse the migration text into an ast
     let migration_ast =
-        migration_lang::parse_migration(&migration_text).expect("Couldn't parse migration");
+        policy_lang::parse_migration(&migration_text).expect("Couldn't parse migration");
     // Extract the type information from th policy ast
     let mut policy_env = extract_types(&policy_ast);
     // Use the type information to lower the policy into ir
@@ -182,7 +181,7 @@ use mongodb::{bson, doc};
 /// `policy_ir` - The original policy itself
 fn interpret_migration(
     db_name: String,
-    migration_ast: CommandList,
+    migration_ast: MigrationCommandList,
     policy_env: IrData,
     policy_ir: CompletePolicy,
 ) {
@@ -232,7 +231,7 @@ fn interpret_migration(
 /// * `_policy_ir` - The policies on the current collection
 fn apply_commands(
     doc: Document,
-    command_list: &Vec<CommandAction>,
+    command_list: &Vec<MigrationAction>,
     policy_collection: &Collection,
     _policy_ir: &CompletePolicy,
 ) -> Document {
@@ -241,7 +240,7 @@ fn apply_commands(
     for command in command_list.iter() {
         // Apply each command
         match command {
-            CommandAction::RemoveColumn { col: col_name } => {
+            MigrationAction::RemoveColumn { col: col_name } => {
                 // Make sure the column exists in the schema info
                 policy_collection
                     .fields()
@@ -275,10 +274,12 @@ fn apply_commands(
 ///                ("bar", vec![CommandAction::RemoveColumn{col: "b"}])]);
 /// ```
 
-fn group_commandlist_by_collection(cmds: CommandList) -> Vec<(String, Vec<CommandAction>)> {
-    let mut col_map: HashMap<String, Vec<CommandAction>> = HashMap::new();
+fn group_commandlist_by_collection(
+    cmds: MigrationCommandList,
+) -> Vec<(String, Vec<MigrationAction>)> {
+    let mut col_map: HashMap<String, Vec<MigrationAction>> = HashMap::new();
     for command in cmds.0 {
-        let Command { table, action } = command;
+        let MigrationCommand { table, action } = command;
         match col_map.get_mut(&table) {
             Some(v) => v.push(action),
             None => {
