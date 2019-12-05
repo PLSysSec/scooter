@@ -1,4 +1,5 @@
 use crate::ast::*;
+use std::str::FromStr;
 grammar;
 
 pub GlobalPolicy: GlobalPolicy = {
@@ -70,11 +71,24 @@ Path: Vec<String> = {
 
 // Migration Lang stuff
 
-pub MigrationCommandList: MigrationCommandList = {
-    <cp:MigrationCommand*> => MigrationCommandList(cp)
+pub Migration: Migration = {
+    <cp:MigrationCommand*> => Migration(cp)
 }
 
 MigrationCommand: MigrationCommand = {
-    <t:Ident> "::" "RemoveColumn" "(" <c:Ident> ")" =>
-        MigrationCommand{table: t, action: MigrationAction::RemoveColumn {col: c}}
+    <t:Ident> "::" "RemoveField" "(" <c:Ident> ")" =>
+        MigrationCommand{table: t, action: MigrationAction::RemoveField{field: c}}
+}
+
+ValueFunc: ValueFunc = {
+    <i:Ident> "->" <e:ValueExpr> => ValueFunc {
+        param: i,
+        body: e,
+    }
+}
+
+ValueExpr: Box<ValueExpr> = {
+    <i:r"[0-9]+"> => Box::new(ValueExpr::IntConst{val: i64::from_str(i).unwrap()}),
+    <f:r"[0-9]+\.[0-9]+"> => Box::new(ValueExpr::FloatConst{val: f64::from_str(f).unwrap()}),
+    <s:r#"".*""#> => Box::new(ValueExpr::StringConst{val: s.to_string()}),
 }

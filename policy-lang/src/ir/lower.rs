@@ -21,6 +21,27 @@ impl CompletePolicy {
 }
 
 #[derive(Debug)]
+pub struct CompleteMigration(pub Vec<CompleteMigrationCommand>);
+
+#[derive(Debug)]
+pub struct CompleteMigrationCommand {
+    pub table: Id<Collection>,
+    pub action: CompleteMigrationAction,
+}
+#[derive(Debug)]
+pub enum CompleteMigrationAction {
+    RemoveField {
+        field: Id<Def>,
+    },
+}
+
+#[derive(Debug)]
+pub struct CompleteValueFunc {
+    pub param: Id<Def>,
+    pub body: Box<ast::ValueExpr>,
+}
+
+#[derive(Debug)]
 pub struct CollectionPolicy {
     pub create: Policy,
     pub delete: Policy,
@@ -53,18 +74,20 @@ impl Lowerer<'_> {
         ))
     }
 
+    fn resolve_collection(&self, name: &String) -> (Id<Collection>, Type) {
+        let c = self
+            .ird
+            .collections()
+            .find(|c| c.name.eq_str(name))
+            .expect(&format!("Unknown collection {}", name));
+        (c.id, c.typ())
+    }
+
     pub fn lower_policies(&mut self, gp: &ast::GlobalPolicy) -> CompletePolicy {
         let mut comp_policy = CompletePolicy::default();
 
         for ast_coll_pol in gp.collections.iter() {
-            let (id, c_typ) = {
-                let c = self
-                    .ird
-                    .collections()
-                    .find(|c| c.name.eq_str(&ast_coll_pol.name))
-                    .unwrap();
-                (c.id, c.typ())
-            };
+            let (id, c_typ) = self.resolve_collection(&ast_coll_pol.name);
             let coll_pol = CollectionPolicy {
                 create: self.lower_field_policy(c_typ.clone(), &ast_coll_pol.create),
                 delete: self.lower_field_policy(c_typ.clone(), &ast_coll_pol.delete),
@@ -125,8 +148,11 @@ impl Lowerer<'_> {
                 [v, m] => {
                     let obj = self.get_def(&v);
                     let cid = match self.ird.type_of(obj) {
-                        Type::Collection(cid) =>  *cid,
-                        _ => panic!("Attempted to access field {} of {} which is not an object", &m, &v),
+                        Type::Collection(cid) => *cid,
+                        _ => panic!(
+                            "Attempted to access field {} of {} which is not an object",
+                            &m, &v
+                        ),
                     };
 
                     let field = self.ird.field(cid, &m).id;
@@ -137,5 +163,41 @@ impl Lowerer<'_> {
         };
 
         self.ird.exprs.alloc_with_id(|id| Expr { id, kind })
+    }
+
+    /// Turn a migration with string identifiers into one with resolved Id objects
+    pub fn lower_migration_commands(&mut self, mig: ast::Migration) -> CompleteMigration {
+        let mut complete_cmds = vec![];
+        // Iterate over the migrations, where each lowering might
+        // change the type environment.
+        for ast::MigrationCommand { table, action } in mig.0.into_iter() {
+            let (id, coll_typ) = self.resolve_collection(&table);
+            let lowered_action = self.lower_migration_action(id, coll_typ.clone(), action);
+            complete_cmds.push(CompleteMigrationCommand {
+                table: id,
+                action: lowered_action,
+            });
+        }
+        CompleteMigration(complete_cmds)
+    }
+
+    fn lower_migration_action(
+        &mut self,
+        collection_id: Id<Collection>,
+        collection_type: Type,
+        action: ast::MigrationAction,
+    ) -> CompleteMigrationAction {
+        match action {
+            ast::MigrationAction::RemoveField { field } => CompleteMigrationAction::RemoveField {
+                field: self.ird.field(collection_id, &field).id,
+            },
+        }
+    }
+    fn lower_migration_func(&mut self, param_type: Type, mf: ast::ValueFunc) -> CompleteValueFunc {
+        let param = self.ird.create_def(mf.param, param_type);
+        CompleteValueFunc {
+            param: param,
+            body: mf.body,
+        }
     }
 }

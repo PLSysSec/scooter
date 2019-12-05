@@ -61,16 +61,31 @@ impl fmt::Display for FieldType {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct MigrationCommandList(pub Vec<MigrationCommand>);
+// Migration Lang stuff
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
+pub struct Migration(pub Vec<MigrationCommand>);
+
+#[derive(Debug, PartialEq)]
 pub struct MigrationCommand {
     pub table: String,
     pub action: MigrationAction,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum MigrationAction {
-    RemoveColumn{col: String}
+    RemoveField{field: String},
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ValueExpr {
+    IntConst{val: i64},
+    FloatConst{val: f64},
+    StringConst{val: String},
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ValueFunc {
+    pub param: String,
+    pub body: Box<ValueExpr>,
 }

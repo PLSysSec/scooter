@@ -3,7 +3,6 @@ use policy_lang;
 use policy_lang::ast::*;
 use policy_lang::ir::*;
 
-use std::collections::HashMap;
 use std::io::{self, Read};
 use std::path::Path;
 
@@ -53,8 +52,9 @@ pub fn migrate(db_name: String, policy_text: String, migration_text: String) {
     let mut policy_env = extract_types(&policy_ast);
     // Use the type information to lower the policy into ir
     let policy_ir = policy_env.lower(&policy_ast);
+    let migration_ir = policy_env.lower_migration(migration_ast);
     // Run the migration
-    interpret_migration(db_name, migration_ast, policy_env, policy_ir)
+    interpret_migration(db_name, policy_env, migration_ir, policy_ir)
 }
 
 #[cfg(test)]
@@ -111,7 +111,7 @@ mod tests {
             )
             .unwrap(),
             r#"
-                User::RemoveColumn(num_followers)
+                User::RemoveField(num_followers)
                 "#
             .to_string(),
         );
@@ -181,37 +181,27 @@ use mongodb::{bson, doc};
 /// `policy_ir` - The original policy itself
 fn interpret_migration(
     db_name: String,
-    migration_ast: MigrationCommandList,
-    policy_env: IrData,
+    env: IrData,
+    migration_ir: CompleteMigration,
     policy_ir: CompletePolicy,
 ) {
-    // Split the commands by the collection that they are operating on.
-    let collection_groups = group_commandlist_by_collection(migration_ast);
     // Create a connection to the database
     let db_conn = Client::connect("localhost", 27017)
         .expect("Failed to initialize client.")
         .db(&db_name);
-
-    // Loop over the collections that are operated on.
-    for (col_name, col_cmds) in collection_groups.into_iter() {
-        // Get the original items in that collection
-        let items_old = db_conn.collection(&col_name).find(None, None).unwrap();
-        // Iterate over those items
+    // Loop over the migration commands in sequence
+    for CompleteMigrationCommand { table, action } in migration_ir.0.into_iter() {
+        let policy_collection = &env[table];
+        let mongo_collection = db_conn.collection(&policy_collection.name.1);
+        let items_old = mongo_collection.find(None, None).unwrap();
         for item in items_old.into_iter() {
             let item = item.unwrap();
             // Get the id of the original item
             let item_id = item.get_object_id("_id").unwrap().clone();
-            // Get the collection type info for the collection we're
-            // operating on.
-            let policy_collection = policy_env
-                .collections()
-                .find(|&col| col.name.1 == *col_name)
-                .expect("Couldn't find collection in policy");
             // Run the commands on this particular item.
-            let updated_item = apply_commands(item, &col_cmds, &policy_collection, &policy_ir);
+            let updated_item = apply_action(item, &action, &policy_collection, &policy_ir);
             // Replace the old object with the new one in the database
-            db_conn
-                .collection(&col_name)
+            mongo_collection
                 .replace_one(doc! {"_id":item_id}, updated_item, None)
                 .expect("Couldn't replace document");
         }
@@ -229,63 +219,28 @@ fn interpret_migration(
 /// current collection
 ///
 /// * `_policy_ir` - The policies on the current collection
-fn apply_commands(
+fn apply_action(
     doc: Document,
-    command_list: &Vec<MigrationAction>,
+    action: &CompleteMigrationAction,
     policy_collection: &Collection,
     _policy_ir: &CompletePolicy,
 ) -> Document {
     // Get a mutable document
     let mut result_doc = doc;
-    for command in command_list.iter() {
-        // Apply each command
-        match command {
-            MigrationAction::RemoveColumn { col: col_name } => {
-                // Make sure the column exists in the schema info
-                policy_collection
-                    .fields()
-                    .find(|entry| entry.0 == col_name)
-                    .expect("Couldn't find column to remove in policy.");
-                // Remove the column (and make sure it existed on the object)
-                result_doc
-                    .remove(col_name)
-                    .expect("Couldn't find column to remove in data.");
-            }
-        };
-    }
+    // Apply the command
+    match action {
+        CompleteMigrationAction::RemoveField { field: field_id } => {
+            // Remove the column (and make sure it existed on the object)
+            result_doc
+                .remove(
+                    &policy_collection
+                        .fields()
+                        .find(|(_string_name, id)| *id == field_id)
+                        .unwrap()
+                        .0,
+                )
+                .expect("Couldn't find column to remove in data.");
+        }
+    };
     result_doc
-}
-/// Group a list of commands into actions on collections.
-///
-/// # Arguments
-///
-/// `cmds` - A list of commands, annotated with their collections
-///
-/// # Examples
-///
-/// ```
-/// let cmds = CommandList(vec![
-///     Command {table: "foo", action: CommandAction::RemoveColumn{col: "a"}},
-///     Command {table: "bar", action: CommandAction::RemoveColumn{col: "b"}},
-///     Command {table: "foo", action: CommandAction::RemoveColumn{col: "c"}}]);
-/// asserteq!(group_commandlist_by_collection(cmds),
-///           vec![("foo", vec![CommandAction::RemoveColumn{col: "a"},
-///                             CommandAction::RemoveColumn{col: "c"}]),
-///                ("bar", vec![CommandAction::RemoveColumn{col: "b"}])]);
-/// ```
-
-fn group_commandlist_by_collection(
-    cmds: MigrationCommandList,
-) -> Vec<(String, Vec<MigrationAction>)> {
-    let mut col_map: HashMap<String, Vec<MigrationAction>> = HashMap::new();
-    for command in cmds.0 {
-        let MigrationCommand { table, action } = command;
-        match col_map.get_mut(&table) {
-            Some(v) => v.push(action),
-            None => {
-                col_map.insert(table, vec![action]);
-            }
-        };
-    }
-    col_map.into_iter().collect()
 }

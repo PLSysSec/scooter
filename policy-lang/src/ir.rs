@@ -126,6 +126,14 @@ impl IrData {
 
         l.lower_policies(gp)
     }
+
+    pub fn lower_migration(&mut self, mig: ast::Migration) -> CompleteMigration {
+        let mut l = Lowerer {
+            ird: self,
+            def_map: HashMap::new(),
+        };
+        l.lower_migration_commands(mig)
+    }
 }
 
 /// Creates an IrData based around the types present in a single AST.
