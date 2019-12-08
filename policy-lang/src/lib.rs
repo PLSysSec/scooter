@@ -66,14 +66,14 @@ mod tests {
                             "pass_hash".to_string(),
                             FieldPolicy {
                                 ty: FieldType::String,
-                                read: Policy::Func(PolicyFunc {
+                                read: Policy::Func(Func {
                                     param: "u".to_string(),
                                     expr: Box::new(QueryExpr::Path(vec![
                                         "u".to_string(),
                                         "id".to_string(),
                                     ])),
                                 }),
-                                write: Policy::Func(PolicyFunc {
+                                write: Policy::Func(Func {
                                     param: "u".to_string(),
                                     expr: Box::new(QueryExpr::Path(vec![
                                         "u".to_string(),
@@ -99,7 +99,7 @@ mod tests {
                    Migration(vec![MigrationCommand{
                        table:"User".to_string(),
                        action:MigrationAction::RemoveField{
-                           col:"num_followers".to_string()
+                           field:"num_followers".to_string()
                        }}]));
     }
 }

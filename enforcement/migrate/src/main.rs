@@ -232,13 +232,7 @@ fn apply_action(
         CompleteMigrationAction::RemoveField { field: field_id } => {
             // Remove the column (and make sure it existed on the object)
             result_doc
-                .remove(
-                    &policy_collection
-                        .fields()
-                        .find(|(_string_name, id)| *id == field_id)
-                        .unwrap()
-                        .0,
-                )
+                .remove(&policy_collection.field_name(field_id))
                 .expect("Couldn't find column to remove in data.");
         }
     };

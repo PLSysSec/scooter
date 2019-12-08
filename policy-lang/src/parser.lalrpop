@@ -35,11 +35,11 @@ FieldType: FieldType = {
 Policy: Policy = {
     "public" => Policy::Public,
     "none" => Policy::None,
-    PolicyFunc => Policy::Func(<>)
+    Func => Policy::Func(<>)
 }
 
-PolicyFunc: PolicyFunc = {
-    <i:Ident> "->" <e:QueryExpr> => PolicyFunc {
+Func: Func = {
+    <i:Ident> "->" <e:QueryExpr> => Func {
         param: i,
         expr: e
     }
@@ -51,7 +51,10 @@ QueryExpr: Box<QueryExpr> = {
 }
 
 QueryExpr2: Box<QueryExpr> = {
-    Path => Box::new(QueryExpr::Path(<>))
+    Path => Box::new(QueryExpr::Path(<>)),
+    <i:r"[0-9]+"> => Box::new(QueryExpr::IntConst(i64::from_str(i).unwrap())),
+    <f:r"[0-9]+\.[0-9]+"> => Box::new(QueryExpr::FloatConst(f64::from_str(f).unwrap())),
+    <s:r#"".*""#> => Box::new(QueryExpr::StringConst(s.to_string())),
 }
 
 Ident: String = {
@@ -77,18 +80,7 @@ pub Migration: Migration = {
 
 MigrationCommand: MigrationCommand = {
     <t:Ident> "::" "RemoveField" "(" <c:Ident> ")" =>
-        MigrationCommand{table: t, action: MigrationAction::RemoveField{field: c}}
-}
-
-ValueFunc: ValueFunc = {
-    <i:Ident> "->" <e:ValueExpr> => ValueFunc {
-        param: i,
-        body: e,
-    }
-}
-
-ValueExpr: Box<ValueExpr> = {
-    <i:r"[0-9]+"> => Box::new(ValueExpr::IntConst{val: i64::from_str(i).unwrap()}),
-    <f:r"[0-9]+\.[0-9]+"> => Box::new(ValueExpr::FloatConst{val: f64::from_str(f).unwrap()}),
-    <s:r#"".*""#> => Box::new(ValueExpr::StringConst{val: s.to_string()}),
+        MigrationCommand{table: t, action: MigrationAction::RemoveField{field: c}},
+    <t:Ident> "::" "AddField" "(" <c:Ident> "," <ty:FieldType> "," <vf:Func> ")" =>
+        MigrationCommand{table: t, action: MigrationAction::AddField{field:c, ty: ty, init: vf}},
 }

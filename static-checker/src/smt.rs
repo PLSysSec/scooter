@@ -106,6 +106,7 @@ fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
         ExprKind::Path(obj, field) => {
             format!("(insert empty ({} {}))", mangled_ident(&ird[field].name), mangled_ident(&ird[obj].name))
         }
+        _ => unimplemented!("Primitives not yet allowed in policies"),
     }
 }
 

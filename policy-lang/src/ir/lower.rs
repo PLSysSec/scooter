@@ -36,12 +36,6 @@ pub enum CompleteMigrationAction {
 }
 
 #[derive(Debug)]
-pub struct CompleteValueFunc {
-    pub param: Id<Def>,
-    pub body: Box<ast::ValueExpr>,
-}
-
-#[derive(Debug)]
 pub struct CollectionPolicy {
     pub create: Policy,
     pub delete: Policy,
@@ -120,7 +114,7 @@ impl Lowerer<'_> {
     }
 
     // TODO: update to be more generic when parser gets lambdas
-    fn lower_policy_func(&mut self, param_type: Type, pf: &ast::PolicyFunc) -> Lambda {
+    fn lower_policy_func(&mut self, param_type: Type, pf: &ast::Func) -> Lambda {
         let param = self.ird.create_def(&pf.param, param_type);
         let old_mapping = self.def_map.insert(pf.param.clone(), param);
         let body = self.lower_expr(&pf.expr);
@@ -160,6 +154,9 @@ impl Lowerer<'_> {
                 }
                 _ => unreachable!("Longer paths can never be valid by construction"),
             },
+            ast::QueryExpr::IntConst(i) => ExprKind::IntConst(i.clone()),
+            ast::QueryExpr::FloatConst(f) => ExprKind::FloatConst(f.clone()),
+            ast::QueryExpr::StringConst(s) => ExprKind::StringConst(s.clone()),
         };
 
         self.ird.exprs.alloc_with_id(|id| Expr { id, kind })
@@ -193,11 +190,42 @@ impl Lowerer<'_> {
             },
         }
     }
-    fn lower_migration_func(&mut self, param_type: Type, mf: ast::ValueFunc) -> CompleteValueFunc {
-        let param = self.ird.create_def(mf.param, param_type);
-        CompleteValueFunc {
-            param: param,
-            body: mf.body,
+    fn lower_func(&mut self, param_type: Type, expected_return_type: Type, pf: &ast::Func) -> Lambda {
+        let param = self.ird.create_def(&pf.param, param_type);
+        let old_mapping = self.def_map.insert(pf.param.clone(), param);
+        let body = self.lower_expr(&pf.expr);
+        self.typecheck_expr(body, expected_return_type);
+        match old_mapping {
+            Some(did) => {
+                self.def_map.insert(pf.param.clone(), did);
+            }
+            None => {
+                self.def_map
+                    .remove(&pf.param)
+                    .expect("This should be unreachable");
+            }
+        }
+
+        Lambda { param, body }
+    }
+    fn typecheck_expr(&self, expr_id: Id<Expr>, expected_type: Type) {
+        let expr = &self.ird[expr_id];
+        match expr.kind {
+            ExprKind::IntConst(_) => assert!(expected_type == Type::Prim(Prim::I64)),
+            ExprKind::FloatConst(_) => assert!(expected_type == Type::Prim(Prim::F64)),
+            ExprKind::StringConst(_) => assert!(expected_type == Type::Prim(Prim::String)),
+            _ => unimplemented!("Cannot typecheck complex expressions yet!"),
+        };
+    }
+    fn lower_type(&mut self, ty: ast::FieldType) -> Type {
+        match ty {
+            ast::FieldType::String => Type::Prim(Prim::String),
+            ast::FieldType::I64 => Type::Prim(Prim::I64),
+            ast::FieldType::F64 => Type::Prim(Prim::F64),
+            ast::FieldType::Id(s) => {
+                let (id, _coll_typ) = self.resolve_collection(&s);
+                Type::Id(id)
+            },
         }
     }
 }

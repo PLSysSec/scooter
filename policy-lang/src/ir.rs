@@ -54,14 +54,24 @@ impl Collection {
     pub fn fields(&self) -> impl Iterator<Item=(&String, &Id<Def>)> {
         self.fields.iter()
     }
+    pub fn field_name(&self, field_id: &Id<Def>) -> String {
+        self.fields().find(|(_string_name, id)| *id == field_id).unwrap().0.clone()
+    }
 }
 
 /// Describes a type such as "String" or "Id(User)"
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    String,
+    Prim(Prim),
     Id(Id<Collection>),
     Collection(Id<Collection>),
+}
+#[derive(Debug, Clone, PartialEq)]
+pub enum Prim {
+    String,
+    I64,
+    F64,
+    Any
 }
 
 /// IrData contains the type and name resolution data resulting from lowering the AST to a CompletePolicy.
@@ -110,7 +120,7 @@ impl IrData {
         self.def_types.insert(did, typ);
         did
     }
-    
+
 
     /// A convenience method that handles the multiple lookups required to get the field definition
     pub fn field(&self, cid: Id<Collection>, fname: &str) -> &Def {
@@ -190,7 +200,7 @@ pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
             });
 
             let field_type = match &fpol.ty {
-                ast::FieldType::String => Type::String,
+                ast::FieldType::String => Type::Prim(Prim::String),
                 ast::FieldType::Id(cname) => Type::Id(name_to_coll[cname]),
                 _ => unimplemented!("Field type {:?} not supported by ir", fpol.ty)
             };

@@ -1,31 +1,34 @@
 use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum QueryExpr {
     Path(Vec<String>),
     Or(Box<QueryExpr>, Box<QueryExpr>),
+    IntConst(i64),
+    FloatConst(f64),
+    StringConst(String),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum Policy {
     Public,
     None,
-    Func(PolicyFunc),
+    Func(Func),
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct PolicyFunc {
+#[derive(Debug, PartialEq)]
+pub struct Func {
     pub param: String,
     pub expr: Box<QueryExpr>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct GlobalPolicy {
     pub collections: Vec<CollectionPolicy>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct CollectionPolicy {
     pub name: String,
     pub create: Policy,
@@ -33,7 +36,7 @@ pub struct CollectionPolicy {
     pub fields: HashMap<String, FieldPolicy>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct FieldPolicy {
     pub ty: FieldType,
     pub read: Policy,
@@ -75,17 +78,4 @@ pub struct MigrationCommand {
 #[derive(Debug, PartialEq)]
 pub enum MigrationAction {
     RemoveField{field: String},
-}
-
-#[derive(Debug, PartialEq)]
-pub enum ValueExpr {
-    IntConst{val: i64},
-    FloatConst{val: f64},
-    StringConst{val: String},
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ValueFunc {
-    pub param: String,
-    pub body: Box<ValueExpr>,
 }

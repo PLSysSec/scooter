@@ -11,6 +11,9 @@ pub enum ExprKind {
     Or(Id<Expr>, Id<Expr>),
     Path(Id<Def>, Id<Def>),
     Var(Id<Def>),
+    IntConst(i64),
+    FloatConst(f64),
+    StringConst(String),
 }
 
 #[derive(Debug)]

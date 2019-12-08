@@ -125,6 +125,7 @@ fn policyfunc_to_idlist(f: ast::QueryExpr) -> String {
         ),
         ast::QueryExpr::Path(strings) => format!("{}.to_record_id_vec()",
                                                  lower_path(strings)),
+        _ => unimplemented!("Primitives not yet allowed in policies"),
     }
 }
 
