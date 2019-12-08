@@ -26,7 +26,6 @@ FieldPolicy: (String, FieldPolicy) = {
 
 FieldType: FieldType = {
     "String" => FieldType::String,
-    "I32" => FieldType::I32,
     "I64" => FieldType::I64,
     "F64" => FieldType::F64,
     "Id" "(" <coll:Ident> ")" => FieldType::Id(coll),

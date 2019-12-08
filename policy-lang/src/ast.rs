@@ -47,7 +47,6 @@ pub struct FieldPolicy {
 pub enum FieldType {
     String,
     I64,
-    I32,
     F64,
     Id(String),
 }
@@ -57,7 +56,6 @@ impl fmt::Display for FieldType {
         match self {
             FieldType::String => write!(f, "String"),
             FieldType::I64 => write!(f, "i64"),
-            FieldType::I32 => write!(f, "i32"),
             FieldType::F64 => write!(f, "f64"),
             FieldType::Id(coll) => write!(f, "Id({})", coll),
         }
