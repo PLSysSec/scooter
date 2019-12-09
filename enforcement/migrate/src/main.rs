@@ -83,12 +83,12 @@ mod tests {
             user! {
                 username: "Alex".to_string(),
                 pass_hash: "alex_hash".to_string(),
-                num_followers: "0".to_string(),
+                num_followers: 0,
             },
             user! {
                 username: "John".to_string(),
                 pass_hash: "john_hash".to_string(),
-                num_followers: "0".to_string(),
+                num_followers: 0,
             },
         ];
         // Insert the users into the database, and get back their ids

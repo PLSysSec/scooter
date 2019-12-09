@@ -11,7 +11,7 @@ User {
         write: r -> r.id,
     },
 
-    num_followers : String {
+    num_followers : I64 {
         read: public,
         write: none,
     },

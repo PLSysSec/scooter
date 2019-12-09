@@ -210,7 +210,8 @@ pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
             let field_type = match &fpol.ty {
                 ast::FieldType::String => Type::Prim(Prim::String),
                 ast::FieldType::Id(cname) => Type::Id(name_to_coll[cname]),
-                _ => unimplemented!("Field type {:?} not supported by ir", fpol.ty)
+                ast::FieldType::I64 => Type::Prim(Prim::I64),
+                ast::FieldType::F64 => Type::Prim(Prim::F64),
             };
 
             def_types.insert(id_field, field_type);
