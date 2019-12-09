@@ -146,35 +146,69 @@ impl From<Bson> for Value {
         match b {
             Bson::I64(i) => Value::Int(i),
             Bson::FloatingPoint(f) => Value::Float(f),
-            Bson::String(s) => Bson::String(s),
-            _ => panic!("These kinds of bson objects shouldn't exist")
+            Bson::String(s) => Value::String(s),
+            _ => panic!("These kinds of bson objects shouldn't exist"),
         }
     }
 }
 
 struct Evaluator<'a> {
     pub ird: &'a IrData,
+    env: Vec<(Id<Def>, Value)>,
 }
 
 impl Evaluator<'_> {
     fn new(data: &IrData) -> Evaluator {
-        Evaluator { ird: data }
+        Evaluator {
+            ird: data,
+            env: vec![],
+        }
+    }
+    fn push_scope(&mut self, id: &Id<Def>, val: Value) {
+        self.env.push((id.clone(), val));
+    }
+    fn pop_scope(&mut self, id: &Id<Def>) {
+        assert_eq!(self.env.pop().unwrap().0, *id);
+    }
+    fn lookup(&self, target_id: &Id<Def>) -> Option<Value> {
+        for (var_id, var_val) in self.env.iter() {
+            if var_id == target_id {
+                return Some((*var_val).clone());
+            }
+        }
+        None
     }
     fn eval_expr(&self, expr_id: &Id<Expr>) -> Value {
         match &self.ird[*expr_id].kind {
             ExprKind::IntConst(i) => Value::Int(i.clone()),
             ExprKind::FloatConst(f) => Value::Float(f.clone()),
             ExprKind::StringConst(s) => Value::String(s.clone()),
+            ExprKind::Path(col_id, var, field) => {
+                let obj = self
+                    .lookup(var)
+                    .expect("Couldn't find a value in scope for identifier");
+                match obj {
+                    Value::Object(d) => d
+                        .get(&self.ird[*col_id].field_name(field))
+                        .expect("Retrieved value doesn't have the right field")
+                        .clone()
+                        .into(),
+                    _ => panic!("Cannot get fields of non-object values"),
+                }
+            }
             _ => unimplemented!("Very restricted expr evaluation for now"),
         }
     }
 }
 
-fn exec_query_function(ir_env: &IrData, f: &Lambda, _arg: &Document) -> Value {
-    let evaluator = Evaluator::new(ir_env);
+fn exec_query_function(ir_env: &IrData, f: &Lambda, arg: &Document) -> Value {
+    let mut evaluator = Evaluator::new(ir_env);
     let Lambda {
-        param: _param,
+        param,
         body,
     } = f;
-    evaluator.eval_expr(&body)
+    evaluator.push_scope(param, Value::Object(arg.clone()));
+    let result = evaluator.eval_expr(&body);
+    evaluator.pop_scope(param);
+    result
 }

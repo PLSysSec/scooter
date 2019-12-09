@@ -153,9 +153,8 @@ impl Lowerer<'_> {
                             &m, &v
                         ),
                     };
-
                     let field = self.ird.field(cid, &m).id;
-                    ExprKind::Path(obj, field)
+                    ExprKind::Path(cid, obj, field)
                 }
                 _ => unreachable!("Longer paths can never be valid by construction"),
             },
@@ -225,9 +224,12 @@ impl Lowerer<'_> {
     fn typecheck_expr(&self, expr_id: Id<Expr>, expected_type: Type) {
         let expr = &self.ird[expr_id];
         match expr.kind {
-            ExprKind::IntConst(_) => assert!(expected_type == Type::Prim(Prim::I64)),
-            ExprKind::FloatConst(_) => assert!(expected_type == Type::Prim(Prim::F64)),
-            ExprKind::StringConst(_) => assert!(expected_type == Type::Prim(Prim::String)),
+            ExprKind::IntConst(_) => assert_eq!(expected_type, Type::Prim(Prim::I64)),
+            ExprKind::FloatConst(_) => assert_eq!(expected_type, Type::Prim(Prim::F64)),
+            ExprKind::StringConst(_) => assert_eq!(expected_type, Type::Prim(Prim::String)),
+            ExprKind::Path(_collection, _obj, field) => {
+                assert_eq!(expected_type, *self.ird.def_type(field));
+            },
             _ => unimplemented!("Cannot typecheck complex expressions yet!"),
         };
     }

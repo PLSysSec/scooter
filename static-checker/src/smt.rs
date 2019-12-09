@@ -103,7 +103,7 @@ fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
     match expr.kind {
         ExprKind::Or(l, r) => format!("((_ map or) {} {})", gen_query_expr(ird, l), gen_query_expr(ird, r)),
         ExprKind::Var(_) => unimplemented!("We don't parse this yet"),
-        ExprKind::Path(obj, field) => {
+        ExprKind::Path(_collection, obj, field) => {
             format!("(insert empty ({} {}))", mangled_ident(&ird[field].name), mangled_ident(&ird[obj].name))
         }
         _ => unimplemented!("Primitives not yet allowed in policies"),
