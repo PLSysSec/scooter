@@ -43,7 +43,8 @@ mod tests {
         // The name of the collection
         let col_name = "User".to_string();
         // Create a connection to the database
-        let db_conn = DBConn::new("test");
+        let db_name = "add_and_remove_fields_test".to_string();
+        let db_conn = DBConn::new(&db_name);
         // Drop any existing collection by the same name, so that the
         // collection is empty.
         db_conn.mongo_conn.collection(&col_name).drop().unwrap();
@@ -68,12 +69,14 @@ mod tests {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
+        assert_eq!(db_conn.mongo_conn.collection(&col_name).count(None, None).unwrap(),
+                   2);
 
-        // Perform a migration, using the db_name "test", the contents
-        // of the policy file, and this migration string. The string
-        // removes the num_followers column from the schema.
+        // Perform a migration, the contents of the policy file, and
+        // this migration string. The string removes the num_followers
+        // column from the schema.
         migrate(
-            "test".to_string(),
+            db_name,
             get_contents(
                 Path::new(&std::env::current_dir().unwrap())
                     .join("policy.txt".to_string())
@@ -135,6 +138,7 @@ mod tests {
                 .expect("Couldn't find pass_hash key after migration"),
             "john_hash"
         );
+        // Make sure the added fields got added with the right values
         assert_eq!(
             alex_result_doc
                 .get_i64("num_friends")
