@@ -76,4 +76,5 @@ pub struct MigrationCommand {
 #[derive(Debug, PartialEq)]
 pub enum MigrationAction {
     RemoveField{field: String},
+    AddField{field: String, ty: FieldType, init: Func},
 }

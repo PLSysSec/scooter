@@ -57,6 +57,9 @@ impl Collection {
     pub fn field_name(&self, field_id: &Id<Def>) -> String {
         self.fields().find(|(_string_name, id)| *id == field_id).unwrap().0.clone()
     }
+    pub fn add_field(&mut self, name: String, id: Id<Def>) {
+        self.fields.insert(name, id);
+    }
 }
 
 /// Describes a type such as "String" or "Id(User)"
@@ -125,6 +128,11 @@ impl IrData {
     /// A convenience method that handles the multiple lookups required to get the field definition
     pub fn field(&self, cid: Id<Collection>, fname: &str) -> &Def {
         &self[self[cid].fields[fname]]
+    }
+
+    pub fn add_field(&mut self, cid: Id<Collection>, fname: String, ftype: Type) {
+        let field_def = self.create_def(fname.clone(), ftype);
+        self.colls[cid].add_field(fname, field_def);
     }
 
     /// Lowers the ast to its IR representation, accruing information into the IrData struct

@@ -33,6 +33,11 @@ pub enum CompleteMigrationAction {
     RemoveField {
         field: Id<Def>,
     },
+    AddField {
+        field: Id<Def>,
+        ty: Type,
+        init: Lambda,
+    },
 }
 
 #[derive(Debug)]
@@ -187,6 +192,15 @@ impl Lowerer<'_> {
         match action {
             ast::MigrationAction::RemoveField { field } => CompleteMigrationAction::RemoveField {
                 field: self.ird.field(collection_id, &field).id,
+            },
+            ast::MigrationAction::AddField { field, ty, init } => {
+                let lowered_ty = self.lower_type(ty);
+                self.ird.add_field(collection_id, field.clone(), lowered_ty.clone());
+                CompleteMigrationAction::AddField {
+                field: self.ird.field(collection_id, &field).id,
+                ty: lowered_ty.clone(),
+                init: self.lower_func(collection_type, lowered_ty, &init),
+                }
             },
         }
     }

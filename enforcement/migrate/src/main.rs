@@ -1,6 +1,5 @@
 use policy_lang;
 
-use policy_lang::ast::*;
 use policy_lang::ir::*;
 
 use std::io::{self, Read};
@@ -69,7 +68,7 @@ mod tests {
     use std::path::Path;
     use types::*;
     #[test]
-    fn remove_num_followers() {
+    fn add_and_remove_fields() {
         // The name of the collection
         let col_name = "User".to_string();
         // Create a connection to the database
@@ -112,6 +111,9 @@ mod tests {
             .unwrap(),
             r#"
                 User::RemoveField(num_followers)
+                User::AddField(num_friends, I64, u -> 1337)
+                User::AddField(num_roomates, I64, u -> 0)
+                User::RemoveField(num_roomates)
                 "#
             .to_string(),
         );
@@ -130,9 +132,12 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        // Make sure the right thing got removed
+        // Make sure the right things got removed
         assert!(!alex_result_doc.contains_key("num_followers"));
         assert!(!john_result_doc.contains_key("num_followers"));
+
+        assert!(!alex_result_doc.contains_key("num_roomates"));
+        assert!(!john_result_doc.contains_key("num_roomates"));
 
         // Make sure nothing else got removed
         assert_eq!(
@@ -159,14 +164,24 @@ mod tests {
                 .expect("Couldn't find pass_hash key after migration"),
             "john_hash"
         );
+        assert_eq!(
+            alex_result_doc
+                .get_i64("num_friends")
+                .expect("Couldn't find pass_hash key after migration"),
+            1337
+        );
+        assert_eq!(
+            john_result_doc
+                .get_i64("num_friends")
+                .expect("Couldn't find pass_hash key after migration"),
+            1337
+        );
     }
 }
 
 use mongodb::db::ThreadedDatabase;
-use mongodb::Client;
-use mongodb::Document;
-use mongodb::ThreadedClient;
 use mongodb::{bson, doc};
+use mongodb::{Bson, Client, Document, ThreadedClient};
 /// Interpret the commands in a migration file, using a given database
 /// and policy environment.
 ///
@@ -199,7 +214,8 @@ fn interpret_migration(
             // Get the id of the original item
             let item_id = item.get_object_id("_id").unwrap().clone();
             // Run the commands on this particular item.
-            let updated_item = apply_action(item, &action, &policy_collection, &policy_ir);
+            let updated_item = apply_action(item, &action, &env,
+                                            &policy_collection, &policy_ir);
             // Replace the old object with the new one in the database
             mongo_collection
                 .replace_one(doc! {"_id":item_id}, updated_item, None)
@@ -222,6 +238,7 @@ fn interpret_migration(
 fn apply_action(
     doc: Document,
     action: &CompleteMigrationAction,
+    env: &IrData,
     policy_collection: &Collection,
     _policy_ir: &CompletePolicy,
 ) -> Document {
@@ -235,6 +252,61 @@ fn apply_action(
                 .remove(&policy_collection.field_name(field_id))
                 .expect("Couldn't find column to remove in data.");
         }
+        CompleteMigrationAction::AddField {
+            field: field_id,
+            ty: _field_ty,
+            init: initializer,
+        } => {
+            let field_name = policy_collection.field_name(field_id);
+            assert!(
+                !result_doc.contains_key(&field_name),
+                format!(
+                    "Document already contained a field with the name \"{}\"",
+                    field_name
+                )
+            );
+            result_doc.insert(field_name, exec_query_function(env, initializer, &result_doc));
+        }
     };
     result_doc
+}
+
+#[derive(Clone)]
+pub enum Value {
+    Int(i64),
+    Float(f64),
+    String(String),
+}
+impl From<Value> for Bson {
+    fn from(v: Value) -> Bson {
+        match v {
+            Value::Int(i) => Bson::I64(i),
+            Value::Float(f) => Bson::FloatingPoint(f),
+            Value::String(s) => Bson::String(s),
+        }
+    }
+}
+
+struct Evaluator<'a> {
+    pub ird: &'a IrData,
+}
+
+impl Evaluator<'_> {
+    fn new(data: &IrData) -> Evaluator {
+        Evaluator{ird: data}
+    }
+    fn eval_expr(&self, expr_id: &Id<Expr>) -> Value {
+        match &self.ird[*expr_id] {
+            Expr{id: _, kind: ExprKind::IntConst(i)} => Value::Int(i.clone()),
+            Expr{id: _, kind: ExprKind::FloatConst(i)} => Value::Float(i.clone()),
+            Expr{id: _, kind: ExprKind::StringConst(i)} => Value::String(i.clone()),
+            _ => unimplemented!("Very restricted expr evaluation for now")
+        }
+    }
+}
+
+fn exec_query_function(ir_env: &IrData, f: &Lambda, _arg: &Document) -> Value {
+    let evaluator = Evaluator::new(ir_env);
+    let Lambda {param: _param, body} = f;
+    evaluator.eval_expr(&body)
 }
