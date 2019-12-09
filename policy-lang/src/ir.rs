@@ -214,7 +214,7 @@ pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
                 ast::FieldType::F64 => Type::Prim(Prim::F64),
             };
 
-            def_types.insert(id_field, field_type);
+            def_types.insert(field_did, field_type);
             coll.fields.insert(fname.clone(), field_did);
         }
     }
