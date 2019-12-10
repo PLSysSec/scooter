@@ -51,11 +51,15 @@ impl Collection {
         &self.name
     }
 
-    pub fn fields(&self) -> impl Iterator<Item=(&String, &Id<Def>)> {
+    pub fn fields(&self) -> impl Iterator<Item = (&String, &Id<Def>)> {
         self.fields.iter()
     }
     pub fn field_name(&self, field_id: &Id<Def>) -> String {
-        self.fields().find(|(_string_name, id)| *id == field_id).unwrap().0.clone()
+        self.fields()
+            .find(|(_string_name, id)| *id == field_id)
+            .unwrap()
+            .0
+            .clone()
     }
     pub fn add_field(&mut self, name: String, id: Id<Def>) {
         self.fields.insert(name, id);
@@ -74,7 +78,7 @@ pub enum Prim {
     String,
     I64,
     F64,
-    Any
+    Any,
 }
 
 /// IrData contains the type and name resolution data resulting from lowering the AST to a CompletePolicy.
@@ -112,7 +116,10 @@ impl IrData {
 
     /// Finds the type of a given def
     pub fn def_type(&self, did: Id<Def>) -> &Type {
-        &self.def_types.get(&did).expect("Unable to find type for def")
+        &self
+            .def_types
+            .get(&did)
+            .expect("Unable to find type for def")
     }
 
     fn create_def(&mut self, name: impl ToString, typ: Type) -> Id<Def> {
