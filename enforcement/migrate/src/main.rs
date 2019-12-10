@@ -69,8 +69,14 @@ mod tests {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
-        assert_eq!(db_conn.mongo_conn.collection(&col_name).count(None, None).unwrap(),
-                   2);
+        assert_eq!(
+            db_conn
+                .mongo_conn
+                .collection(&col_name)
+                .count(None, None)
+                .unwrap(),
+            2
+        );
 
         // Perform a migration, the contents of the policy file, and
         // this migration string. The string removes the num_followers
@@ -165,7 +171,6 @@ mod tests {
         coll.drop().unwrap();
         assert_eq!(coll.count(None, None).unwrap(), 0);
 
-
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
         let users: Vec<_> = vec![
@@ -186,8 +191,14 @@ mod tests {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
-        assert_eq!(db_conn.mongo_conn.collection(&col_name).count(None, None).unwrap(),
-                   2);
+        assert_eq!(
+            db_conn
+                .mongo_conn
+                .collection(&col_name)
+                .count(None, None)
+                .unwrap(),
+            2
+        );
 
         // Perform a migration, the contents of the policy file, and
         // this migration string. The string removes the num_followers
@@ -236,6 +247,71 @@ mod tests {
                 .get_i64("num_friends")
                 .expect("Couldn't find pass_hash key after migration"),
             0
+        );
+    }
+    #[test]
+    fn duplicate_users() {
+        // The name of the collection
+        let col_name = "User".to_string();
+        // Create a connection to the database
+        let db_name = "duplicate_messages_test".to_string();
+        let db_conn = DBConn::new(&db_name);
+        // Drop any existing collection by the same name, so that the
+        // collection is empty.
+        let coll = db_conn.mongo_conn.collection(&col_name);
+        coll.drop().unwrap();
+        assert_eq!(coll.count(None, None).unwrap(), 0);
+
+        // Two user objects, to be inserted into the database. Note
+        // that these users have a "num_followers" field.
+        let users: Vec<_> = vec![
+            user! {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+                num_followers: 42,
+            },
+            user! {
+                username: "John".to_string(),
+                pass_hash: "john_hash".to_string(),
+                num_followers: 0,
+            },
+        ];
+        // Insert the users into the database, and get back their ids
+        let _uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        assert_eq!(
+            db_conn
+                .mongo_conn
+                .collection(&col_name)
+                .count(None, None)
+                .unwrap(),
+            2
+        );
+
+        // Perform a migration, the contents of the policy file, and
+        // this migration string. The string duplicates users.
+        migrate(
+            db_name,
+            get_contents(
+                Path::new(&std::env::current_dir().unwrap())
+                    .join("policy.txt".to_string())
+                    .as_ref(),
+            )
+            .unwrap(),
+            r#"
+                User::ForEach(u -> User::Create(User {username: u.username,
+                                                      pass_hash: u.pass_hash,
+                                                      num_followers: u.num_followers,}))
+                "#
+            .to_string(),
+        );
+        // Make sure there are now double the users.
+        assert_eq!(
+            db_conn
+                .mongo_conn
+                .collection(&col_name)
+                .count(None, None)
+                .unwrap(),
+            4
         );
     }
 }

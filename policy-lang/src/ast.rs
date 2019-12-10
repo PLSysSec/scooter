@@ -8,6 +8,12 @@ pub enum QueryExpr {
     IntConst(i64),
     FloatConst(f64),
     StringConst(String),
+    Object(ObjectLiteral),
+}
+#[derive(Debug, PartialEq)]
+pub struct ObjectLiteral {
+    pub coll: String,
+    pub fields: Vec<(String, Box<QueryExpr>)>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -74,7 +80,13 @@ pub struct MigrationCommand {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum ObjectCommand {
+    CreateObject{collection: String, value: Box<QueryExpr>},
+}
+
+#[derive(Debug, PartialEq)]
 pub enum MigrationAction {
     RemoveField{field: String},
     AddField{field: String, ty: FieldType, init: Func},
+    ForEach{param: String, body: ObjectCommand},
 }

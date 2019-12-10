@@ -14,6 +14,7 @@ pub enum ExprKind {
     IntConst(i64),
     FloatConst(f64),
     StringConst(String),
+    Object(Id<Collection>, Vec<(Id<Def>, Id<Expr>)>),
 }
 
 #[derive(Debug)]

@@ -28,6 +28,14 @@ pub struct CompleteMigrationCommand {
     pub table: Id<Collection>,
     pub action: CompleteMigrationAction,
 }
+
+#[derive(Debug)]
+pub enum CompleteObjectCommand {
+    CreateObject {
+        collection: Id<Collection>,
+        value: Id<Expr>,
+    },
+}
 #[derive(Debug)]
 pub enum CompleteMigrationAction {
     RemoveField {
@@ -37,6 +45,10 @@ pub enum CompleteMigrationAction {
         field: Id<Def>,
         ty: Type,
         init: Lambda,
+    },
+    ForEach {
+        param: Id<Def>,
+        body: CompleteObjectCommand,
     },
 }
 
@@ -161,6 +173,44 @@ impl Lowerer<'_> {
             ast::QueryExpr::IntConst(i) => ExprKind::IntConst(i.clone()),
             ast::QueryExpr::FloatConst(f) => ExprKind::FloatConst(f.clone()),
             ast::QueryExpr::StringConst(s) => ExprKind::StringConst(s.clone()),
+            ast::QueryExpr::Object(ast::ObjectLiteral {
+                coll: coll_name,
+                fields,
+            }) => {
+                let coll = self
+                    .ird
+                    .collections()
+                    .find(|c| c.name.eq_str(coll_name))
+                    .expect(&format!("Unknown collection {}", coll_name));
+                let coll_id = coll.id.clone();
+                let resolved_field_ids: Vec<Id<Def>> = fields
+                    .iter()
+                    .map(|(name, _expr)| coll.fields[name].clone())
+                    .collect();
+                for (field_name, field_id) in coll.fields() {
+                    if field_name == "id" {
+                        continue;
+                    }
+                    assert!(
+                        resolved_field_ids.contains(field_id),
+                        format!(
+                            "Initializer for {} doesn't contain field {}",
+                            coll_name, field_name
+                        )
+                    );
+                }
+                let lowered_exprs: Vec<Id<Expr>> = fields
+                    .into_iter()
+                    .map(|(_name, expr)| self.lower_expr(expr))
+                    .collect();
+                ExprKind::Object(
+                    coll_id,
+                    resolved_field_ids
+                        .into_iter()
+                        .zip(lowered_exprs.into_iter())
+                        .collect(),
+                )
+            }
         };
 
         self.ird.exprs.alloc_with_id(|id| Expr { id, kind })
@@ -194,16 +244,59 @@ impl Lowerer<'_> {
             },
             ast::MigrationAction::AddField { field, ty, init } => {
                 let lowered_ty = self.lower_type(ty);
-                self.ird.add_field(collection_id, field.clone(), lowered_ty.clone());
+                self.ird
+                    .add_field(collection_id, field.clone(), lowered_ty.clone());
                 CompleteMigrationAction::AddField {
-                field: self.ird.field(collection_id, &field).id,
-                ty: lowered_ty.clone(),
-                init: self.lower_func(collection_type, lowered_ty, &init),
+                    field: self.ird.field(collection_id, &field).id,
+                    ty: lowered_ty.clone(),
+                    init: self.lower_func(collection_type, lowered_ty, &init),
                 }
-            },
+            }
+            ast::MigrationAction::ForEach { param, body } => {
+                let param_id = self.ird.create_def(&param, collection_type.clone());
+                let old_mapping = self.def_map.insert(param.clone(), param_id);
+                let lowered_action = CompleteMigrationAction::ForEach {
+                    param: param_id,
+                    body: self.lower_object_command(body),
+                };
+                match old_mapping {
+                    Some(did) => {
+                        self.def_map.insert(param.clone(), did);
+                    }
+                    None => {
+                        self.def_map
+                            .remove(&param)
+                            .expect("This should be unreachable");
+                    }
+                }
+                lowered_action
+            }
         }
     }
-    fn lower_func(&mut self, param_type: Type, expected_return_type: Type, pf: &ast::Func) -> Lambda {
+    fn lower_object_command(&mut self, body: ast::ObjectCommand) -> CompleteObjectCommand {
+        match body {
+            ast::ObjectCommand::CreateObject { collection, value } => {
+                let body = self.lower_expr(&value);
+                let coll_id = self
+                    .ird
+                    .collections()
+                    .find(|c| c.name.eq_str(&collection))
+                    .expect(&format!("Unknown collection {}", collection))
+                    .id;
+                self.typecheck_expr(body, Type::Collection(coll_id));
+                CompleteObjectCommand::CreateObject {
+                    collection: coll_id,
+                    value: body,
+                }
+            }
+        }
+    }
+    fn lower_func(
+        &mut self,
+        param_type: Type,
+        expected_return_type: Type,
+        pf: &ast::Func,
+    ) -> Lambda {
         let param = self.ird.create_def(&pf.param, param_type);
         let old_mapping = self.def_map.insert(pf.param.clone(), param);
         let body = self.lower_expr(&pf.expr);
@@ -223,13 +316,16 @@ impl Lowerer<'_> {
     }
     fn typecheck_expr(&self, expr_id: Id<Expr>, expected_type: Type) {
         let expr = &self.ird[expr_id];
-        match expr.kind {
+        match &expr.kind {
             ExprKind::IntConst(_) => assert_eq!(expected_type, Type::Prim(Prim::I64)),
             ExprKind::FloatConst(_) => assert_eq!(expected_type, Type::Prim(Prim::F64)),
             ExprKind::StringConst(_) => assert_eq!(expected_type, Type::Prim(Prim::String)),
             ExprKind::Path(_collection, _obj, field) => {
-                assert_eq!(expected_type, *self.ird.def_type(field));
-            },
+                assert_eq!(expected_type, *self.ird.def_type(*field));
+            }
+            ExprKind::Object(collection, _fields) => {
+                assert_eq!(expected_type, Type::Collection(*collection));
+            }
             _ => unimplemented!("Cannot typecheck complex expressions yet!"),
         };
     }
@@ -241,7 +337,7 @@ impl Lowerer<'_> {
             ast::FieldType::Id(s) => {
                 let (id, _coll_typ) = self.resolve_collection(&s);
                 Type::Id(id)
-            },
+            }
         }
     }
 }

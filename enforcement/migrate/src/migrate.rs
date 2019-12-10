@@ -2,7 +2,8 @@ use policy_lang;
 
 use policy_lang::ir::*;
 
-use mongodb::db::ThreadedDatabase;
+use mongodb::db::{Database, ThreadedDatabase};
+use mongodb::oid::ObjectId;
 use mongodb::{bson, doc};
 use mongodb::{Bson, Client, Document, ThreadedClient};
 
@@ -49,7 +50,7 @@ fn interpret_migration(
     db_name: String,
     env: IrData,
     migration_ir: CompleteMigration,
-    policy_ir: CompletePolicy,
+    _policy_ir: CompletePolicy,
 ) {
     // Create a connection to the database
     let db_conn = Client::connect("localhost", 27017)
@@ -58,72 +59,49 @@ fn interpret_migration(
     // Loop over the migration commands in sequence
     for CompleteMigrationCommand { table, action } in migration_ir.0.into_iter() {
         let policy_collection = &env[table];
-        let mongo_collection = db_conn.collection(&policy_collection.name.1);
-        let items_old = mongo_collection.find(None, None).unwrap();
-        for item in items_old.into_iter() {
-            let item = item.unwrap();
-            // Get the id of the original item
-            let item_id = item.get_object_id("_id").unwrap().clone();
-            // Run the commands on this particular item.
-            let updated_item = apply_action(item, &action, &env, &policy_collection, &policy_ir);
-            // Replace the old object with the new one in the database
-            mongo_collection
-                .replace_one(doc! {"_id":item_id}, updated_item, None)
-                .expect("Couldn't replace document");
+        match action {
+            CompleteMigrationAction::RemoveField { field } => {
+                for item in coll_docs(&db_conn, &policy_collection).into_iter() {
+                    let item_id = item.get_object_id("_id").unwrap().clone();
+                    let mut result = item;
+                    result.remove(&policy_collection.field_name(&field));
+                    replace_doc(&db_conn, &policy_collection, item_id, result);
+                }
+            }
+            CompleteMigrationAction::AddField { field, ty: _, init } => {
+                for item in coll_docs(&db_conn, &policy_collection).into_iter() {
+                    let item_id = item.get_object_id("_id").unwrap().clone();
+                    let mut result = item;
+                    let field_name = policy_collection.field_name(&field);
+                    assert!(
+                        !result.contains_key(&field_name),
+                        format!(
+                            "Document already contained a field with the name \"{}\"",
+                            field_name
+                        )
+                    );
+                    result.insert(field_name, exec_query_function(&env, &init, &result));
+                    replace_doc(&db_conn, &policy_collection, item_id, result);
+                }
+            }
+            CompleteMigrationAction::ForEach { param, body } => {
+                for item in coll_docs(&db_conn, &policy_collection).into_iter() {
+                    match body {
+                        CompleteObjectCommand::CreateObject { collection, value } => {
+                            let mut evaluator = Evaluator::new(&env);
+                            evaluator.push_scope(&param, Value::Object(item.clone()));
+                            let result = evaluator.eval_expr(&value);
+                            match result {
+                                Value::Object(doc) => insert_doc(&db_conn, &env[collection], doc),
+                                _ => panic!("Can't insert these kinds of values; typechecking must have failed"),
+                            };
+                        }
+                    }
+                }
+            }
         }
     }
 }
-/// Apply a list of commands to a single mongo document
-///
-/// # Arguments
-///
-/// * `doc` - The mongo document object to operate on
-///
-/// * `command_list` - A list of actions to perform on this document
-///
-/// * `policy_collection` - The type and schema information for the
-/// current collection
-///
-/// * `_policy_ir` - The policies on the current collection
-fn apply_action(
-    doc: Document,
-    action: &CompleteMigrationAction,
-    env: &IrData,
-    policy_collection: &Collection,
-    _policy_ir: &CompletePolicy,
-) -> Document {
-    // Get a mutable document
-    let mut result_doc = doc;
-    // Apply the command
-    match action {
-        CompleteMigrationAction::RemoveField { field: field_id } => {
-            // Remove the column (and make sure it existed on the object)
-            result_doc
-                .remove(&policy_collection.field_name(field_id))
-                .expect("Couldn't find column to remove in data.");
-        }
-        CompleteMigrationAction::AddField {
-            field: field_id,
-            ty: _field_ty,
-            init: initializer,
-        } => {
-            let field_name = policy_collection.field_name(field_id);
-            assert!(
-                !result_doc.contains_key(&field_name),
-                format!(
-                    "Document already contained a field with the name \"{}\"",
-                    field_name
-                )
-            );
-            result_doc.insert(
-                field_name,
-                exec_query_function(env, initializer, &result_doc),
-            );
-        }
-    };
-    result_doc
-}
-
 #[derive(Clone)]
 pub enum Value {
     Int(i64),
@@ -196,6 +174,15 @@ impl Evaluator<'_> {
                     _ => panic!("Cannot get fields of non-object values"),
                 }
             }
+            ExprKind::Object(col_id, fields) => {
+                let collection = &self.ird[*col_id];
+                let mut result_object = doc! {};
+                for (field_id, field_value) in fields.iter() {
+                    result_object
+                        .insert(collection.field_name(field_id), self.eval_expr(field_value));
+                }
+                Value::Object(result_object)
+            }
             _ => unimplemented!("Very restricted expr evaluation for now"),
         }
     }
@@ -203,12 +190,32 @@ impl Evaluator<'_> {
 
 fn exec_query_function(ir_env: &IrData, f: &Lambda, arg: &Document) -> Value {
     let mut evaluator = Evaluator::new(ir_env);
-    let Lambda {
-        param,
-        body,
-    } = f;
+    let Lambda { param, body } = f;
     evaluator.push_scope(param, Value::Object(arg.clone()));
     let result = evaluator.eval_expr(&body);
     evaluator.pop_scope(param);
     result
+}
+
+fn coll_docs(db_conn: &Database, coll: &Collection) -> Vec<Document> {
+    db_conn
+        .collection(&coll.name.1)
+        .find(None, None)
+        .unwrap()
+        .into_iter()
+        .map(|d| d.unwrap())
+        .collect()
+}
+fn replace_doc(db_conn: &Database, coll: &Collection, id: ObjectId, new: Document) {
+    db_conn
+        .collection(&coll.name.1)
+        .replace_one(doc! {"_id": id}, new, None)
+        .expect("Couldn't replace document");
+}
+
+fn insert_doc(db_conn: &Database, coll: &Collection, new: Document) {
+    db_conn
+        .collection(&coll.name.1)
+        .insert_one(new, None)
+        .expect("Couldn't insert document");
 }

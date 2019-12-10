@@ -24,6 +24,7 @@ FieldPolicy: (String, FieldPolicy) = {
         })
 }
 
+
 FieldType: FieldType = {
     "String" => FieldType::String,
     "I64" => FieldType::I64,
@@ -43,6 +44,12 @@ Func: Func = {
         expr: e
     }
 }
+FieldInitializer: (String, Box<QueryExpr>) = {
+    <i:Ident> ":" <q:QueryExpr> "," => (i, q)
+}
+Object: ObjectLiteral = {
+        <i:Ident> "{" <fs:FieldInitializer*> "}" => ObjectLiteral{ coll: i, fields: fs}
+}
 
 QueryExpr: Box<QueryExpr> = {
     <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::Or(l, r)),
@@ -54,6 +61,7 @@ QueryExpr2: Box<QueryExpr> = {
     <i:r"[0-9]+"> => Box::new(QueryExpr::IntConst(i64::from_str(i).unwrap())),
     <f:r"[0-9]+\.[0-9]+"> => Box::new(QueryExpr::FloatConst(f64::from_str(f).unwrap())),
     <s:r#"".*""#> => Box::new(QueryExpr::StringConst(s.to_string())),
+    Object => Box::new(QueryExpr::Object(<>)),
 }
 
 Ident: String = {
@@ -82,4 +90,11 @@ MigrationCommand: MigrationCommand = {
         MigrationCommand{table: t, action: MigrationAction::RemoveField{field: c}},
     <t:Ident> "::" "AddField" "(" <c:Ident> "," <ty:FieldType> "," <vf:Func> ")" =>
         MigrationCommand{table: t, action: MigrationAction::AddField{field:c, ty: ty, init: vf}},
+    <t:Ident> "::" "ForEach" "(" <p:Ident> "->" <c:ObjectCommand> ")" =>
+        MigrationCommand{table: t, action: MigrationAction::ForEach{param:p, body:c}},
+}
+
+ObjectCommand: ObjectCommand = {
+    <t:Ident> "::" "Create" "(" <e:QueryExpr> ")" =>
+        ObjectCommand::CreateObject{collection:t, value:e},
 }
