@@ -86,15 +86,28 @@ fn interpret_migration(
             }
             CompleteMigrationAction::ForEach { param, body } => {
                 for item in coll_docs(&db_conn, &policy_collection).into_iter() {
+                    let mut evaluator = Evaluator::new(&env);
+                    evaluator.push_scope(&param, Value::Object(item.clone()));
                     match body {
                         CompleteObjectCommand::CreateObject { collection, value } => {
-                            let mut evaluator = Evaluator::new(&env);
-                            evaluator.push_scope(&param, Value::Object(item.clone()));
-                            let result = evaluator.eval_expr(&value);
-                            match result {
-                                Value::Object(doc) => insert_doc(&db_conn, &env[collection], doc),
-                                _ => panic!("Can't insert these kinds of values; typechecking must have failed"),
-                            };
+                            if let Value::Object(obj) = evaluator.eval_expr(&value) {
+                                insert_doc(&db_conn, &env[collection], obj)
+                            } else {
+                                panic!("Can't insert these kinds of values; typechecking must have failed");
+                            }
+                        }
+                        CompleteObjectCommand::DeleteObject {
+                            collection,
+                            id_expr,
+                        } => {
+                            if let Value::Id(id) = evaluator.eval_expr(&id_expr) {
+                                delete_doc(&db_conn, &env[collection], id)
+                            } else {
+                                panic!(
+                                    "Runtime type error: argument does not evaluate to an id: {:?}",
+                                    id_expr
+                                )
+                            }
                         }
                     }
                 }
@@ -108,6 +121,7 @@ pub enum Value {
     Float(f64),
     String(String),
     Object(Document),
+    Id(ObjectId),
 }
 impl From<Value> for Bson {
     fn from(v: Value) -> Bson {
@@ -116,6 +130,7 @@ impl From<Value> for Bson {
             Value::Float(f) => Bson::FloatingPoint(f),
             Value::String(s) => Bson::String(s),
             Value::Object(_) => panic!("Cannot return an object where a value is expected"),
+            Value::Id(i) => Bson::ObjectId(i),
         }
     }
 }
@@ -125,6 +140,7 @@ impl From<Bson> for Value {
             Bson::I64(i) => Value::Int(i),
             Bson::FloatingPoint(f) => Value::Float(f),
             Bson::String(s) => Value::String(s),
+            Bson::ObjectId(i) => Value::Id(i),
             _ => panic!("These kinds of bson objects shouldn't exist"),
         }
     }
@@ -165,9 +181,16 @@ impl Evaluator<'_> {
                 let obj = self
                     .lookup(var)
                     .expect("Couldn't find a value in scope for identifier");
+                let field_name = self.ird[*col_id].field_name(field);
+                let normalized_field_name = if field_name == "id" {
+                    "_id"
+                } else {
+                    &field_name
+                };
+
                 match obj {
                     Value::Object(d) => d
-                        .get(&self.ird[*col_id].field_name(field))
+                        .get(normalized_field_name)
                         .expect("Retrieved value doesn't have the right field")
                         .clone()
                         .into(),
@@ -249,4 +272,11 @@ fn insert_doc(db_conn: &Database, coll: &Collection, new: Document) {
         .collection(&coll.name.1)
         .insert_one(new, None)
         .expect("Couldn't insert document");
+}
+
+fn delete_doc(db_conn: &Database, coll: &Collection, id: ObjectId) {
+    db_conn
+        .collection(&coll.name.1)
+        .delete_one(doc! {"_id": id}, None)
+        .expect("Couldn't delete document");
 }

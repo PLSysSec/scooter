@@ -35,6 +35,10 @@ pub enum CompleteObjectCommand {
         collection: Id<Collection>,
         value: Id<Expr>,
     },
+    DeleteObject {
+        collection: Id<Collection>,
+        id_expr: Id<Expr>,
+    }
 }
 #[derive(Debug)]
 pub enum CompleteMigrationAction {
@@ -306,6 +310,20 @@ impl Lowerer<'_> {
                 CompleteObjectCommand::CreateObject {
                     collection: coll_id,
                     value: value,
+                }
+            }
+            ast::ObjectCommand::DeleteObject {collection, id_expr } => {
+                let id_expr_id = self.lower_expr(&id_expr);
+                let coll_id = self
+                    .ird
+                    .collections()
+                    .find(|c| c.name.eq_str(&collection))
+                    .expect(&format!("Unknown collection {}", collection))
+                    .id;
+                self.typecheck_expr(id_expr_id, Type::Id(coll_id));
+                CompleteObjectCommand::DeleteObject {
+                    collection: coll_id,
+                    id_expr: id_expr_id,
                 }
             }
         }

@@ -83,6 +83,7 @@ pub struct MigrationCommand {
 #[derive(Debug, PartialEq)]
 pub enum ObjectCommand {
     CreateObject{collection: String, value: Box<QueryExpr>},
+    DeleteObject{collection: String, id_expr: Box<QueryExpr>},
 }
 
 #[derive(Debug, PartialEq)]
