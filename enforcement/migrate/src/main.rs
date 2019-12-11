@@ -298,9 +298,8 @@ mod tests {
             )
             .unwrap(),
             r#"
-                User::ForEach(u -> User::Create(User {username: u.username + "_duplicate",
-                                                      pass_hash: u.pass_hash,
-                                                      num_followers: u.num_followers,}))
+                User::ForEach(u -> User::Create(User {username: u.username + "_duplicate"
+                                                      ...u}))
                 "#
             .to_string(),
         );

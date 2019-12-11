@@ -48,7 +48,8 @@ FieldInitializer: (String, Box<QueryExpr>) = {
     <i:Ident> ":" <q:QueryExpr> => (i, q)
 }
 Object: ObjectLiteral = {
-        <i:Ident> "{" <fs:Comma<FieldInitializer>> "}" => ObjectLiteral{ coll: i, fields: fs}
+        <i:Ident> "{" <fs:Comma<FieldInitializer>> "}" => ObjectLiteral{ coll: i, fields: fs, template_obj: None},
+        <i:Ident> "{" <fs:Comma<FieldInitializer>> "..." <e:QueryExpr> "}" => ObjectLiteral {coll: i, fields: fs, template_obj: Some(e)}
 }
 Comma<T>: Vec<T> = { // (1)
     <v:(<T> ",")*> <e:T?> => match e { // (2)

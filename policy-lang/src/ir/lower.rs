@@ -190,6 +190,7 @@ impl Lowerer<'_> {
             ast::QueryExpr::Object(ast::ObjectLiteral {
                 coll: coll_name,
                 fields,
+                template_obj,
             }) => {
                 let coll = self
                     .ird
@@ -201,18 +202,21 @@ impl Lowerer<'_> {
                     .iter()
                     .map(|(name, _expr)| coll.fields[name].clone())
                     .collect();
-                for (field_name, field_id) in coll.fields() {
-                    if field_name == "id" {
-                        continue;
+                if template_obj.is_none() {
+                    for (field_name, field_id) in coll.fields() {
+                        if field_name == "id" {
+                            continue;
+                        }
+                        assert!(
+                            resolved_field_ids.contains(field_id),
+                            format!(
+                                "Initializer for {} doesn't contain field {}",
+                                coll_name, field_name
+                            )
+                        );
                     }
-                    assert!(
-                        resolved_field_ids.contains(field_id),
-                        format!(
-                            "Initializer for {} doesn't contain field {}",
-                            coll_name, field_name
-                        )
-                    );
                 }
+                let lowered_template_obj = template_obj.as_ref().map(|expr| self.lower_expr(expr));
                 let lowered_exprs: Vec<Id<Expr>> = fields
                     .into_iter()
                     .map(|(_name, expr)| self.lower_expr(expr))
@@ -223,6 +227,7 @@ impl Lowerer<'_> {
                         .into_iter()
                         .zip(lowered_exprs.into_iter())
                         .collect(),
+                    lowered_template_obj,
                 )
             }
         };
@@ -289,18 +294,18 @@ impl Lowerer<'_> {
     }
     fn lower_object_command(&mut self, body: ast::ObjectCommand) -> CompleteObjectCommand {
         match body {
-            ast::ObjectCommand::CreateObject { collection, value } => {
-                let body = self.lower_expr(&value);
+            ast::ObjectCommand::CreateObject { collection, value: body } => {
+                let value = self.lower_expr(&body);
                 let coll_id = self
                     .ird
                     .collections()
                     .find(|c| c.name.eq_str(&collection))
                     .expect(&format!("Unknown collection {}", collection))
                     .id;
-                self.typecheck_expr(body, Type::Collection(coll_id));
+                self.typecheck_expr(value, Type::Collection(coll_id));
                 CompleteObjectCommand::CreateObject {
                     collection: coll_id,
-                    value: body,
+                    value: value,
                 }
             }
         }
@@ -335,7 +340,7 @@ impl Lowerer<'_> {
             ExprKind::FloatConst(_) => Type::Prim(Prim::F64),
             ExprKind::StringConst(_) => Type::Prim(Prim::String),
             ExprKind::Path(_colleciton, _obj, field) => self.ird.def_type(*field).clone(),
-            ExprKind::Object(collection, _fields) => Type::Collection(*collection),
+            ExprKind::Object(collection, _fields, _t_obj) => Type::Collection(*collection),
             _ => unimplemented!("Cannot typecheck complex expressions yet!"),
         }
     }

@@ -14,6 +14,7 @@ pub enum QueryExpr {
 pub struct ObjectLiteral {
     pub coll: String,
     pub fields: Vec<(String, Box<QueryExpr>)>,
+    pub template_obj: Option<Box<QueryExpr>>,
 }
 
 #[derive(Debug, PartialEq)]

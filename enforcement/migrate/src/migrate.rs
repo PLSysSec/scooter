@@ -174,9 +174,28 @@ impl Evaluator<'_> {
                     _ => panic!("Cannot get fields of non-object values"),
                 }
             }
-            ExprKind::Object(col_id, fields) => {
+            ExprKind::Object(col_id, fields, template_obj_expr) => {
                 let collection = &self.ird[*col_id];
                 let mut result_object = doc! {};
+                let template_obj_val = template_obj_expr.as_ref().map(|expr| self.eval_expr(expr));
+                for (field_name, field_id) in collection.fields() {
+                    if field_name == "id" {
+                        continue;
+                    }
+                    let field_value = match fields.iter().find(|(id, _expr)| field_id == id) {
+                        Some((_id, expr)) => self.eval_expr(expr),
+                        None => match &template_obj_val {
+                            Some(Value::Object(template_obj)) => {
+                                template_obj.get(field_name).unwrap().clone().into()
+                            }
+                            Some(_) => panic!("Type system failure: template is not an object"),
+                            None => {
+                                panic!("Type system failure: couldn't find field {}", field_name)
+                            }
+                        },
+                    };
+                    result_object.insert(field_name, field_value);
+                }
                 for (field_id, field_value) in fields.iter() {
                     result_object
                         .insert(collection.field_name(field_id), self.eval_expr(field_value));
@@ -192,7 +211,10 @@ impl Evaluator<'_> {
                     panic!("Arguments to append aren't strings at runtime! Type system failure");
                 }
             }
-            _ => unimplemented!("Very restricted expr evaluation for now"),
+            ExprKind::Var(id) => self
+                .lookup(id)
+                .expect(&format!("No binding in scope for var {:?}", id)),
+            e => unimplemented!("{:?}", e),
         }
     }
 }
