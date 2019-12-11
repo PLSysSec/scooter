@@ -298,7 +298,7 @@ mod tests {
             )
             .unwrap(),
             r#"
-                User::ForEach(u -> User::Create(User {username: u.username,
+                User::ForEach(u -> User::Create(User {username: u.username + "_duplicate",
                                                       pass_hash: u.pass_hash,
                                                       num_followers: u.num_followers,}))
                 "#
@@ -313,5 +313,18 @@ mod tests {
                 .unwrap(),
             4
         );
+        let all_docs : Vec<mongodb::Document> = db_conn
+            .mongo_conn
+            .collection(&col_name)
+            .find(None, None)
+            .unwrap()
+            .into_iter()
+            .map(|d| d.unwrap())
+            .collect();
+        println!("{:?}", all_docs);
+        let alex_duplicate = all_docs.iter().find(|doc| doc.get_str("username") == Ok("Alex_duplicate")).expect("Couldn't find alex duplicate doc!");
+        assert_eq!(alex_duplicate.get_str("pass_hash"), Ok("alex_hash"));
+        assert_eq!(alex_duplicate.get_i64("num_followers"), Ok(42));
+
     }
 }

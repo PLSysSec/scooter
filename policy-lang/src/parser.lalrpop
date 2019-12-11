@@ -45,22 +45,33 @@ Func: Func = {
     }
 }
 FieldInitializer: (String, Box<QueryExpr>) = {
-    <i:Ident> ":" <q:QueryExpr> "," => (i, q)
+    <i:Ident> ":" <q:QueryExpr> => (i, q)
 }
 Object: ObjectLiteral = {
-        <i:Ident> "{" <fs:FieldInitializer*> "}" => ObjectLiteral{ coll: i, fields: fs}
+        <i:Ident> "{" <fs:Comma<FieldInitializer>> "}" => ObjectLiteral{ coll: i, fields: fs}
 }
+Comma<T>: Vec<T> = { // (1)
+    <v:(<T> ",")*> <e:T?> => match e { // (2)
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+};
 
 QueryExpr: Box<QueryExpr> = {
-    <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::Or(l, r)),
+    <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::Plus(l, r)),
     QueryExpr2
 }
 
 QueryExpr2: Box<QueryExpr> = {
     Path => Box::new(QueryExpr::Path(<>)),
+    <s:r#""(.*)""#> => Box::new(QueryExpr::StringConst(
+        s.get(1..s.len()-1).unwrap().to_string())),
     <i:r"[0-9]+"> => Box::new(QueryExpr::IntConst(i64::from_str(i).unwrap())),
     <f:r"[0-9]+\.[0-9]+"> => Box::new(QueryExpr::FloatConst(f64::from_str(f).unwrap())),
-    <s:r#"".*""#> => Box::new(QueryExpr::StringConst(s.to_string())),
     Object => Box::new(QueryExpr::Object(<>)),
 }
 

@@ -4,7 +4,7 @@ use std::fmt;
 #[derive(Debug, PartialEq)]
 pub enum QueryExpr {
     Path(Vec<String>),
-    Or(Box<QueryExpr>, Box<QueryExpr>),
+    Plus(Box<QueryExpr>, Box<QueryExpr>),
     IntConst(i64),
     FloatConst(f64),
     StringConst(String),

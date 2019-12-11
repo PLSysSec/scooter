@@ -151,8 +151,22 @@ impl Lowerer<'_> {
 
     fn lower_expr(&mut self, qe: &ast::QueryExpr) -> Id<Expr> {
         let kind = match qe {
-            ast::QueryExpr::Or(le1, le2) => {
-                ExprKind::Or(self.lower_expr(le1), self.lower_expr(le2))
+            ast::QueryExpr::Plus(le1, le2) => {
+                let lowered1 = self.lower_expr(le1);
+                let lowered2 = self.lower_expr(le2);
+
+                match (self.infer_expr_type(lowered1),
+                       self.infer_expr_type(lowered2)) {
+                    (Type::Prim(Prim::String), Type::Prim(Prim::String)) =>
+                        ExprKind::Append(lowered1, lowered2),
+                    (Type::Id(coll1), Type::Id(coll2)) => {
+                        assert_eq!(coll1, coll2, "Heterogenous ORs not allowed");
+                        ExprKind::Or(lowered1, lowered2)
+                    },
+                    (ty1, ty2) =>
+                        unimplemented!("Cannot resolve + operator for types {:?} and {:?}",
+                                       ty1, ty2),
+                }
             }
             ast::QueryExpr::Path(p) => match p.as_slice() {
                 [v] => ExprKind::Var(self.get_def(v.into())),
@@ -314,20 +328,19 @@ impl Lowerer<'_> {
 
         Lambda { param, body }
     }
-    fn typecheck_expr(&self, expr_id: Id<Expr>, expected_type: Type) {
+    fn infer_expr_type(&self, expr_id: Id<Expr>) -> Type {
         let expr = &self.ird[expr_id];
         match &expr.kind {
-            ExprKind::IntConst(_) => assert_eq!(expected_type, Type::Prim(Prim::I64)),
-            ExprKind::FloatConst(_) => assert_eq!(expected_type, Type::Prim(Prim::F64)),
-            ExprKind::StringConst(_) => assert_eq!(expected_type, Type::Prim(Prim::String)),
-            ExprKind::Path(_collection, _obj, field) => {
-                assert_eq!(expected_type, *self.ird.def_type(*field));
-            }
-            ExprKind::Object(collection, _fields) => {
-                assert_eq!(expected_type, Type::Collection(*collection));
-            }
+            ExprKind::IntConst(_) => Type::Prim(Prim::I64),
+            ExprKind::FloatConst(_) => Type::Prim(Prim::F64),
+            ExprKind::StringConst(_) => Type::Prim(Prim::String),
+            ExprKind::Path(_colleciton, _obj, field) => self.ird.def_type(*field).clone(),
+            ExprKind::Object(collection, _fields) => Type::Collection(*collection),
             _ => unimplemented!("Cannot typecheck complex expressions yet!"),
-        };
+        }
+    }
+    fn typecheck_expr(&self, expr_id: Id<Expr>, expected_type: Type) {
+        assert_eq!(self.infer_expr_type(expr_id), expected_type);
     }
     fn lower_type(&mut self, ty: ast::FieldType) -> Type {
         match ty {

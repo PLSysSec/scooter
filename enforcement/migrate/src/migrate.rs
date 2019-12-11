@@ -183,6 +183,15 @@ impl Evaluator<'_> {
                 }
                 Value::Object(result_object)
             }
+            ExprKind::Append(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(subexpr_l);
+                let arg_r = self.eval_expr(subexpr_r);
+                if let (Value::String(s1), Value::String(s2)) = (arg_l, arg_r) {
+                    Value::String(s1 + &s2)
+                } else {
+                    panic!("Arguments to append aren't strings at runtime! Type system failure");
+                }
+            }
             _ => unimplemented!("Very restricted expr evaluation for now"),
         }
     }

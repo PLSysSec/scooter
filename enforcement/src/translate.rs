@@ -118,7 +118,7 @@ macro_rules! {} {{
 }
 fn policyfunc_to_idlist(f: ast::QueryExpr) -> String {
     match f {
-        ast::QueryExpr::Or(q1, q2) => format!(
+        ast::QueryExpr::Plus(q1, q2) => format!(
             "{}.into_iter().chain({}).collect()",
             policyfunc_to_idlist(*q1),
             policyfunc_to_idlist(*q2)

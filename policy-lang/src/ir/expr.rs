@@ -9,6 +9,7 @@ pub struct Expr {
 #[derive(Debug)]
 pub enum ExprKind {
     Or(Id<Expr>, Id<Expr>),
+    Append(Id<Expr>, Id<Expr>),
     Path(Id<Collection>, Id<Def>, Id<Def>),
     Var(Id<Def>),
     IntConst(i64),
