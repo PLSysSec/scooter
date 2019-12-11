@@ -38,7 +38,7 @@ pub enum CompleteObjectCommand {
     DeleteObject {
         collection: Id<Collection>,
         id_expr: Id<Expr>,
-    }
+    },
 }
 #[derive(Debug)]
 pub enum CompleteMigrationAction {
@@ -49,6 +49,11 @@ pub enum CompleteMigrationAction {
         field: Id<Def>,
         ty: Type,
         init: Lambda,
+    },
+    ChangeField {
+        field: Id<Def>,
+        new_ty: Type,
+        new_init: Lambda,
     },
     ForEach {
         param: Id<Def>,
@@ -159,17 +164,43 @@ impl Lowerer<'_> {
                 let lowered1 = self.lower_expr(le1);
                 let lowered2 = self.lower_expr(le2);
 
-                match (self.infer_expr_type(lowered1),
-                       self.infer_expr_type(lowered2)) {
-                    (Type::Prim(Prim::String), Type::Prim(Prim::String)) =>
-                        ExprKind::Append(lowered1, lowered2),
+                match (
+                    self.infer_expr_type(lowered1),
+                    self.infer_expr_type(lowered2),
+                ) {
+                    (Type::Prim(Prim::String), Type::Prim(Prim::String)) => {
+                        ExprKind::Append(lowered1, lowered2)
+                    }
                     (Type::Id(coll1), Type::Id(coll2)) => {
                         assert_eq!(coll1, coll2, "Heterogenous ORs not allowed");
                         ExprKind::Or(lowered1, lowered2)
-                    },
-                    (ty1, ty2) =>
-                        unimplemented!("Cannot resolve + operator for types {:?} and {:?}",
-                                       ty1, ty2),
+                    }
+                    (Type::Prim(Prim::I64), Type::Prim(Prim::I64)) => {
+                        ExprKind::AddI(lowered1, lowered2)
+                    }
+                    (Type::Prim(Prim::F64), Type::Prim(Prim::I64)) => {
+                        let converted = self.ird.exprs.alloc_with_id(|id| Expr {
+                            id,
+                            kind: ExprKind::IntToFloat(lowered2),
+                        });
+                        ExprKind::AddF(lowered1, converted)
+                    }
+                    (Type::Prim(Prim::I64), Type::Prim(Prim::F64)) => {
+                        println!("rhs: {:?}", self.ird[lowered2]);
+                        let converted = self.ird.exprs.alloc_with_id(|id| Expr {
+                            id,
+                            kind: ExprKind::IntToFloat(lowered1),
+                        });
+                        ExprKind::AddF(converted, lowered2)
+                    }
+                    (Type::Prim(Prim::F64), Type::Prim(Prim::F64)) => {
+                        ExprKind::AddF(lowered1, lowered2)
+                    }
+                    (ty1, ty2) => unimplemented!(
+                        "Cannot resolve + operator for types {:?} and {:?}",
+                        ty1,
+                        ty2
+                    ),
                 }
             }
             ast::QueryExpr::Path(p) => match p.as_slice() {
@@ -275,6 +306,21 @@ impl Lowerer<'_> {
                     init: self.lower_func(collection_type, lowered_ty, &init),
                 }
             }
+            ast::MigrationAction::ChangeField {
+                field,
+                new_ty,
+                new_init,
+            } => {
+                let lowered_ty = self.lower_type(new_ty);
+                let field_id = self.ird.field(collection_id, &field).id;
+                let lowered_init = self.lower_func(collection_type, lowered_ty.clone(), &new_init);
+                self.ird.change_def_type(field_id, lowered_ty.clone());
+                CompleteMigrationAction::ChangeField {
+                    field: field_id,
+                    new_ty: lowered_ty,
+                    new_init: lowered_init,
+                }
+            }
             ast::MigrationAction::ForEach { param, body } => {
                 let param_id = self.ird.create_def(&param, collection_type.clone());
                 let old_mapping = self.def_map.insert(param.clone(), param_id);
@@ -298,7 +344,10 @@ impl Lowerer<'_> {
     }
     fn lower_object_command(&mut self, body: ast::ObjectCommand) -> CompleteObjectCommand {
         match body {
-            ast::ObjectCommand::CreateObject { collection, value: body } => {
+            ast::ObjectCommand::CreateObject {
+                collection,
+                value: body,
+            } => {
                 let value = self.lower_expr(&body);
                 let coll_id = self
                     .ird
@@ -312,7 +361,10 @@ impl Lowerer<'_> {
                     value: value,
                 }
             }
-            ast::ObjectCommand::DeleteObject {collection, id_expr } => {
+            ast::ObjectCommand::DeleteObject {
+                collection,
+                id_expr,
+            } => {
                 let id_expr_id = self.lower_expr(&id_expr);
                 let coll_id = self
                     .ird
@@ -357,8 +409,11 @@ impl Lowerer<'_> {
             ExprKind::IntConst(_) => Type::Prim(Prim::I64),
             ExprKind::FloatConst(_) => Type::Prim(Prim::F64),
             ExprKind::StringConst(_) => Type::Prim(Prim::String),
-            ExprKind::Path(_colleciton, _obj, field) => self.ird.def_type(*field).clone(),
+            ExprKind::Path(_collection, _obj, field) => self.ird.def_type(*field).clone(),
             ExprKind::Object(collection, _fields, _t_obj) => Type::Collection(*collection),
+            ExprKind::AddI(_, _) => Type::Prim(Prim::I64),
+            ExprKind::AddF(_, _) => Type::Prim(Prim::F64),
+            ExprKind::IntToFloat(_) => Type::Prim(Prim::F64),
             _ => unimplemented!("Cannot typecheck complex expressions yet!"),
         }
     }

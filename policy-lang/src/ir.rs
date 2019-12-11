@@ -130,7 +130,9 @@ impl IrData {
         self.def_types.insert(did, typ);
         did
     }
-
+    pub fn change_def_type(&mut self, def: Id<Def>, new_type: Type) {
+        assert!(self.def_types.insert(def, new_type).is_some());
+    }
 
     /// A convenience method that handles the multiple lookups required to get the field definition
     pub fn field(&self, cid: Id<Collection>, fname: &str) -> &Def {

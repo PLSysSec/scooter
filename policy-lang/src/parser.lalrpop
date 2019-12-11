@@ -97,13 +97,19 @@ pub Migration: Migration = {
     <cp:MigrationCommand*> => Migration(cp)
 }
 
+MigrationAction: MigrationAction = {
+    "RemoveField" "(" <c:Ident> ")" =>
+        MigrationAction::RemoveField{field:c},
+    "AddField" "(" <c:Ident> "," <ty:FieldType> "," <vf:Func> ")" =>
+        MigrationAction::AddField{field:c, ty:ty, init:vf},
+    "ChangeField" "(" <c:Ident> "," <ty:FieldType> "," <vf:Func> ")" =>
+        MigrationAction::ChangeField{field:c, new_ty:ty, new_init:vf},
+    "ForEach" "(" <p:Ident> "->" <c:ObjectCommand> ")" =>
+        MigrationAction::ForEach{param:p, body:c},
+}
+
 MigrationCommand: MigrationCommand = {
-    <t:Ident> "::" "RemoveField" "(" <c:Ident> ")" =>
-        MigrationCommand{table: t, action: MigrationAction::RemoveField{field: c}},
-    <t:Ident> "::" "AddField" "(" <c:Ident> "," <ty:FieldType> "," <vf:Func> ")" =>
-        MigrationCommand{table: t, action: MigrationAction::AddField{field:c, ty: ty, init: vf}},
-    <t:Ident> "::" "ForEach" "(" <p:Ident> "->" <c:ObjectCommand> ")" =>
-        MigrationCommand{table: t, action: MigrationAction::ForEach{param:p, body:c}},
+    <t:Ident> "::" <m:MigrationAction> => MigrationCommand{table: t, action: m}
 }
 
 ObjectCommand: ObjectCommand = {

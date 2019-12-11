@@ -90,5 +90,6 @@ pub enum ObjectCommand {
 pub enum MigrationAction {
     RemoveField{field: String},
     AddField{field: String, ty: FieldType, init: Func},
+    ChangeField{field: String, new_ty: FieldType, new_init: Func},
     ForEach{param: String, body: ObjectCommand},
 }

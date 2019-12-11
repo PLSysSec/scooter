@@ -67,7 +67,7 @@ fn interpret_migration(
                     result.remove(&policy_collection.field_name(&field));
                     replace_doc(&db_conn, &policy_collection, item_id, result);
                 }
-            }
+            },
             CompleteMigrationAction::AddField { field, ty: _, init } => {
                 for item in coll_docs(&db_conn, &policy_collection).into_iter() {
                     let item_id = item.get_object_id("_id").unwrap().clone();
@@ -83,7 +83,23 @@ fn interpret_migration(
                     result.insert(field_name, exec_query_function(&env, &init, &result));
                     replace_doc(&db_conn, &policy_collection, item_id, result);
                 }
-            }
+            },
+            CompleteMigrationAction::ChangeField {field, new_ty:_, new_init} => {
+                for item in coll_docs(&db_conn, &policy_collection).into_iter() {
+                    let item_id = item.get_object_id("_id").unwrap().clone();
+                    let mut result = item;
+                    let field_name = policy_collection.field_name(&field);
+                    assert!(
+                        result.contains_key(&field_name),
+                        format!(
+                            "Document doesn't contain a field with the name \"{}\"",
+                            field_name
+                        )
+                    );
+                    result.insert(field_name, exec_query_function(&env, &new_init, &result));
+                    replace_doc(&db_conn, &policy_collection, item_id, result);
+                }
+            },
             CompleteMigrationAction::ForEach { param, body } => {
                 for item in coll_docs(&db_conn, &policy_collection).into_iter() {
                     let mut evaluator = Evaluator::new(&env);
@@ -115,7 +131,7 @@ fn interpret_migration(
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Value {
     Int(i64),
     Float(f64),
@@ -237,6 +253,33 @@ impl Evaluator<'_> {
             ExprKind::Var(id) => self
                 .lookup(id)
                 .expect(&format!("No binding in scope for var {:?}", id)),
+            ExprKind::AddI(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(subexpr_l);
+                let arg_r = self.eval_expr(subexpr_r);
+                if let (Value::Int(i1), Value::Int(i2)) = (arg_l, arg_r) {
+                    Value::Int(i1 + i2)
+                } else {
+                    panic!("Runtime type error: arguments to addi aren't ints");
+                }
+            }
+            ExprKind::AddF(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(subexpr_l);
+                let arg_r = self.eval_expr(subexpr_r);
+                if let (Value::Float(f1), Value::Float(f2)) = (arg_l, arg_r) {
+                    Value::Float(f1 + f2)
+                } else {
+                    panic!("Runtime type error: arguments to addf aren't floats");
+                }
+            }
+            ExprKind::IntToFloat(subexpr) => {
+                let arg = self.eval_expr(subexpr);
+                if let Value::Int(i) = arg {
+                    Value::Float(i as f64)
+                } else {
+                    panic!("Runtime type error: argument to conversion isn't an int {:?}",
+                           arg);
+                }
+            }
             e => unimplemented!("{:?}", e),
         }
     }

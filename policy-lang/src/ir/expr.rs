@@ -10,6 +10,9 @@ pub struct Expr {
 pub enum ExprKind {
     Or(Id<Expr>, Id<Expr>),
     Append(Id<Expr>, Id<Expr>),
+    AddI(Id<Expr>, Id<Expr>),
+    AddF(Id<Expr>, Id<Expr>),
+    IntToFloat(Id<Expr>),
     Path(Id<Collection>, Id<Def>, Id<Def>),
     Var(Id<Def>),
     IntConst(i64),
