@@ -48,8 +48,14 @@ FieldInitializer: (String, Box<QueryExpr>) = {
     <i:Ident> ":" <q:QueryExpr> => (i, q)
 }
 Object: ObjectLiteral = {
-        <i:Ident> "{" <fs:Comma<FieldInitializer>> "}" => ObjectLiteral{ coll: i, fields: fs, template_obj: None},
-        <i:Ident> "{" <fs:Comma<FieldInitializer>> "..." <e:QueryExpr> "}" => ObjectLiteral {coll: i, fields: fs, template_obj: Some(e)}
+    <i:Ident> "{" <fs:Comma<FieldInitializer>> "}" => ObjectLiteral{ coll: i, fields: fs, template_obj: None},
+    <i:Ident> "{" <fs:Comma<FieldInitializer>> "..." <e:QueryExpr> "}" => ObjectLiteral {coll: i, fields: fs, template_obj: Some(e)}
+}
+FieldTypeDeclaration: (String, FieldType) = {
+    <i:Ident> ":" <t:FieldType> => (i, t)
+}
+ObjectType: Vec<(String, FieldType)> = {
+    "{" <fs:Comma<FieldTypeDeclaration>> "}" => fs
 }
 Comma<T>: Vec<T> = { // (1)
     <v:(<T> ",")*> <e:T?> => match e { // (2)
@@ -111,7 +117,12 @@ MigrationAction: MigrationAction = {
 }
 
 MigrationCommand: MigrationCommand = {
-    <t:Ident> "::" <m:MigrationAction> => MigrationCommand{table: t, action: m}
+    <t:Ident> "::" <m:MigrationAction> =>
+        MigrationCommand::CollAction{table: t, action: m},
+    "CreateCollection" "(" <i:Ident> "," <t:ObjectType> ")" =>
+        MigrationCommand::Create{table_name: i, layout: t},
+    "DeleteCollection" "(" <i:Ident> ")" =>
+        MigrationCommand::Delete{table_name: i},
 }
 
 ObjectCommand: ObjectCommand = {

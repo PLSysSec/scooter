@@ -24,9 +24,17 @@ impl CompletePolicy {
 pub struct CompleteMigration(pub Vec<CompleteMigrationCommand>);
 
 #[derive(Debug)]
-pub struct CompleteMigrationCommand {
-    pub table: Id<Collection>,
-    pub action: CompleteMigrationAction,
+pub enum CompleteMigrationCommand {
+    CollAction {
+        table: Id<Collection>,
+        action: CompleteMigrationAction,
+    },
+    Create {
+        table_id: Id<Collection>,
+    },
+    Delete {
+        table_id: Id<Collection>,
+    },
 }
 
 #[derive(Debug)]
@@ -102,7 +110,7 @@ impl Lowerer<'_> {
     fn resolve_collection(&self, name: &String) -> (Id<Collection>, Type) {
         let c = self
             .ird
-            .collections()
+            .active_collections()
             .find(|c| c.name.eq_str(name))
             .expect(&format!("Unknown collection {}", name));
         (c.id, c.typ())
@@ -234,7 +242,7 @@ impl Lowerer<'_> {
             }) => {
                 let coll = self
                     .ird
-                    .collections()
+                    .active_collections()
                     .find(|c| c.name.eq_str(coll_name))
                     .expect(&format!("Unknown collection {}", coll_name));
                 let coll_id = coll.id.clone();
@@ -284,13 +292,34 @@ impl Lowerer<'_> {
         let mut complete_cmds = vec![];
         // Iterate over the migrations, where each lowering might
         // change the type environment.
-        for ast::MigrationCommand { table, action } in mig.0.into_iter() {
-            let (id, coll_typ) = self.resolve_collection(&table);
-            let lowered_action = self.lower_migration_action(id, coll_typ.clone(), action);
-            complete_cmds.push(CompleteMigrationCommand {
-                table: id,
-                action: lowered_action,
-            });
+        for cmd in mig.0.into_iter() {
+            match cmd {
+                ast::MigrationCommand::CollAction { table, action } => {
+                    let (id, coll_typ) = self.resolve_collection(&table);
+                    let lowered_action = self.lower_migration_action(id, coll_typ.clone(), action);
+                    complete_cmds.push(CompleteMigrationCommand::CollAction {
+                        table: id,
+                        action: lowered_action,
+                    });
+                }
+                ast::MigrationCommand::Create { table_name, layout } => {
+                    let lowered_layout =
+                        layout
+                            .into_iter()
+                            .map(|(name, fty)| (name, self.lower_type(fty)))
+                            .collect();
+                    let coll_id = self.ird.add_collection(
+                        &table_name,
+                        lowered_layout,
+                    );
+                    complete_cmds.push(CompleteMigrationCommand::Create{table_id: coll_id});
+                }
+                ast::MigrationCommand::Delete { table_name } => {
+                    let (coll_id, _coll_typ) = self.resolve_collection(&table_name);
+                    self.ird.retire_collection(coll_id);
+                    complete_cmds.push(CompleteMigrationCommand::Delete{table_id: coll_id});
+                }
+            }
         }
         CompleteMigration(complete_cmds)
     }
@@ -305,10 +334,8 @@ impl Lowerer<'_> {
             ast::MigrationAction::RemoveField { field } => {
                 let field_id = self.ird.field(collection_id, &field).id;
                 self.ird.colls[collection_id].retire_field(&field_id);
-                CompleteMigrationAction::RemoveField {
-                field: field_id,
-                }
-            },
+                CompleteMigrationAction::RemoveField { field: field_id }
+            }
             ast::MigrationAction::AddField { field, ty, init } => {
                 let lowered_ty = self.lower_type(ty);
                 self.ird
@@ -341,8 +368,8 @@ impl Lowerer<'_> {
                 let field_id = self.ird.field(collection_id, &old_field).id;
                 self.ird.colls[collection_id].retire_field(&field_id);
                 let field_ty = self.ird.def_type(field_id.clone()).clone();
-                self.ird.add_field(collection_id, new_field.clone(), field_ty);
-
+                self.ird
+                    .add_field(collection_id, new_field.clone(), field_ty);
 
                 CompleteMigrationAction::RenameField {
                     field_id: field_id,
@@ -380,7 +407,7 @@ impl Lowerer<'_> {
                 let value = self.lower_expr(&body);
                 let coll_id = self
                     .ird
-                    .collections()
+                    .active_collections()
                     .find(|c| c.name.eq_str(&collection))
                     .expect(&format!("Unknown collection {}", collection))
                     .id;
@@ -397,7 +424,7 @@ impl Lowerer<'_> {
                 let id_expr_id = self.lower_expr(&id_expr);
                 let coll_id = self
                     .ird
-                    .collections()
+                    .active_collections()
                     .find(|c| c.name.eq_str(&collection))
                     .expect(&format!("Unknown collection {}", collection))
                     .id;

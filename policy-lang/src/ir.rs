@@ -3,7 +3,6 @@ use id_arena::Arena;
 pub use id_arena::Id;
 use std::collections::HashMap;
 
-
 mod lower;
 pub use lower::*;
 
@@ -76,9 +75,11 @@ impl Collection {
         self.fields.push((name, (id, false)));
     }
     pub fn retire_field(&mut self, id: &Id<Def>) {
-        let mut field_entry = self.fields.iter_mut()
-            .find(|(_fname, (fid, _is_retired))|
-                  fid==id).expect("Couldn't find field to retire");
+        let mut field_entry = self
+            .fields
+            .iter_mut()
+            .find(|(_fname, (fid, _is_retired))| fid == id)
+            .expect("Couldn't find field to retire");
         assert!(!((field_entry.1).1));
         (field_entry.1).1 = true;
     }
@@ -105,6 +106,7 @@ pub enum Prim {
 #[derive(Debug, Default)]
 pub struct IrData {
     colls: Arena<Collection>,
+    retired_colls: Vec<Id<Collection>>,
     defs: Arena<Def>,
     exprs: Arena<Expr>,
     expr_types: HashMap<Id<Expr>, Type>,
@@ -117,9 +119,33 @@ impl IrData {
         self.colls.iter().map(|(_, c)| c)
     }
 
+    pub fn active_collections(&self) -> impl Iterator<Item = &Collection> {
+        self.colls
+            .iter()
+            .filter(|(id, _c)| !self.retired_colls.contains(id))
+            .collect::<Vec<(Id<Collection>, &Collection)>>()
+            .into_iter()
+            .map(|(_, c)| c)
+    }
+
     /// Resolves an Id<Collection>. It's identical to running `&ird[coll_id]`
     pub fn collection(&self, cid: Id<Collection>) -> &Collection {
         &self.colls[cid]
+    }
+
+    pub fn add_collection(&mut self, name: &str, layout: Vec<(String, Type)>) -> Id<Collection> {
+        let coll_id = self.colls.alloc_with_id(|id| Collection {
+            id,
+            name: Ident::new(&name),
+            fields: vec![],
+        });
+        for (field_name, field_type) in layout {
+            self.add_field(coll_id, field_name, field_type);
+        }
+        coll_id
+    }
+    pub fn retire_collection(&mut self, id: Id<Collection>) {
+        self.retired_colls.push(id);
     }
 
     /// Resolves an Id<Def>. It's identical to running `&ird[def_id]`
@@ -265,9 +291,8 @@ macro_rules! impl_index {
                 &self.$coll[id]
             }
         }
-    }
+    };
 }
-
 
 impl_index!(Def, defs);
 impl_index!(Expr, exprs);

@@ -57,99 +57,116 @@ fn interpret_migration(
         .expect("Failed to initialize client.")
         .db(&db_name);
     // Loop over the migration commands in sequence
-    for CompleteMigrationCommand { table, action } in migration_ir.0.into_iter() {
-        let policy_collection = &env[table];
-        match action {
-            CompleteMigrationAction::RemoveField { field } => {
-                for item in coll_docs(&db_conn, &policy_collection).into_iter() {
-                    let item_id = item.get_object_id("_id").unwrap().clone();
-                    let mut result = item;
-                    result.remove(&policy_collection.field_name(&field));
-                    replace_doc(&db_conn, &policy_collection, item_id, result);
-                }
-            },
-            CompleteMigrationAction::AddField { field, ty: _, init } => {
-                for item in coll_docs(&db_conn, &policy_collection).into_iter() {
-                    let item_id = item.get_object_id("_id").unwrap().clone();
-                    let mut result = item;
-                    let field_name = policy_collection.field_name(&field);
-                    assert!(
-                        !result.contains_key(&field_name),
-                        format!(
-                            "Document already contained a field with the name \"{}\"",
-                            field_name
-                        )
-                    );
-                    result.insert(field_name, exec_query_function(&env, &init, &result));
-                    replace_doc(&db_conn, &policy_collection, item_id, result);
-                }
+    for cmd in migration_ir.0.into_iter() {
+        match cmd {
+            CompleteMigrationCommand::CollAction { table, action } =>
+                interpret_action(&db_conn, &env, &env[table], action),
+            // Creates and deletes actually only operate at the type system level
+            CompleteMigrationCommand::Create{..} | CompleteMigrationCommand::Delete{..} =>
+            {}
+        }
+    }
+}
+
+fn interpret_action(
+    db_conn: &mongodb::db::Database,
+    env: &IrData,
+    collection: &Collection,
+    action: CompleteMigrationAction) {
+    match action {
+        // Remove field command. Removes a field from all records in the collection.
+        CompleteMigrationAction::RemoveField { field } => {
+            // Loop over the records
+            for item in coll_docs(&db_conn, &collection).into_iter() {
+                // Get the item id for replacement
+                let item_id = item.get_object_id("_id").unwrap().clone();
+                let mut result = item;
+                // Remove the field from the mongo doc object
+                result.remove(&collection.field_name(&field));
+                replace_doc(&db_conn, &collection, item_id, result);
             }
-            CompleteMigrationAction::ChangeField {
-                field,
-                new_ty: _,
-                new_init,
-            } => {
-                for item in coll_docs(&db_conn, &policy_collection).into_iter() {
-                    let item_id = item.get_object_id("_id").unwrap().clone();
-                    let mut result = item;
-                    let field_name = policy_collection.field_name(&field);
-                    assert!(
-                        result.contains_key(&field_name),
-                        format!(
-                            "Document doesn't contain a field with the name \"{}\"",
-                            field_name
-                        )
-                    );
-                    result.insert(field_name, exec_query_function(&env, &new_init, &result));
-                    replace_doc(&db_conn, &policy_collection, item_id, result);
-                }
+        }
+        CompleteMigrationAction::AddField { field, ty: _, init } => {
+            for item in coll_docs(&db_conn, &collection).into_iter() {
+                let item_id = item.get_object_id("_id").unwrap().clone();
+                let mut result = item;
+                let field_name = collection.field_name(&field);
+                assert!(
+                    !result.contains_key(&field_name),
+                    format!(
+                        "Document already contained a field with the name \"{}\"",
+                        field_name
+                    )
+                );
+                result.insert(field_name, exec_query_function(&env, &init, &result));
+                replace_doc(&db_conn, &collection, item_id, result);
             }
-            CompleteMigrationAction::RenameField {
-                field_id:_,
-                old_name,
-                new_name,
-            } => {
-                for item in coll_docs(&db_conn, &policy_collection).into_iter() {
-                    let item_id = item.get_object_id("_id").unwrap().clone();
-                    let mut result = item;
-                    let field_value = result.remove(&old_name).expect(&format!(
+        }
+        CompleteMigrationAction::ChangeField {
+            field,
+            new_ty: _,
+            new_init,
+        } => {
+            for item in coll_docs(&db_conn, &collection).into_iter() {
+                let item_id = item.get_object_id("_id").unwrap().clone();
+                let mut result = item;
+                let field_name = collection.field_name(&field);
+                assert!(
+                    result.contains_key(&field_name),
+                    format!(
                         "Document doesn't contain a field with the name \"{}\"",
-                        old_name
-                    ));
-                    assert!(
-                        result.insert(new_name.clone(), field_value).is_none(),
-                        format!(
-                            "Document already contains a field with the name \"{}\"",
-                            new_name
-                        )
-                    );
-                    replace_doc(&db_conn, &policy_collection, item_id, result);
-                }
+                        field_name
+                    )
+                );
+                result.insert(field_name, exec_query_function(&env, &new_init, &result));
+                replace_doc(&db_conn, &collection, item_id, result);
             }
-            CompleteMigrationAction::ForEach { param, body } => {
-                for item in coll_docs(&db_conn, &policy_collection).into_iter() {
-                    let mut evaluator = Evaluator::new(&env);
-                    evaluator.push_scope(&param, Value::Object(item.clone()));
-                    match body {
-                        CompleteObjectCommand::CreateObject { collection, value } => {
-                            if let Value::Object(obj) = evaluator.eval_expr(&value) {
-                                insert_doc(&db_conn, &env[collection], obj)
-                            } else {
-                                panic!("Can't insert these kinds of values; typechecking must have failed");
-                            }
+        }
+        CompleteMigrationAction::RenameField {
+            field_id:_,
+            old_name,
+            new_name,
+        } => {
+            for item in coll_docs(&db_conn, &collection).into_iter() {
+                let item_id = item.get_object_id("_id").unwrap().clone();
+                let mut result = item;
+                let field_value = result.remove(&old_name).expect(&format!(
+                    "Document doesn't contain a field with the name \"{}\"",
+                    old_name
+                ));
+                assert!(
+                    result.insert(new_name.clone(), field_value).is_none(),
+                    format!(
+                        "Document already contains a field with the name \"{}\"",
+                        new_name
+                    )
+                );
+                replace_doc(&db_conn, &collection, item_id, result);
+            }
+        }
+        CompleteMigrationAction::ForEach { param, body } => {
+            for item in coll_docs(&db_conn, &collection).into_iter() {
+                let mut evaluator = Evaluator::new(&env);
+                evaluator.push_scope(&param, Value::Object(item.clone()));
+                match body {
+                    CompleteObjectCommand::CreateObject { collection, value } => {
+                        if let Value::Object(obj) = evaluator.eval_expr(&value) {
+                            insert_doc(&db_conn, &env[collection], obj)
+                        } else {
+                            panic!("Can't insert these kinds of values; typechecking must have failed");
                         }
-                        CompleteObjectCommand::DeleteObject {
-                            collection,
-                            id_expr,
-                        } => {
-                            if let Value::Id(id) = evaluator.eval_expr(&id_expr) {
-                                delete_doc(&db_conn, &env[collection], id)
-                            } else {
-                                panic!(
-                                    "Runtime type error: argument does not evaluate to an id: {:?}",
-                                    id_expr
-                                )
-                            }
+                    }
+                    CompleteObjectCommand::DeleteObject {
+                        collection,
+                        id_expr,
+                    } => {
+                        if let Value::Id(id) = evaluator.eval_expr(&id_expr) {
+                            delete_doc(&db_conn, &env[collection], id)
+                        } else {
+                            panic!(
+                                "Runtime type error: argument does not evaluate to an id: {:?}",
+                                id_expr
+                            )
                         }
                     }
                 }

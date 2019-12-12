@@ -75,9 +75,13 @@ impl fmt::Display for FieldType {
 pub struct Migration(pub Vec<MigrationCommand>);
 
 #[derive(Debug, PartialEq)]
-pub struct MigrationCommand {
-    pub table: String,
-    pub action: MigrationAction,
+pub enum MigrationCommand {
+    CollAction {
+        table: String,
+        action: MigrationAction,
+    },
+    Create{table_name: String, layout: Vec<(String, FieldType)>},
+    Delete{table_name: String},
 }
 
 #[derive(Debug, PartialEq)]

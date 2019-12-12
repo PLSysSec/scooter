@@ -312,7 +312,7 @@ mod tests {
                 .unwrap(),
             4
         );
-        let all_docs : Vec<mongodb::Document> = db_conn
+        let all_docs: Vec<mongodb::Document> = db_conn
             .mongo_conn
             .collection(&col_name)
             .find(None, None)
@@ -320,8 +320,10 @@ mod tests {
             .into_iter()
             .map(|d| d.unwrap())
             .collect();
-        println!("{:?}", all_docs);
-        let alex_duplicate = all_docs.iter().find(|doc| doc.get_str("username") == Ok("Alex_duplicate")).expect("Couldn't find alex duplicate doc!");
+        let alex_duplicate = all_docs
+            .iter()
+            .find(|doc| doc.get_str("username") == Ok("Alex_duplicate"))
+            .expect("Couldn't find alex duplicate doc!");
         assert_eq!(alex_duplicate.get_str("pass_hash"), Ok("alex_hash"));
         assert_eq!(alex_duplicate.get_i64("num_followers"), Ok(42));
 
@@ -561,5 +563,75 @@ mod tests {
                 .expect("Couldn't find pass_hash key after migration"),
             0
         );
+    }
+    #[test]
+    fn create_parallel_collection() {
+        // The name of the collection
+        let col_name = "User".to_string();
+        // Create a connection to the database
+        let db_name = "create_parallel_collection_test".to_string();
+        let db_conn = DBConn::new(&db_name);
+        // Drop any existing collection by the same name, so that the
+        // collection is empty.
+        db_conn.mongo_conn.collection(&col_name).drop().unwrap();
+
+        // Two user objects, to be inserted into the database. Note
+        // that these users have a "num_followers" field.
+        let users: Vec<_> = vec![
+            user! {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+                num_followers: 42,
+            },
+            user! {
+                username: "John".to_string(),
+                pass_hash: "john_hash".to_string(),
+                num_followers: 0,
+            },
+        ];
+        // Insert the users into the database, and get back their ids
+        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let (uid_alex, _uid_john) = match uids.as_slice() {
+            [id1, id2] => (id1, id2),
+            _ => panic!("Not the right number of returned ids"),
+        };
+        assert_eq!(
+            db_conn
+                .mongo_conn
+                .collection(&col_name)
+                .count(None, None)
+                .unwrap(),
+            2
+        );
+
+        // Perform a migration, the contents of the policy file, and
+        // this migration string. The string removes the num_followers
+        // column from the schema.
+        migrate(
+            db_name,
+            get_contents(
+                Path::new(&std::env::current_dir().unwrap())
+                    .join("policy.txt".to_string())
+                    .as_ref(),
+            )
+            .unwrap(),
+            r#"
+                CreateCollection(Phone, {owner: Id(User)})
+                User::ForEach(u -> Phone::Create(Phone {owner: u.id}))
+                "#
+            .to_string(),
+        );
+        let all_phones: Vec<mongodb::Document> = db_conn
+            .mongo_conn
+            .collection("Phone")
+            .find(None, None)
+            .unwrap()
+            .into_iter()
+            .map(|d| d.unwrap())
+            .collect();
+        let _alex_phone = all_phones
+            .iter()
+            .find(|doc| RecordId::from_object_id(doc.get_object_id("owner").unwrap().clone()) == *uid_alex)
+            .expect("Couldn't find alex phone !");
     }
 }
