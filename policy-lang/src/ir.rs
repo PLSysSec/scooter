@@ -91,13 +91,14 @@ pub enum Type {
     Prim(Prim),
     Id(Id<Collection>),
     Collection(Id<Collection>),
+    List(Box<Type>),
+    Any,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum Prim {
     String,
     I64,
     F64,
-    Any,
 }
 
 /// IrData contains the type and name resolution data resulting from lowering the AST to a CompletePolicy.
@@ -262,13 +263,7 @@ pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
                 name: Ident::new(fname),
             });
 
-            let field_type = match &fpol.ty {
-                ast::FieldType::String => Type::Prim(Prim::String),
-                ast::FieldType::Id(cname) => Type::Id(name_to_coll[cname]),
-                ast::FieldType::I64 => Type::Prim(Prim::I64),
-                ast::FieldType::F64 => Type::Prim(Prim::F64),
-            };
-
+            let field_type = lower_type_with_table(&name_to_coll, &fpol.ty);
             def_types.insert(field_did, field_type);
             coll.add_field(fname.clone(), field_did);
         }
@@ -279,6 +274,18 @@ pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
         defs,
         def_types,
         ..Default::default()
+    }
+}
+
+fn lower_type_with_table(table: &HashMap<String, Id<Collection>>, ty: &ast::FieldType) -> Type {
+    match ty {
+        ast::FieldType::String => Type::Prim(Prim::String),
+        ast::FieldType::Id(cname) => Type::Id(table[cname]),
+        ast::FieldType::I64 => Type::Prim(Prim::I64),
+        ast::FieldType::F64 => Type::Prim(Prim::F64),
+        ast::FieldType::List(inner_type) => {
+            Type::List(Box::new(lower_type_with_table(table, inner_type)))
+        }
     }
 }
 

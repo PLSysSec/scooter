@@ -181,6 +181,7 @@ pub enum Value {
     String(String),
     Object(Document),
     Id(ObjectId),
+    List(Vec<Value>),
 }
 impl From<Value> for Bson {
     fn from(v: Value) -> Bson {
@@ -190,6 +191,7 @@ impl From<Value> for Bson {
             Value::String(s) => Bson::String(s),
             Value::Object(_) => panic!("Cannot return an object where a value is expected"),
             Value::Id(i) => Bson::ObjectId(i),
+            Value::List(vs) => Bson::Array(vs.iter().map(|v| v.clone().into()).collect()),
         }
     }
 }
@@ -324,6 +326,9 @@ impl Evaluator<'_> {
                         arg
                     );
                 }
+            }
+            ExprKind::List(subexprs) => {
+                Value::List(subexprs.into_iter().map(|subexpr| self.eval_expr(subexpr)).collect())
             }
             e => unimplemented!("{:?}", e),
         }

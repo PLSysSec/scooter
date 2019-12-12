@@ -282,6 +282,9 @@ impl Lowerer<'_> {
                     lowered_template_obj,
                 )
             }
+            ast::QueryExpr::List(exprs) => {
+                ExprKind::List(exprs.iter().map(|expr| self.lower_expr(expr)).collect())
+            }
         };
 
         self.ird.exprs.alloc_with_id(|id| Expr { id, kind })
@@ -466,15 +469,30 @@ impl Lowerer<'_> {
             ExprKind::FloatConst(_) => Type::Prim(Prim::F64),
             ExprKind::StringConst(_) => Type::Prim(Prim::String),
             ExprKind::Path(_collection, _obj, field) => self.ird.def_type(*field).clone(),
+            ExprKind::Var(m) => self.ird.def_type(*m).clone(),
             ExprKind::Object(collection, _fields, _t_obj) => Type::Collection(*collection),
             ExprKind::AddI(_, _) => Type::Prim(Prim::I64),
             ExprKind::AddF(_, _) => Type::Prim(Prim::F64),
+            ExprKind::Append(_, _) => Type::Prim(Prim::String),
             ExprKind::IntToFloat(_) => Type::Prim(Prim::F64),
-            _ => unimplemented!("Cannot typecheck complex expressions yet!"),
+            ExprKind::List(exprs) => {
+                let expr_type = self.infer_expr_type(exprs[0]);
+                let mut result_type = expr_type.clone();
+                for expr in exprs.into_iter() {
+                    if self.infer_expr_type(*expr) != expr_type {
+                        result_type = Type::Any;
+                    }
+                }
+                Type::List(Box::new(result_type))
+            },
+            ExprKind::Or(_, _) => unimplemented!("Cannot yet typecheck OR's"),
         }
     }
     fn typecheck_expr(&self, expr_id: Id<Expr>, expected_type: Type) {
-        assert_eq!(self.infer_expr_type(expr_id), expected_type);
+        let inferred_type = self.infer_expr_type(expr_id);
+        assert_eq!(inferred_type, expected_type,
+                   "Static type error: expected {:?}, found {:?}",
+                   expected_type, inferred_type);
     }
     fn lower_type(&mut self, ty: ast::FieldType) -> Type {
         match ty {
@@ -484,6 +502,9 @@ impl Lowerer<'_> {
             ast::FieldType::Id(s) => {
                 let (id, _coll_typ) = self.resolve_collection(&s);
                 Type::Id(id)
+            }
+            ast::FieldType::List(s) => {
+                Type::List(Box::new(self.lower_type(*s)))
             }
         }
     }

@@ -9,6 +9,7 @@ pub enum QueryExpr {
     FloatConst(f64),
     StringConst(String),
     Object(ObjectLiteral),
+    List(Vec<Box<QueryExpr>>),
 }
 #[derive(Debug, PartialEq)]
 pub struct ObjectLiteral {
@@ -56,6 +57,7 @@ pub enum FieldType {
     I64,
     F64,
     Id(String),
+    List(Box<FieldType>),
 }
 
 impl fmt::Display for FieldType {
@@ -65,6 +67,7 @@ impl fmt::Display for FieldType {
             FieldType::I64 => write!(f, "i64"),
             FieldType::F64 => write!(f, "f64"),
             FieldType::Id(coll) => write!(f, "Id({})", coll),
+            FieldType::List(inner_type) => write!(f, "[{}]", inner_type),
         }
     }
 }

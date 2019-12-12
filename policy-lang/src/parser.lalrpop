@@ -30,6 +30,7 @@ FieldType: FieldType = {
     "I64" => FieldType::I64,
     "F64" => FieldType::F64,
     "Id" "(" <coll:Ident> ")" => FieldType::Id(coll),
+    "[" <ft:FieldType> "]" => FieldType::List(Box::new(ft)),
 }
 
 Policy: Policy = {
@@ -50,6 +51,9 @@ FieldInitializer: (String, Box<QueryExpr>) = {
 Object: ObjectLiteral = {
     <i:Ident> "{" <fs:Comma<FieldInitializer>> "}" => ObjectLiteral{ coll: i, fields: fs, template_obj: None},
     <i:Ident> "{" <fs:Comma<FieldInitializer>> "..." <e:QueryExpr> "}" => ObjectLiteral {coll: i, fields: fs, template_obj: Some(e)}
+}
+List: Vec<Box<QueryExpr>> = {
+    "[" <exprs:Comma<QueryExpr>> "]" => exprs
 }
 FieldTypeDeclaration: (String, FieldType) = {
     <i:Ident> ":" <t:FieldType> => (i, t)
@@ -80,21 +84,23 @@ QueryExpr2: Box<QueryExpr> = {
     <i:r"[0-9]+"> => Box::new(QueryExpr::IntConst(i64::from_str(i).unwrap())),
     <f:r"[0-9]+\.[0-9]+"> => Box::new(QueryExpr::FloatConst(f64::from_str(f).unwrap())),
     Object => Box::new(QueryExpr::Object(<>)),
+    List => Box::new(QueryExpr::List(<>)),
 }
 
 Ident: String = {
-    <s:r"[a-zA-Z)]\w*"> => s.to_string()
+    <s:r"[a-zA-Z]\w*"> => s.to_string()
 }
 
 Path: Vec<String> = {
-    <v:(<Ident> ".")*> <i:Ident?> => match i {
+    <v:(<Ident> ".")+> <i:Ident?> => match i {
         None => v,
         Some(i) => {
             let mut v = v;
             v.push(i);
             v
         }
-    }
+    },
+    <i:Ident> => vec!(i)
 }
 
 // Migration Lang stuff
