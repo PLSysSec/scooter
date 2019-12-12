@@ -240,7 +240,11 @@ impl Lowerer<'_> {
                 let coll_id = coll.id.clone();
                 let resolved_field_ids: Vec<Id<Def>> = fields
                     .iter()
-                    .map(|(name, _expr)| coll.fields[name].clone())
+                    .map(|(name, _expr)| {
+                        coll.lookup_field(name)
+                            .expect(&format!("Couldn't find field {}", name))
+                            .clone()
+                    })
                     .collect();
                 if template_obj.is_none() {
                     for (field_name, field_id) in coll.fields() {
@@ -298,8 +302,12 @@ impl Lowerer<'_> {
         action: ast::MigrationAction,
     ) -> CompleteMigrationAction {
         match action {
-            ast::MigrationAction::RemoveField { field } => CompleteMigrationAction::RemoveField {
-                field: self.ird.field(collection_id, &field).id,
+            ast::MigrationAction::RemoveField { field } => {
+                let field_id = self.ird.field(collection_id, &field).id;
+                self.ird.colls[collection_id].retire_field(&field_id);
+                CompleteMigrationAction::RemoveField {
+                field: field_id,
+                }
             },
             ast::MigrationAction::AddField { field, ty, init } => {
                 let lowered_ty = self.lower_type(ty);
@@ -326,14 +334,20 @@ impl Lowerer<'_> {
                     new_init: lowered_init,
                 }
             }
-            ast::MigrationAction::RenameField { old_field, new_field } => {
+            ast::MigrationAction::RenameField {
+                old_field,
+                new_field,
+            } => {
                 let field_id = self.ird.field(collection_id, &old_field).id;
-                let coll = &mut self.ird.colls[collection_id];
-                coll.add_field(new_field.clone(), field_id.clone());
+                self.ird.colls[collection_id].retire_field(&field_id);
+                let field_ty = self.ird.def_type(field_id.clone()).clone();
+                self.ird.add_field(collection_id, new_field.clone(), field_ty);
+
+
                 CompleteMigrationAction::RenameField {
                     field_id: field_id,
                     old_name: old_field,
-                    new_name: new_field
+                    new_name: new_field,
                 }
             }
             ast::MigrationAction::ForEach { param, body } => {

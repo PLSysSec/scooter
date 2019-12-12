@@ -39,7 +39,7 @@ pub struct Def {
 pub struct Collection {
     pub id: Id<Collection>,
     pub name: Ident,
-    fields: HashMap<String, Id<Def>>,
+    fields: Vec<(String, (Id<Def>, bool))>,
 }
 
 impl Collection {
@@ -51,18 +51,36 @@ impl Collection {
         &self.name
     }
 
+    pub fn lookup_field(&self, name: &str) -> Option<Id<Def>> {
+        self.fields
+            .iter()
+            .find(|(fname, (_id, is_retired))| fname == name && !is_retired)
+            .map(|(_fname, (id, _is_retired))| id.clone())
+    }
+
     pub fn fields(&self) -> impl Iterator<Item = (&String, &Id<Def>)> {
-        self.fields.iter()
+        self.fields
+            .iter()
+            .filter(|(_name, (_id, retired))| !retired)
+            .map(|(name, (id, _retired))| (name, id))
     }
     pub fn field_name(&self, field_id: &Id<Def>) -> String {
-        self.fields()
-            .find(|(_string_name, id)| *id == field_id)
+        self.fields
+            .iter()
+            .find(|(_string_name, (id, _is_retired))| id == field_id)
             .expect(&format!("Couldn't find field {:?} on object", field_id))
             .0
             .clone()
     }
     pub fn add_field(&mut self, name: String, id: Id<Def>) {
-        self.fields.insert(name, id);
+        self.fields.push((name, (id, false)));
+    }
+    pub fn retire_field(&mut self, id: &Id<Def>) {
+        let mut field_entry = self.fields.iter_mut()
+            .find(|(_fname, (fid, _is_retired))|
+                  fid==id).expect("Couldn't find field to retire");
+        assert!(!((field_entry.1).1));
+        (field_entry.1).1 = true;
     }
 }
 
@@ -136,7 +154,9 @@ impl IrData {
 
     /// A convenience method that handles the multiple lookups required to get the field definition
     pub fn field(&self, cid: Id<Collection>, fname: &str) -> &Def {
-        &self[self[cid].fields[fname]]
+        &self[self[cid]
+            .lookup_field(fname)
+            .expect(&format!("Couldn't find field {}", fname))]
     }
 
     pub fn add_field(&mut self, cid: Id<Collection>, fname: String, ftype: Type) {
@@ -190,7 +210,7 @@ pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
         let coll_id = colls.alloc_with_id(|id| Collection {
             id,
             name: Ident::new(&coll_pol.name),
-            fields: HashMap::new(),
+            fields: vec![],
         });
 
         name_to_coll.insert(coll_pol.name.clone(), coll_id);
@@ -207,7 +227,7 @@ pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
             name: Ident::new("id"),
         });
         def_types.insert(id_field, Type::Id(coll_id));
-        coll.fields.insert("id".to_string(), id_field);
+        coll.add_field("id".to_string(), id_field);
 
         // Populate the fields
         for (fname, fpol) in coll_pol.fields.iter() {
@@ -224,7 +244,7 @@ pub fn extract_types(gp: &ast::GlobalPolicy) -> IrData {
             };
 
             def_types.insert(field_did, field_type);
-            coll.fields.insert(fname.clone(), field_did);
+            coll.add_field(fname.clone(), field_did);
         }
     }
 

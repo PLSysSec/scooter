@@ -36,6 +36,11 @@ pub trait MongoDocument {
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RecordId(ObjectId);
+impl RecordId {
+    pub fn from_object_id(id: ObjectId) -> RecordId {
+        RecordId(id)
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct TypedRecordId<T: DBCollection>(RecordId,
