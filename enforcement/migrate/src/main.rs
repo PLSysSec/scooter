@@ -392,7 +392,7 @@ mod tests {
         );
     }
     #[test]
-    fn add_half_follower() {
+    fn sub_half_follower() {
         // The name of the collection
         let col_name = "User".to_string();
         // Create a connection to the database
@@ -443,7 +443,7 @@ mod tests {
             )
             .unwrap(),
             r#"
-                User::ChangeField(num_followers, F64, u -> u.num_followers + 0.5)
+                User::ChangeField(num_followers, F64, u -> u.num_followers - 0.5)
                 "#
             .to_string(),
         );
@@ -466,13 +466,13 @@ mod tests {
             alex_result_doc
                 .get_f64("num_followers")
                 .expect("Couldn't find pass_hash key after migration"),
-            42.5
+            41.5
         );
         assert_eq!(
             john_result_doc
                 .get_f64("num_followers")
                 .expect("Couldn't find pass_hash key after migration"),
-            0.5
+            -0.5
         );
     }
     #[test]

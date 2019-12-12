@@ -12,6 +12,8 @@ pub enum ExprKind {
     Append(Id<Expr>, Id<Expr>),
     AddI(Id<Expr>, Id<Expr>),
     AddF(Id<Expr>, Id<Expr>),
+    SubI(Id<Expr>, Id<Expr>),
+    SubF(Id<Expr>, Id<Expr>),
     IntToFloat(Id<Expr>),
     Path(Id<Collection>, Id<Def>, Id<Def>),
     Var(Id<Def>),

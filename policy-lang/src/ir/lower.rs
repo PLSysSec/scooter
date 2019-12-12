@@ -173,6 +173,41 @@ impl Lowerer<'_> {
 
     fn lower_expr(&mut self, qe: &ast::QueryExpr) -> Id<Expr> {
         let kind = match qe {
+            ast::QueryExpr::Minus(le1, le2) => {
+                let lowered1 = self.lower_expr(le1);
+                let lowered2 = self.lower_expr(le2);
+                match (
+                    self.infer_expr_type(lowered1),
+                    self.infer_expr_type(lowered2),
+                ) {
+                    (Type::Prim(Prim::I64), Type::Prim(Prim::I64)) => {
+                        ExprKind::SubI(lowered1, lowered2)
+                    }
+                    (Type::Prim(Prim::F64), Type::Prim(Prim::I64)) => {
+                        let converted = self.ird.exprs.alloc_with_id(|id| Expr {
+                            id,
+                            kind: ExprKind::IntToFloat(lowered2),
+                        });
+                        ExprKind::SubF(lowered1, converted)
+                    }
+                    (Type::Prim(Prim::I64), Type::Prim(Prim::F64)) => {
+                        println!("rhs: {:?}", self.ird[lowered2]);
+                        let converted = self.ird.exprs.alloc_with_id(|id| Expr {
+                            id,
+                            kind: ExprKind::IntToFloat(lowered1),
+                        });
+                        ExprKind::SubF(converted, lowered2)
+                    }
+                    (Type::Prim(Prim::F64), Type::Prim(Prim::F64)) => {
+                        ExprKind::SubF(lowered1, lowered2)
+                    }
+                    (ty1, ty2) => unimplemented!(
+                        "Cannot resolve + operator for types {:?} and {:?}",
+                        ty1,
+                        ty2
+                    ),
+                }
+            }
             ast::QueryExpr::Plus(le1, le2) => {
                 let lowered1 = self.lower_expr(le1);
                 let lowered2 = self.lower_expr(le2);
@@ -473,6 +508,8 @@ impl Lowerer<'_> {
             ExprKind::Object(collection, _fields, _t_obj) => Type::Collection(*collection),
             ExprKind::AddI(_, _) => Type::Prim(Prim::I64),
             ExprKind::AddF(_, _) => Type::Prim(Prim::F64),
+            ExprKind::SubI(_, _) => Type::Prim(Prim::I64),
+            ExprKind::SubF(_, _) => Type::Prim(Prim::F64),
             ExprKind::Append(_, _) => Type::Prim(Prim::String),
             ExprKind::IntToFloat(_) => Type::Prim(Prim::F64),
             ExprKind::List(exprs) => {

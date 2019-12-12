@@ -74,6 +74,7 @@ Comma<T>: Vec<T> = { // (1)
 
 QueryExpr: Box<QueryExpr> = {
     <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::Plus(l, r)),
+    <l: QueryExpr> "-" <r: QueryExpr2> => Box::new(QueryExpr::Minus(l, r)),
     QueryExpr2
 }
 

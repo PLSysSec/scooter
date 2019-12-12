@@ -316,6 +316,24 @@ impl Evaluator<'_> {
                     panic!("Runtime type error: arguments to addf aren't floats");
                 }
             }
+            ExprKind::SubI(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(subexpr_l);
+                let arg_r = self.eval_expr(subexpr_r);
+                if let (Value::Int(i1), Value::Int(i2)) = (arg_l, arg_r) {
+                    Value::Int(i1 - i2)
+                } else {
+                    panic!("Runtime type error: arguments to addi aren't ints");
+                }
+            }
+            ExprKind::SubF(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(subexpr_l);
+                let arg_r = self.eval_expr(subexpr_r);
+                if let (Value::Float(f1), Value::Float(f2)) = (arg_l, arg_r) {
+                    Value::Float(f1 - f2)
+                } else {
+                    panic!("Runtime type error: arguments to addf aren't floats");
+                }
+            }
             ExprKind::IntToFloat(subexpr) => {
                 let arg = self.eval_expr(subexpr);
                 if let Value::Int(i) = arg {
@@ -330,7 +348,7 @@ impl Evaluator<'_> {
             ExprKind::List(subexprs) => {
                 Value::List(subexprs.into_iter().map(|subexpr| self.eval_expr(subexpr)).collect())
             }
-            e => unimplemented!("{:?}", e),
+            ExprKind::Or(_, _) => unimplemented!(),
         }
     }
 }

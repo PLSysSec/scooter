@@ -5,6 +5,7 @@ use std::fmt;
 pub enum QueryExpr {
     Path(Vec<String>),
     Plus(Box<QueryExpr>, Box<QueryExpr>),
+    Minus(Box<QueryExpr>, Box<QueryExpr>),
     IntConst(i64),
     FloatConst(f64),
     StringConst(String),
