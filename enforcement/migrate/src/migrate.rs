@@ -83,8 +83,12 @@ fn interpret_migration(
                     result.insert(field_name, exec_query_function(&env, &init, &result));
                     replace_doc(&db_conn, &policy_collection, item_id, result);
                 }
-            },
-            CompleteMigrationAction::ChangeField {field, new_ty:_, new_init} => {
+            }
+            CompleteMigrationAction::ChangeField {
+                field,
+                new_ty: _,
+                new_init,
+            } => {
                 for item in coll_docs(&db_conn, &policy_collection).into_iter() {
                     let item_id = item.get_object_id("_id").unwrap().clone();
                     let mut result = item;
@@ -99,7 +103,29 @@ fn interpret_migration(
                     result.insert(field_name, exec_query_function(&env, &new_init, &result));
                     replace_doc(&db_conn, &policy_collection, item_id, result);
                 }
-            },
+            }
+            CompleteMigrationAction::RenameField {
+                field_id:_,
+                old_name,
+                new_name,
+            } => {
+                for item in coll_docs(&db_conn, &policy_collection).into_iter() {
+                    let item_id = item.get_object_id("_id").unwrap().clone();
+                    let mut result = item;
+                    let field_value = result.remove(&old_name).expect(&format!(
+                        "Document doesn't contain a field with the name \"{}\"",
+                        old_name
+                    ));
+                    assert!(
+                        result.insert(new_name.clone(), field_value).is_none(),
+                        format!(
+                            "Document already contains a field with the name \"{}\"",
+                            new_name
+                        )
+                    );
+                    replace_doc(&db_conn, &policy_collection, item_id, result);
+                }
+            }
             CompleteMigrationAction::ForEach { param, body } => {
                 for item in coll_docs(&db_conn, &policy_collection).into_iter() {
                     let mut evaluator = Evaluator::new(&env);
@@ -276,8 +302,10 @@ impl Evaluator<'_> {
                 if let Value::Int(i) = arg {
                     Value::Float(i as f64)
                 } else {
-                    panic!("Runtime type error: argument to conversion isn't an int {:?}",
-                           arg);
+                    panic!(
+                        "Runtime type error: argument to conversion isn't an int {:?}",
+                        arg
+                    );
                 }
             }
             e => unimplemented!("{:?}", e),

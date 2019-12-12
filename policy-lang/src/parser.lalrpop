@@ -104,6 +104,8 @@ MigrationAction: MigrationAction = {
         MigrationAction::AddField{field:c, ty:ty, init:vf},
     "ChangeField" "(" <c:Ident> "," <ty:FieldType> "," <vf:Func> ")" =>
         MigrationAction::ChangeField{field:c, new_ty:ty, new_init:vf},
+    "RenameField" "(" <f_old:Ident> "," <f_new:Ident> ")" =>
+        MigrationAction::RenameField{old_field:f_old, new_field: f_new},
     "ForEach" "(" <p:Ident> "->" <c:ObjectCommand> ")" =>
         MigrationAction::ForEach{param:p, body:c},
 }

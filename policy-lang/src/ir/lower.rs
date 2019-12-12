@@ -55,6 +55,11 @@ pub enum CompleteMigrationAction {
         new_ty: Type,
         new_init: Lambda,
     },
+    RenameField {
+        field_id: Id<Def>,
+        old_name: String,
+        new_name: String,
+    },
     ForEach {
         param: Id<Def>,
         body: CompleteObjectCommand,
@@ -319,6 +324,16 @@ impl Lowerer<'_> {
                     field: field_id,
                     new_ty: lowered_ty,
                     new_init: lowered_init,
+                }
+            }
+            ast::MigrationAction::RenameField { old_field, new_field } => {
+                let field_id = self.ird.field(collection_id, &old_field).id;
+                let coll = &mut self.ird.colls[collection_id];
+                coll.add_field(new_field.clone(), field_id.clone());
+                CompleteMigrationAction::RenameField {
+                    field_id: field_id,
+                    old_name: old_field,
+                    new_name: new_field
                 }
             }
             ast::MigrationAction::ForEach { param, body } => {

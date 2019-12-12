@@ -57,7 +57,7 @@ impl Collection {
     pub fn field_name(&self, field_id: &Id<Def>) -> String {
         self.fields()
             .find(|(_string_name, id)| *id == field_id)
-            .unwrap()
+            .expect(&format!("Couldn't find field {:?} on object", field_id))
             .0
             .clone()
     }
