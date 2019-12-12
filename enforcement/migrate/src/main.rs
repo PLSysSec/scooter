@@ -698,6 +698,8 @@ mod tests {
             .find_one(Some(doc! {"_id": uid_alex.clone()}), None)
             .unwrap()
             .unwrap();
+
+        // Make sure both the usernames are there
         assert_eq!(
             alex_result_doc
                 .get_array("username")
