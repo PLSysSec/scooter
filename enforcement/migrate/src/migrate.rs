@@ -59,20 +59,22 @@ fn interpret_migration(
     // Loop over the migration commands in sequence
     for cmd in migration_ir.0.into_iter() {
         match cmd {
-            CompleteMigrationCommand::CollAction { table, action } =>
-                interpret_action(&db_conn, &env, &env[table], action),
+            CompleteMigrationCommand::CollAction { table, action } => {
+                interpret_action(&db_conn, &env, &env[table], action)
+            }
             // Creates and deletes actually only operate at the type system level
-            CompleteMigrationCommand::Create{..} | CompleteMigrationCommand::Delete{..} =>
-            {}
+            CompleteMigrationCommand::Create { .. } | CompleteMigrationCommand::Delete { .. } => {}
         }
     }
 }
 
+// Run a single migration action on a table
 fn interpret_action(
     db_conn: &mongodb::db::Database,
     env: &IrData,
     collection: &Collection,
-    action: CompleteMigrationAction) {
+    action: CompleteMigrationAction,
+) {
     match action {
         // Remove field command. Removes a field from all records in the collection.
         CompleteMigrationAction::RemoveField { field } => {
@@ -86,8 +88,11 @@ fn interpret_action(
                 replace_doc(&db_conn, &collection, item_id, result);
             }
         }
+        // Add a field to all records in the collection
         CompleteMigrationAction::AddField { field, ty: _, init } => {
+            // Loop over the records
             for item in coll_docs(&db_conn, &collection).into_iter() {
+                // Get the item id for replacement
                 let item_id = item.get_object_id("_id").unwrap().clone();
                 let mut result = item;
                 let field_name = collection.field_name(&field);
@@ -98,16 +103,20 @@ fn interpret_action(
                         field_name
                     )
                 );
+                // Inser the field into the object
                 result.insert(field_name, exec_query_function(&env, &init, &result));
                 replace_doc(&db_conn, &collection, item_id, result);
             }
         }
+        // Change the value and type of a field, but not its name.
         CompleteMigrationAction::ChangeField {
             field,
             new_ty: _,
             new_init,
         } => {
+            // Loop over the records
             for item in coll_docs(&db_conn, &collection).into_iter() {
+                // Get the object
                 let item_id = item.get_object_id("_id").unwrap().clone();
                 let mut result = item;
                 let field_name = collection.field_name(&field);
@@ -118,22 +127,34 @@ fn interpret_action(
                         field_name
                     )
                 );
+                // Insert the new field value into the object. Note
+                // that here, we don't have to worry about changing
+                // the type, as that is handled entirely at the
+                // IR/typechecking level.
                 result.insert(field_name, exec_query_function(&env, &new_init, &result));
                 replace_doc(&db_conn, &collection, item_id, result);
             }
         }
+        // Change the name of a field, but not its value or type. Note
+        // that Coll::RenameField(field, new_name) is semantically
+        // equivalent to Coll::Addfield(new_name, old_type, x ->
+        // x.field) followed by Coll::DeleteField(field)
         CompleteMigrationAction::RenameField {
-            field_id:_,
+            field_id: _,
             old_name,
             new_name,
         } => {
+            // Loop over the records
             for item in coll_docs(&db_conn, &collection).into_iter() {
                 let item_id = item.get_object_id("_id").unwrap().clone();
                 let mut result = item;
+                // Remove the old field, and get its value.
                 let field_value = result.remove(&old_name).expect(&format!(
                     "Document doesn't contain a field with the name \"{}\"",
                     old_name
                 ));
+                // Insert the new field, making sure there didn't
+                // already exist a field with that name.
                 assert!(
                     result.insert(new_name.clone(), field_value).is_none(),
                     format!(
@@ -141,28 +162,49 @@ fn interpret_action(
                         new_name
                     )
                 );
+                // Replace the document
                 replace_doc(&db_conn, &collection, item_id, result);
             }
         }
+        // Run an object command for every item in a collection.
         CompleteMigrationAction::ForEach { param, body } => {
+            // Set the evaluator for expressions under this binder
+            let mut evaluator = Evaluator::new(&env);
             for item in coll_docs(&db_conn, &collection).into_iter() {
-                let mut evaluator = Evaluator::new(&env);
+                // Push the document parameter to the variable stack
                 evaluator.push_scope(&param, Value::Object(item.clone()));
                 match body {
+                    // Add a new object to a given collection.
                     CompleteObjectCommand::CreateObject { collection, value } => {
+                        // Evaluate the object expression, and make
+                        // sure it's an Object value.
                         if let Value::Object(obj) = evaluator.eval_expr(&value) {
+                            // Static checking should ensure that it's
+                            // the right kind of object (has all the
+                            // fields), so we're not going to check
+                            // that here.
                             insert_doc(&db_conn, &env[collection], obj)
                         } else {
-                            panic!("Can't insert these kinds of values; typechecking must have failed");
+                            // If it's not, something must have gone
+                            // wrong with static checking.
+                            panic!(
+                                "Can't insert these kinds of values; typechecking must have failed"
+                            );
                         }
                     }
+                    // Delete an object from a collectino by it's id.
                     CompleteObjectCommand::DeleteObject {
                         collection,
                         id_expr,
                     } => {
+                        // Make sure the id expression evaluates to an id value
                         if let Value::Id(id) = evaluator.eval_expr(&id_expr) {
+                            // Delete the document
                             delete_doc(&db_conn, &env[collection], id)
                         } else {
+                            // If it doesn't evaluate to an ID,
+                            // something must have gone wrong in type
+                            // checking.
                             panic!(
                                 "Runtime type error: argument does not evaluate to an id: {:?}",
                                 id_expr
@@ -170,19 +212,34 @@ fn interpret_action(
                         }
                     }
                 }
+                // Pop the document off the variable stack
+                evaluator.pop_scope(&param);
             }
         }
     }
 }
+
+/// Possible value types in our languages
 #[derive(Clone, Debug)]
 pub enum Value {
+    /// Primitive integers
     Int(i64),
+    /// Primitive floats
     Float(f64),
+    /// Primitive strings
     String(String),
+    /// Object values. They are represented by the MongoDocument type,
+    /// but not all valid MongoDocuments contain valid values, so be
+    /// careful.
     Object(Document),
+    /// An object ID in the database.
     Id(ObjectId),
+    /// A list of possibly heterogenous values
     List(Vec<Value>),
 }
+//  Converts our values to bson and back. Currently only operates on
+//  primitives, ids, and lists; object values are assumed not to need
+//  this.
 impl From<Value> for Bson {
     fn from(v: Value) -> Bson {
         match v {
@@ -207,6 +264,7 @@ impl From<Bson> for Value {
     }
 }
 
+// A naming environment and value context for evaluating expressinos.
 struct Evaluator<'a> {
     pub ird: &'a IrData,
     env: Vec<(Id<Def>, Value)>,
@@ -219,12 +277,17 @@ impl Evaluator<'_> {
             env: vec![],
         }
     }
+    // Push a variable into scope with a value
     fn push_scope(&mut self, id: &Id<Def>, val: Value) {
         self.env.push((id.clone(), val));
     }
+    // Pop the last variable from scope. This takes an identifier
+    // again, to make sure you're not popping someone elses variable,
+    // but you still need to treat it like a stack.
     fn pop_scope(&mut self, id: &Id<Def>) {
         assert_eq!(self.env.pop().unwrap().0, *id);
     }
+    // Lookup a variable definition in the definition map.
     fn lookup(&self, target_id: &Id<Def>) -> Option<Value> {
         for (var_id, var_val) in self.env.iter() {
             if var_id == target_id {
@@ -233,22 +296,31 @@ impl Evaluator<'_> {
         }
         None
     }
+    // Evaluate an expression down to a value
     fn eval_expr(&self, expr_id: &Id<Expr>) -> Value {
         match &self.ird[*expr_id].kind {
+            // Constants evaluate to the constant value
             ExprKind::IntConst(i) => Value::Int(i.clone()),
             ExprKind::FloatConst(f) => Value::Float(f.clone()),
             ExprKind::StringConst(s) => Value::String(s.clone()),
+            // Paths are field lookups on an object.
             ExprKind::Path(col_id, var, field) => {
+                // Look up the object
                 let obj = self
                     .lookup(var)
                     .expect("Couldn't find a value in scope for identifier");
+                // Get the string name of the field, using the col_id
+                // that the typechecker put in.
                 let field_name = self.ird[*col_id].field_name(field);
+                // If the field name is "id", then translate it to
+                // "_id" for the mongo calls.
                 let normalized_field_name = if field_name == "id" {
                     "_id"
                 } else {
                     &field_name
                 };
 
+                // Get the field value.
                 match obj {
                     Value::Object(d) => d
                         .get(normalized_field_name)
@@ -258,34 +330,47 @@ impl Evaluator<'_> {
                     _ => panic!("Cannot get fields of non-object values"),
                 }
             }
+            // An object spefifier, like User { username: "Alex", ...u}
             ExprKind::Object(col_id, fields, template_obj_expr) => {
                 let collection = &self.ird[*col_id];
                 let mut result_object = doc! {};
+                // If there's a template value expression, evaluate
+                // it.
                 let template_obj_val = template_obj_expr.as_ref().map(|expr| self.eval_expr(expr));
                 for (field_name, field_id) in collection.fields() {
+                    // We don't need to directly propogate the id, as
+                    // it'll be assigned by mongo when we add to the
+                    // database.
                     if field_name == "id" {
                         continue;
                     }
+                    // Lookup the field value in the fields specified.
                     let field_value = match fields.iter().find(|(id, _expr)| field_id == id) {
+                        // If we find it, evaluate the expression
+                        // given, and use it's value for the field.
                         Some((_id, expr)) => self.eval_expr(expr),
+                        // Otherwise, use the value from the template
+                        // object value.
                         None => match &template_obj_val {
                             Some(Value::Object(template_obj)) => {
+                                // Get the field from the object.
                                 template_obj.get(field_name).unwrap().clone().into()
                             }
+                            // The type system should prevent these
+                            // cases.
                             Some(_) => panic!("Type system failure: template is not an object"),
                             None => {
                                 panic!("Type system failure: couldn't find field {}", field_name)
                             }
                         },
                     };
+                    // Finally, insert the field and it's value into
+                    // the object.
                     result_object.insert(field_name, field_value);
-                }
-                for (field_id, field_value) in fields.iter() {
-                    result_object
-                        .insert(collection.field_name(field_id), self.eval_expr(field_value));
                 }
                 Value::Object(result_object)
             }
+            // String append
             ExprKind::Append(subexpr_l, subexpr_r) => {
                 let arg_l = self.eval_expr(subexpr_l);
                 let arg_r = self.eval_expr(subexpr_r);
@@ -295,9 +380,11 @@ impl Evaluator<'_> {
                     panic!("Arguments to append aren't strings at runtime! Type system failure");
                 }
             }
+            // Variable lookup
             ExprKind::Var(id) => self
                 .lookup(id)
                 .expect(&format!("No binding in scope for var {:?}", id)),
+            // Math operators
             ExprKind::AddI(subexpr_l, subexpr_r) => {
                 let arg_l = self.eval_expr(subexpr_l);
                 let arg_r = self.eval_expr(subexpr_r);
@@ -334,6 +421,7 @@ impl Evaluator<'_> {
                     panic!("Runtime type error: arguments to addf aren't floats");
                 }
             }
+            // Type conversion
             ExprKind::IntToFloat(subexpr) => {
                 let arg = self.eval_expr(subexpr);
                 if let Value::Int(i) = arg {
@@ -345,23 +433,34 @@ impl Evaluator<'_> {
                     );
                 }
             }
-            ExprKind::List(subexprs) => {
-                Value::List(subexprs.into_iter().map(|subexpr| self.eval_expr(subexpr)).collect())
-            }
+            // Lists
+            ExprKind::List(subexprs) => Value::List(
+                subexprs
+                    .into_iter()
+                    .map(|subexpr| self.eval_expr(subexpr))
+                    .collect(),
+            ),
             ExprKind::Or(_, _) => unimplemented!(),
         }
     }
 }
 
+// Execute a query function (lambda) on an argument
 fn exec_query_function(ir_env: &IrData, f: &Lambda, arg: &Document) -> Value {
+    // Make an evaluator
     let mut evaluator = Evaluator::new(ir_env);
     let Lambda { param, body } = f;
+    // Push the parameter to scope
     evaluator.push_scope(param, Value::Object(arg.clone()));
+    // eval
     let result = evaluator.eval_expr(&body);
-    evaluator.pop_scope(param);
+    // We don't have to worry about popping scope because this
+    // evaluator is going away anyway.
     result
 }
 
+// Takes a dabatase connection and IR collection object, and returns a
+// vector of documents in that collection.
 fn coll_docs(db_conn: &Database, coll: &Collection) -> Vec<Document> {
     db_conn
         .collection(&coll.name.1)
@@ -371,6 +470,8 @@ fn coll_docs(db_conn: &Database, coll: &Collection) -> Vec<Document> {
         .map(|d| d.unwrap())
         .collect()
 }
+
+// Replace an object in a collection
 fn replace_doc(db_conn: &Database, coll: &Collection, id: ObjectId, new: Document) {
     db_conn
         .collection(&coll.name.1)
@@ -378,6 +479,7 @@ fn replace_doc(db_conn: &Database, coll: &Collection, id: ObjectId, new: Documen
         .expect("Couldn't replace document");
 }
 
+// Add a new object to a collection
 fn insert_doc(db_conn: &Database, coll: &Collection, new: Document) {
     db_conn
         .collection(&coll.name.1)
@@ -385,6 +487,7 @@ fn insert_doc(db_conn: &Database, coll: &Collection, new: Document) {
         .expect("Couldn't insert document");
 }
 
+// Remove an object from a collection, by id.
 fn delete_doc(db_conn: &Database, coll: &Collection, id: ObjectId) {
     db_conn
         .collection(&coll.name.1)
