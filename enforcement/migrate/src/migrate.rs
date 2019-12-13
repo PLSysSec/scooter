@@ -371,11 +371,23 @@ impl Evaluator<'_> {
                 Value::Object(result_object)
             }
             // String append
-            ExprKind::Append(subexpr_l, subexpr_r) => {
+            ExprKind::AppendS(subexpr_l, subexpr_r) => {
                 let arg_l = self.eval_expr(subexpr_l);
                 let arg_r = self.eval_expr(subexpr_r);
                 if let (Value::String(s1), Value::String(s2)) = (arg_l, arg_r) {
                     Value::String(s1 + &s2)
+                } else {
+                    panic!("Arguments to append aren't strings at runtime! Type system failure");
+                }
+            }
+            // List append
+            ExprKind::AppendL(_ty, subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(subexpr_l);
+                let arg_r = self.eval_expr(subexpr_r);
+                if let (Value::List(s1), Value::List(s2)) = (arg_l, arg_r) {
+                    let mut result = s1.clone();
+                    result.append(&mut s2.clone());
+                    Value::List(result)
                 } else {
                     panic!("Arguments to append aren't strings at runtime! Type system failure");
                 }

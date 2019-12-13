@@ -217,7 +217,14 @@ impl Lowerer<'_> {
                     self.infer_expr_type(lowered2),
                 ) {
                     (Type::Prim(Prim::String), Type::Prim(Prim::String)) => {
-                        ExprKind::Append(lowered1, lowered2)
+                        ExprKind::AppendS(lowered1, lowered2)
+                    }
+                    (Type::List(t1), Type::List(t2)) => {
+                        if *t1 == *t2 {
+                            ExprKind::AppendL(*t1, lowered1, lowered2)
+                        } else {
+                            ExprKind::AppendL(Type::Any, lowered1, lowered2)
+                        }
                     }
                     (Type::Id(coll1), Type::Id(coll2)) => {
                         assert_eq!(coll1, coll2, "Heterogenous ORs not allowed");
@@ -510,7 +517,8 @@ impl Lowerer<'_> {
             ExprKind::AddF(_, _) => Type::Prim(Prim::F64),
             ExprKind::SubI(_, _) => Type::Prim(Prim::I64),
             ExprKind::SubF(_, _) => Type::Prim(Prim::F64),
-            ExprKind::Append(_, _) => Type::Prim(Prim::String),
+            ExprKind::AppendS(_, _) => Type::Prim(Prim::String),
+            ExprKind::AppendL(ty, _, _) => Type::List(Box::new(ty.clone())),
             ExprKind::IntToFloat(_) => Type::Prim(Prim::F64),
             ExprKind::List(exprs) => {
                 let expr_type = self.infer_expr_type(exprs[0]);

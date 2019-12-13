@@ -13,7 +13,9 @@ pub enum ExprKind {
     /// Or of two ids, producing an id list with both.
     Or(Id<Expr>, Id<Expr>),
     /// String append
-    Append(Id<Expr>, Id<Expr>),
+    AppendS(Id<Expr>, Id<Expr>),
+    /// List append
+    AppendL(Type, Id<Expr>, Id<Expr>),
     /// Adding integers
     AddI(Id<Expr>, Id<Expr>),
     /// Adding floats
