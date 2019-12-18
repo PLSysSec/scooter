@@ -96,7 +96,7 @@ mod tests {
             "#).unwrap();
 
         assert_eq!(p,
-                   Migration(vec![MigrationCommand{
+                   Migration(vec![MigrationCommand::CollAction{
                        table:"User".to_string(),
                        action:MigrationAction::RemoveField{
                            field:"num_followers".to_string()
