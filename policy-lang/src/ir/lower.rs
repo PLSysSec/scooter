@@ -224,12 +224,60 @@ impl Lowerer<'_> {
                         if *t1 == *t2 {
                             ExprKind::AppendL(*t1, lowered1, lowered2)
                         } else {
-                            ExprKind::AppendL(Type::Any, lowered1, lowered2)
+                            match (*t1, *t2) {
+                                (Type::Id(_), Type::Id(_))
+                                | (Type::IdAny, Type::Id(_))
+                                | (Type::Id(_), Type::IdAny) => {
+                                    ExprKind::AppendL(Type::IdAny, lowered1, lowered2)
+                                }
+                                _ => ExprKind::AppendL(Type::Any, lowered1, lowered2),
+                            }
+                        }
+                    }
+                    (Type::List(t1), Type::Id(coll)) => {
+                        let converted = self.ird.exprs.alloc_with_id(|id| Expr {
+                            id,
+                            kind: ExprKind::List(vec![lowered2]),
+                        });
+                        match *t1 {
+                            Type::Id(coll2) if coll2 == coll => {
+                                ExprKind::AppendL(Type::Id(coll), lowered1, converted)
+                            }
+                            Type::Id(_) | Type::IdAny => {
+                                ExprKind::AppendL(Type::IdAny, lowered1, converted)
+                            }
+                            _ => ExprKind::AppendL(Type::Any, lowered1, converted),
+                        }
+                    }
+                    (Type::Id(coll), Type::List(t2)) => {
+                        let converted = self.ird.exprs.alloc_with_id(|id| Expr {
+                            id,
+                            kind: ExprKind::List(vec![lowered1]),
+                        });
+                        match *t2 {
+                            Type::Id(coll2) if coll2 == coll => {
+                                ExprKind::AppendL(Type::Id(coll), converted, lowered2)
+                            }
+                            Type::Id(_) | Type::IdAny => {
+                                ExprKind::AppendL(Type::IdAny, converted, lowered2)
+                            }
+                            _ => ExprKind::AppendL(Type::Any, converted, lowered1),
                         }
                     }
                     (Type::Id(coll1), Type::Id(coll2)) => {
-                        assert_eq!(coll1, coll2, "Heterogenous ORs not allowed");
-                        ExprKind::Or(lowered1, lowered2)
+                        let converted1 = self.ird.exprs.alloc_with_id(|id| Expr {
+                            id,
+                            kind: ExprKind::List(vec![lowered1]),
+                        });
+                        let converted2 = self.ird.exprs.alloc_with_id(|id| Expr {
+                            id,
+                            kind: ExprKind::List(vec![lowered2]),
+                        });
+                        if coll1 == coll2 {
+                            ExprKind::AppendL(Type::Id(coll1), converted1, converted2)
+                        } else {
+                            ExprKind::AppendL(Type::IdAny, converted1, converted2)
+                        }
                     }
                     (Type::Prim(Prim::I64), Type::Prim(Prim::I64)) => {
                         ExprKind::AddI(lowered1, lowered2)
@@ -526,8 +574,7 @@ impl Lowerer<'_> {
                     }
                 }
                 Type::List(Box::new(result_type))
-            },
-            ExprKind::Or(_, _) => unimplemented!("Cannot yet typecheck OR's"),
+            }
         }
     }
     fn typecheck_expr(&self, expr_id: Id<Expr>, expected_type: Type) {

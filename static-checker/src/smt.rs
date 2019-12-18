@@ -78,7 +78,7 @@ fn gen_policy(ird: &IrData, fn_name: &str, cid: Id<Collection>, policy: &Policy)
     };
 
     let body = match policy {
-        Policy::Func(pf) => gen_query_expr(ird, pf.body),
+        Policy::Func(pf) => gen_query_expr_as_list(ird, pf.body),
         Policy::Public => "public".to_string(),
         Policy::None => "empty".to_string(),
     };
@@ -98,15 +98,35 @@ fn gen_policy(ird: &IrData, fn_name: &str, cid: Id<Collection>, policy: &Policy)
     out
 }
 
+fn gen_query_expr_as_list(ird: &IrData, eid: Id<Expr>) -> String {
+    let expr = &ird[eid];
+    if let ExprKind::Path(_collection, _obj, _field) = expr.kind {
+        format!("(insert empty {})", gen_query_expr(ird, eid))
+    } else {
+        gen_query_expr(ird, eid)
+    }
+}
+
+fn gen_list_expr(ird: &IrData, eids: &[Id<Expr>]) -> String {
+    match eids.split_first() {
+        None => "empty".to_string(),
+        Some((first_expr, rest_exprs)) =>
+            format!("(insert {} {})", gen_list_expr(ird, rest_exprs),
+                    gen_query_expr(ird, *first_expr)),
+    }
+}
+
 fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
     let expr = &ird[eid];
-    match expr.kind {
-        ExprKind::Or(l, r) => format!("((_ map or) {} {})", gen_query_expr(ird, l), gen_query_expr(ird, r)),
-        ExprKind::Var(_) => unimplemented!("We don't parse this yet"),
+    match &expr.kind {
         ExprKind::Path(_collection, obj, field) => {
-            format!("(insert empty ({} {}))", mangled_ident(&ird[field].name), mangled_ident(&ird[obj].name))
+            format!("({} {})", mangled_ident(&ird[*field].name), mangled_ident(&ird[*obj].name))
         }
-        _ => unimplemented!("Primitives not yet allowed in policies"),
+        ExprKind::List(exprs) => {
+            gen_list_expr(ird, exprs.as_slice())
+        }
+        ExprKind::AppendL(_ty, l, r) => format!("((_ map or) {} {})", gen_query_expr(ird, *l), gen_query_expr(ird, *r)),
+        _ => unimplemented!("Not implemented for policies yet"),
     }
 }
 

@@ -10,8 +10,6 @@ pub struct Expr {
 /// polymorphism/operator overloading has been resolved.
 #[derive(Debug)]
 pub enum ExprKind {
-    /// Or of two ids, producing an id list with both.
-    Or(Id<Expr>, Id<Expr>),
     /// String append
     AppendS(Id<Expr>, Id<Expr>),
     /// List append
