@@ -157,6 +157,7 @@ impl Lowerer<'_> {
         let param = self.ird.create_def(&pf.param, param_type);
         let old_mapping = self.def_map.insert(pf.param.clone(), param);
         let body = self.lower_expr(&pf.expr);
+        self.typecheck_expr(body, Type::List(Box::new(Type::IdAny)));
         match old_mapping {
             Some(did) => {
                 self.def_map.insert(pf.param.clone(), did);
@@ -348,21 +349,17 @@ impl Lowerer<'_> {
                     });
                 }
                 ast::MigrationCommand::Create { table_name, layout } => {
-                    let lowered_layout =
-                        layout
-                            .into_iter()
-                            .map(|(name, fty)| (name, self.lower_type(fty)))
-                            .collect();
-                    let coll_id = self.ird.add_collection(
-                        &table_name,
-                        lowered_layout,
-                    );
-                    complete_cmds.push(CompleteMigrationCommand::Create{table_id: coll_id});
+                    let lowered_layout = layout
+                        .into_iter()
+                        .map(|(name, fty)| (name, self.lower_type(fty)))
+                        .collect();
+                    let coll_id = self.ird.add_collection(&table_name, lowered_layout);
+                    complete_cmds.push(CompleteMigrationCommand::Create { table_id: coll_id });
                 }
                 ast::MigrationCommand::Delete { table_name } => {
                     let (coll_id, _coll_typ) = self.resolve_collection(&table_name);
                     self.ird.retire_collection(coll_id);
-                    complete_cmds.push(CompleteMigrationCommand::Delete{table_id: coll_id});
+                    complete_cmds.push(CompleteMigrationCommand::Delete { table_id: coll_id });
                 }
             }
         }
@@ -535,9 +532,12 @@ impl Lowerer<'_> {
     }
     fn typecheck_expr(&self, expr_id: Id<Expr>, expected_type: Type) {
         let inferred_type = self.infer_expr_type(expr_id);
-        assert_eq!(inferred_type, expected_type,
-                   "Static type error: expected {:?}, found {:?}",
-                   expected_type, inferred_type);
+        assert!(
+            is_subtype(&inferred_type, &expected_type),
+            "Static type error: expected {:?}, found {:?}",
+            expected_type,
+            inferred_type
+        );
     }
     fn lower_type(&mut self, ty: ast::FieldType) -> Type {
         match ty {
@@ -548,9 +548,28 @@ impl Lowerer<'_> {
                 let (id, _coll_typ) = self.resolve_collection(&s);
                 Type::Id(id)
             }
-            ast::FieldType::List(s) => {
-                Type::List(Box::new(self.lower_type(*s)))
-            }
+            ast::FieldType::List(s) => Type::List(Box::new(self.lower_type(*s))),
         }
+    }
+}
+
+fn is_subtype(t1: &Type, t2: &Type) -> bool {
+    match t2 {
+        _ if t1 == t2 => true,
+        Type::Any => true,
+        Type::IdAny => match t1 {
+            Type::Id(_) => true,
+            _ => false,
+        },
+        Type::List(inner_type2) => match t1 {
+            Type::List(inner_type1) => is_subtype(inner_type1, inner_type2),
+            Type::Id(coll) => match **inner_type2 {
+                Type::Id(coll2) => *coll == coll2,
+                Type::IdAny => true,
+                _ => false,
+            }
+            _ => false,
+        },
+        _ => false
     }
 }

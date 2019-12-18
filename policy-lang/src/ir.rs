@@ -90,6 +90,7 @@ impl Collection {
 pub enum Type {
     Prim(Prim),
     Id(Id<Collection>),
+    IdAny,
     Collection(Id<Collection>),
     List(Box<Type>),
     Any,
