@@ -1,5 +1,5 @@
-use policy_lang::ir::*;
 use policy_lang::ast;
+use policy_lang::ir::*;
 
 pub fn gen_full(gp_before: &ast::GlobalPolicy, gp_after: &ast::GlobalPolicy) -> String {
     let mut ird = extract_types(&gp_before);
@@ -11,7 +11,12 @@ pub fn gen_full(gp_before: &ast::GlobalPolicy, gp_after: &ast::GlobalPolicy) -> 
     for c in ird.collections() {
         out += &gen_echo(&c.name().1);
         out += &gen_echo("---------------");
-        out += &gen_collection_checks(&ird, c.id, ir_1.collection_policy(c.id), &ir_2.collection_policy(c.id));
+        out += &gen_collection_checks(
+            &ird,
+            c.id,
+            ir_1.collection_policy(c.id),
+            &ir_2.collection_policy(c.id),
+        );
 
         for (fname, did) in c.fields() {
             if fname == "id" {
@@ -24,19 +29,27 @@ pub fn gen_full(gp_before: &ast::GlobalPolicy, gp_after: &ast::GlobalPolicy) -> 
     out
 }
 
-
-
-fn gen_collection_checks(ird: &IrData, cid: Id<Collection>, cp_1: &CollectionPolicy, cp_2: &CollectionPolicy) -> String {
+fn gen_collection_checks(
+    ird: &IrData,
+    cid: Id<Collection>,
+    cp_1: &CollectionPolicy,
+    cp_2: &CollectionPolicy,
+) -> String {
     let mut out = String::new();
     out += &gen_echo("create:");
     out += &gen_policy_check(ird, cid, &cp_1.create, &cp_2.create);
     out += &gen_echo("delete:");
     out += &gen_policy_check(ird, cid, &cp_1.delete, &cp_2.delete);
 
-    out 
+    out
 }
 
-fn gen_field_checks(ird: &IrData, cid: Id<Collection>, fp_1: &FieldPolicy, fp_2: &FieldPolicy) -> String {
+fn gen_field_checks(
+    ird: &IrData,
+    cid: Id<Collection>,
+    fp_1: &FieldPolicy,
+    fp_2: &FieldPolicy,
+) -> String {
     let mut out = String::new();
 
     out += &gen_echo("");
@@ -47,13 +60,12 @@ fn gen_field_checks(ird: &IrData, cid: Id<Collection>, fp_1: &FieldPolicy, fp_2:
     out += &gen_policy_check(ird, cid, &fp_1.edit, &fp_2.edit);
 
     out
-
 }
 
 fn gen_policy_check(ird: &IrData, cid: Id<Collection>, fp_1: &Policy, fp_2: &Policy) -> String {
     format!(
         r#"
-            (push) 
+            (push)
             {}
             {}
             (assert (not (forall ((r {}) (v Value))
@@ -99,8 +111,7 @@ fn gen_policy(ird: &IrData, fn_name: &str, cid: Id<Collection>, policy: &Policy)
 }
 
 fn gen_query_expr_as_list(ird: &IrData, eid: Id<Expr>) -> String {
-    let expr = &ird[eid];
-    if let ExprKind::Path(_collection, _obj, _field) = expr.kind {
+    if let Type::Id(_) = infer_expr_type(ird, eid) {
         format!("(insert empty {})", gen_query_expr(ird, eid))
     } else {
         gen_query_expr(ird, eid)
@@ -110,22 +121,36 @@ fn gen_query_expr_as_list(ird: &IrData, eid: Id<Expr>) -> String {
 fn gen_list_expr(ird: &IrData, eids: &[Id<Expr>]) -> String {
     match eids.split_first() {
         None => "empty".to_string(),
-        Some((first_expr, rest_exprs)) =>
-            format!("(insert {} {})", gen_list_expr(ird, rest_exprs),
-                    gen_query_expr(ird, *first_expr)),
+        Some((first_expr, rest_exprs)) => format!(
+            "(insert {} {})",
+            gen_list_expr(ird, rest_exprs),
+            gen_query_expr(ird, *first_expr)
+        ),
     }
 }
 
 fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
     let expr = &ird[eid];
     match &expr.kind {
-        ExprKind::Path(_collection, obj, field) => {
-            format!("({} {})", mangled_ident(&ird[*field].name), mangled_ident(&ird[*obj].name))
-        }
-        ExprKind::List(exprs) => {
-            gen_list_expr(ird, exprs.as_slice())
-        }
-        ExprKind::AppendL(_ty, l, r) => format!("((_ map or) {} {})", gen_query_expr(ird, *l), gen_query_expr(ird, *r)),
+        ExprKind::Path(_collection, obj, field) => format!(
+            "({} {})",
+            mangled_ident(&ird[*field].name),
+            mangled_ident(&ird[*obj].name)
+        ),
+        ExprKind::List(exprs) => gen_list_expr(ird, exprs.as_slice()),
+        ExprKind::AppendL(_ty, l, r) => format!(
+            "((_ map or) {} {})",
+            gen_query_expr(ird, *l),
+            gen_query_expr(ird, *r)
+        ),
+        ExprKind::BoolConst(b) => format!("{}", b),
+        ExprKind::If(_ty, cond, e1, e2) => format!(
+            "(ite {} {} {})",
+            gen_query_expr(ird, *cond),
+            gen_query_expr(ird, *e1),
+            gen_query_expr(ird, *e2)
+        ),
+
         _ => unimplemented!("Not implemented for policies yet"),
     }
 }
@@ -133,7 +158,8 @@ fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
 fn gen_preamble(ird: &IrData) -> String {
     let mut out = String::new();
 
-    out += &format!( r#"
+    out += &format!(
+        r#"
         (declare-sort Value)
         (define-sort Principles () (Array Value Bool))
         (declare-const empty Principles)
@@ -143,12 +169,13 @@ fn gen_preamble(ird: &IrData) -> String {
         (define-fun insert ((p Principles) (v Value)) Principles (store p v true))
         (echo "Sanity check for preamble. Should be SAT")
         (check-sat)
-    "#);
+    "#
+    );
 
     for c in ird.collections() {
         let fs: String = c.fields().map(|(_, f)| gen_field(ird, *f)).collect();
 
-        out += &format!( 
+        out += &format!(
             "(declare-datatypes (({0} 0)) ((({0} {1}))))\n",
             mangled_ident(&c.name),
             fs
@@ -175,5 +202,5 @@ fn mangled_ident(ident: &Ident) -> String {
 }
 
 fn gen_echo(msg: &str) -> String {
-    format!("(echo \"{}\")",  msg)
+    format!("(echo \"{}\")", msg)
 }

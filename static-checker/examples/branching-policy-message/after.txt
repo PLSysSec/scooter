@@ -1,0 +1,22 @@
+User {
+    create: public,
+    delete: none,
+}
+Message {
+    create: public,
+    delete: none,
+    from : Id(User) {
+        read: m -> m.from + m.to,
+        write: none,
+    },
+
+    to : Id(User) {
+        read: m -> m.to + m.from,
+        write: none,
+    },
+
+    text : String {
+        read: m -> (if true then m.from else m.to),
+        write: none,
+    },
+}

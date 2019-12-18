@@ -55,6 +55,9 @@ Object: ObjectLiteral = {
 List: Vec<Box<QueryExpr>> = {
     "[" <exprs:Comma<QueryExpr>> "]" => exprs
 }
+ConditionalExpr: Box<QueryExpr> = {
+    "(" "if" <cond:QueryExpr> "then" <e1:QueryExpr> "else" <e2:QueryExpr> ")" => Box::new(QueryExpr::If(cond, e1, e2)),
+}
 FieldTypeDeclaration: (String, FieldType) = {
     <i:Ident> ":" <t:FieldType> => (i, t)
 }
@@ -84,7 +87,10 @@ QueryExpr2: Box<QueryExpr> = {
         s.get(1..s.len()-1).unwrap().to_string())),
     <i:r"[0-9]+"> => Box::new(QueryExpr::IntConst(i64::from_str(i).unwrap())),
     <f:r"[0-9]+\.[0-9]+"> => Box::new(QueryExpr::FloatConst(f64::from_str(f).unwrap())),
+    "true" => Box::new(QueryExpr::BoolConst(true)),
+    "false" => Box::new(QueryExpr::BoolConst(false)),
     Object => Box::new(QueryExpr::Object(<>)),
+    ConditionalExpr => <>,
     List => Box::new(QueryExpr::List(<>)),
 }
 

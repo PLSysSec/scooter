@@ -100,6 +100,7 @@ pub enum Prim {
     String,
     I64,
     F64,
+    Bool,
 }
 
 /// IrData contains the type and name resolution data resulting from lowering the AST to a CompletePolicy.

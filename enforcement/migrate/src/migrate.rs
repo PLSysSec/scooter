@@ -228,6 +228,8 @@ pub enum Value {
     Float(f64),
     /// Primitive strings
     String(String),
+    /// Primitive booleans
+    Bool(bool),
     /// Object values. They are represented by the MongoDocument type,
     /// but not all valid MongoDocuments contain valid values, so be
     /// careful.
@@ -249,6 +251,7 @@ impl From<Value> for Bson {
             Value::Object(_) => panic!("Cannot return an object where a value is expected"),
             Value::Id(i) => Bson::ObjectId(i),
             Value::List(vs) => Bson::Array(vs.iter().map(|v| v.clone().into()).collect()),
+            Value::Bool(b) => Bson::Boolean(b),
         }
     }
 }
@@ -259,6 +262,7 @@ impl From<Bson> for Value {
             Bson::FloatingPoint(f) => Value::Float(f),
             Bson::String(s) => Value::String(s),
             Bson::ObjectId(i) => Value::Id(i),
+            Bson::Boolean(b) => Value::Bool(b),
             _ => panic!("These kinds of bson objects shouldn't exist"),
         }
     }
@@ -303,6 +307,7 @@ impl Evaluator<'_> {
             ExprKind::IntConst(i) => Value::Int(i.clone()),
             ExprKind::FloatConst(f) => Value::Float(f.clone()),
             ExprKind::StringConst(s) => Value::String(s.clone()),
+            ExprKind::BoolConst(b) => Value::Bool(b.clone()),
             // Paths are field lookups on an object.
             ExprKind::Path(col_id, var, field) => {
                 // Look up the object
@@ -452,7 +457,18 @@ impl Evaluator<'_> {
                     .map(|subexpr| self.eval_expr(subexpr))
                     .collect(),
             ),
-            ExprKind::Or(_, _) => unimplemented!(),
+            // Conditional expressions
+            ExprKind::If(_ty, cond, e1, e2) => {
+                if let Value::Bool(c) = self.eval_expr(cond) {
+                    if c {
+                        self.eval_expr(e1)
+                    } else {
+                        self.eval_expr(e2)
+                    }
+                } else {
+                    panic!("Runtime type error: condition of if doesn't evaluate to a bool")
+                }
+            }
         }
     }
 }

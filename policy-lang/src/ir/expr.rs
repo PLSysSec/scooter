@@ -41,14 +41,82 @@ pub enum ExprKind {
     Object(Id<Collection>, Vec<(Id<Def>, Id<Expr>)>, Option<Id<Expr>>),
     /// A list expression
     List(Vec<Id<Expr>>),
+    /// Conditional expression
+    If(Type, Id<Expr>, Id<Expr>, Id<Expr>),
     /// Constant primitive values
     IntConst(i64),
     FloatConst(f64),
     StringConst(String),
+    BoolConst(bool),
 }
 
 #[derive(Debug)]
 pub struct Lambda {
     pub param: Id<Def>,
     pub body: Id<Expr>,
+}
+
+
+pub fn infer_expr_type(ird: &IrData, expr_id: Id<Expr>) -> Type {
+    let expr = &ird[expr_id];
+    match &expr.kind {
+        ExprKind::IntConst(_) => Type::Prim(Prim::I64),
+        ExprKind::FloatConst(_) => Type::Prim(Prim::F64),
+        ExprKind::StringConst(_) => Type::Prim(Prim::String),
+        ExprKind::BoolConst(_) => Type::Prim(Prim::Bool),
+        ExprKind::Path(_collection, _obj, field) => ird.def_type(*field).clone(),
+        ExprKind::Var(m) => ird.def_type(*m).clone(),
+        ExprKind::Object(collection, _fields, _t_obj) => Type::Collection(*collection),
+        ExprKind::AddI(_, _) => Type::Prim(Prim::I64),
+        ExprKind::AddF(_, _) => Type::Prim(Prim::F64),
+        ExprKind::SubI(_, _) => Type::Prim(Prim::I64),
+        ExprKind::SubF(_, _) => Type::Prim(Prim::F64),
+        ExprKind::AppendS(_, _) => Type::Prim(Prim::String),
+        ExprKind::AppendL(ty, _, _) => Type::List(Box::new(ty.clone())),
+        ExprKind::IntToFloat(_) => Type::Prim(Prim::F64),
+        ExprKind::List(exprs) => {
+            if exprs.len() == 0 {
+                unimplemented!("We don't know how to infer the type of an empty list!")
+            } else {
+                let expr_type = infer_expr_type(ird, exprs[0]);
+                let mut result_type = expr_type.clone();
+                for expr in exprs.into_iter() {
+                    if infer_expr_type(ird, *expr) != expr_type {
+                        result_type = Type::Any;
+                    }
+                }
+                Type::List(Box::new(result_type))
+            }
+        }
+        ExprKind::If(ty, _, _, _) => ty.clone(),
+    }
+}
+pub fn typecheck_expr(ird: &IrData, expr_id: Id<Expr>, expected_type: Type) {
+    let inferred_type = infer_expr_type(ird, expr_id);
+    assert!(
+        is_subtype(&inferred_type, &expected_type),
+        "Static type error: expected {:?}, found {:?}",
+        expected_type,
+        inferred_type
+    );
+}
+fn is_subtype(t1: &Type, t2: &Type) -> bool {
+    match t2 {
+        _ if t1 == t2 => true,
+        Type::Any => true,
+        Type::IdAny => match t1 {
+            Type::Id(_) => true,
+            _ => false,
+        },
+        Type::List(inner_type2) => match t1 {
+            Type::List(inner_type1) => is_subtype(inner_type1, inner_type2),
+            Type::Id(coll) => match **inner_type2 {
+                Type::Id(coll2) => *coll == coll2,
+                Type::IdAny => true,
+                _ => false,
+            }
+            _ => false,
+        },
+        _ => false
+    }
 }

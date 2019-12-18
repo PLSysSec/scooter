@@ -3,14 +3,18 @@ use std::fmt;
 
 #[derive(Debug, PartialEq)]
 pub enum QueryExpr {
-    Path(Vec<String>),
     Plus(Box<QueryExpr>, Box<QueryExpr>),
     Minus(Box<QueryExpr>, Box<QueryExpr>),
+
+    Path(Vec<String>),
+    Object(ObjectLiteral),
+    List(Vec<Box<QueryExpr>>),
+    If(Box<QueryExpr>, Box<QueryExpr>, Box<QueryExpr>),
+
     IntConst(i64),
     FloatConst(f64),
     StringConst(String),
-    Object(ObjectLiteral),
-    List(Vec<Box<QueryExpr>>),
+    BoolConst(bool),
 }
 #[derive(Debug, PartialEq)]
 pub struct ObjectLiteral {

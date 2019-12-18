@@ -157,7 +157,7 @@ impl Lowerer<'_> {
         let param = self.ird.create_def(&pf.param, param_type);
         let old_mapping = self.def_map.insert(pf.param.clone(), param);
         let body = self.lower_expr(&pf.expr);
-        self.typecheck_expr(body, Type::List(Box::new(Type::IdAny)));
+        typecheck_expr(self.ird, body, Type::List(Box::new(Type::IdAny)));
         match old_mapping {
             Some(did) => {
                 self.def_map.insert(pf.param.clone(), did);
@@ -178,8 +178,8 @@ impl Lowerer<'_> {
                 let lowered1 = self.lower_expr(le1);
                 let lowered2 = self.lower_expr(le2);
                 match (
-                    self.infer_expr_type(lowered1),
-                    self.infer_expr_type(lowered2),
+                    infer_expr_type(self.ird, lowered1),
+                    infer_expr_type(self.ird, lowered2),
                 ) {
                     (Type::Prim(Prim::I64), Type::Prim(Prim::I64)) => {
                         ExprKind::SubI(lowered1, lowered2)
@@ -214,8 +214,8 @@ impl Lowerer<'_> {
                 let lowered2 = self.lower_expr(le2);
 
                 match (
-                    self.infer_expr_type(lowered1),
-                    self.infer_expr_type(lowered2),
+                    infer_expr_type(self.ird, lowered1),
+                    infer_expr_type(self.ird, lowered2),
                 ) {
                     (Type::Prim(Prim::String), Type::Prim(Prim::String)) => {
                         ExprKind::AppendS(lowered1, lowered2)
@@ -323,9 +323,6 @@ impl Lowerer<'_> {
                 }
                 _ => unreachable!("Longer paths can never be valid by construction"),
             },
-            ast::QueryExpr::IntConst(i) => ExprKind::IntConst(i.clone()),
-            ast::QueryExpr::FloatConst(f) => ExprKind::FloatConst(f.clone()),
-            ast::QueryExpr::StringConst(s) => ExprKind::StringConst(s.clone()),
             ast::QueryExpr::Object(ast::ObjectLiteral {
                 coll: coll_name,
                 fields,
@@ -376,6 +373,20 @@ impl Lowerer<'_> {
             ast::QueryExpr::List(exprs) => {
                 ExprKind::List(exprs.iter().map(|expr| self.lower_expr(expr)).collect())
             }
+            ast::QueryExpr::If(cond, e1, e2) => {
+                let lowered_cond = self.lower_expr(cond);
+                typecheck_expr(self.ird, lowered_cond, Type::Prim(Prim::Bool));
+                let lowered_e1 = self.lower_expr(e1);
+                let lowered_e2 = self.lower_expr(e2);
+                let e1_type = infer_expr_type(self.ird, lowered_e1);
+                let e2_type = infer_expr_type(self.ird, lowered_e2);
+                assert_eq!(e1_type, e2_type, "Branches of if have different types");
+                ExprKind::If(e1_type, lowered_cond, lowered_e1, lowered_e2)
+            }
+            ast::QueryExpr::IntConst(i) => ExprKind::IntConst(i.clone()),
+            ast::QueryExpr::FloatConst(f) => ExprKind::FloatConst(f.clone()),
+            ast::QueryExpr::StringConst(s) => ExprKind::StringConst(s.clone()),
+            ast::QueryExpr::BoolConst(b) => ExprKind::BoolConst(b.clone()),
         };
 
         self.ird.exprs.alloc_with_id(|id| Expr { id, kind })
@@ -501,7 +512,7 @@ impl Lowerer<'_> {
                     .find(|c| c.name.eq_str(&collection))
                     .expect(&format!("Unknown collection {}", collection))
                     .id;
-                self.typecheck_expr(value, Type::Collection(coll_id));
+                typecheck_expr(self.ird, value, Type::Collection(coll_id));
                 CompleteObjectCommand::CreateObject {
                     collection: coll_id,
                     value: value,
@@ -518,7 +529,7 @@ impl Lowerer<'_> {
                     .find(|c| c.name.eq_str(&collection))
                     .expect(&format!("Unknown collection {}", collection))
                     .id;
-                self.typecheck_expr(id_expr_id, Type::Id(coll_id));
+                typecheck_expr(self.ird, id_expr_id, Type::Id(coll_id));
                 CompleteObjectCommand::DeleteObject {
                     collection: coll_id,
                     id_expr: id_expr_id,
@@ -535,7 +546,7 @@ impl Lowerer<'_> {
         let param = self.ird.create_def(&pf.param, param_type);
         let old_mapping = self.def_map.insert(pf.param.clone(), param);
         let body = self.lower_expr(&pf.expr);
-        self.typecheck_expr(body, expected_return_type);
+        typecheck_expr(self.ird, body, expected_return_type);
         match old_mapping {
             Some(did) => {
                 self.def_map.insert(pf.param.clone(), did);
@@ -549,43 +560,6 @@ impl Lowerer<'_> {
 
         Lambda { param, body }
     }
-    fn infer_expr_type(&self, expr_id: Id<Expr>) -> Type {
-        let expr = &self.ird[expr_id];
-        match &expr.kind {
-            ExprKind::IntConst(_) => Type::Prim(Prim::I64),
-            ExprKind::FloatConst(_) => Type::Prim(Prim::F64),
-            ExprKind::StringConst(_) => Type::Prim(Prim::String),
-            ExprKind::Path(_collection, _obj, field) => self.ird.def_type(*field).clone(),
-            ExprKind::Var(m) => self.ird.def_type(*m).clone(),
-            ExprKind::Object(collection, _fields, _t_obj) => Type::Collection(*collection),
-            ExprKind::AddI(_, _) => Type::Prim(Prim::I64),
-            ExprKind::AddF(_, _) => Type::Prim(Prim::F64),
-            ExprKind::SubI(_, _) => Type::Prim(Prim::I64),
-            ExprKind::SubF(_, _) => Type::Prim(Prim::F64),
-            ExprKind::AppendS(_, _) => Type::Prim(Prim::String),
-            ExprKind::AppendL(ty, _, _) => Type::List(Box::new(ty.clone())),
-            ExprKind::IntToFloat(_) => Type::Prim(Prim::F64),
-            ExprKind::List(exprs) => {
-                let expr_type = self.infer_expr_type(exprs[0]);
-                let mut result_type = expr_type.clone();
-                for expr in exprs.into_iter() {
-                    if self.infer_expr_type(*expr) != expr_type {
-                        result_type = Type::Any;
-                    }
-                }
-                Type::List(Box::new(result_type))
-            }
-        }
-    }
-    fn typecheck_expr(&self, expr_id: Id<Expr>, expected_type: Type) {
-        let inferred_type = self.infer_expr_type(expr_id);
-        assert!(
-            is_subtype(&inferred_type, &expected_type),
-            "Static type error: expected {:?}, found {:?}",
-            expected_type,
-            inferred_type
-        );
-    }
     fn lower_type(&mut self, ty: ast::FieldType) -> Type {
         match ty {
             ast::FieldType::String => Type::Prim(Prim::String),
@@ -597,26 +571,5 @@ impl Lowerer<'_> {
             }
             ast::FieldType::List(s) => Type::List(Box::new(self.lower_type(*s))),
         }
-    }
-}
-
-fn is_subtype(t1: &Type, t2: &Type) -> bool {
-    match t2 {
-        _ if t1 == t2 => true,
-        Type::Any => true,
-        Type::IdAny => match t1 {
-            Type::Id(_) => true,
-            _ => false,
-        },
-        Type::List(inner_type2) => match t1 {
-            Type::List(inner_type1) => is_subtype(inner_type1, inner_type2),
-            Type::Id(coll) => match **inner_type2 {
-                Type::Id(coll2) => *coll == coll2,
-                Type::IdAny => true,
-                _ => false,
-            }
-            _ => false,
-        },
-        _ => false
     }
 }
