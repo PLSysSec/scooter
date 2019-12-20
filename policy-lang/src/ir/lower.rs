@@ -338,6 +338,49 @@ impl Lowerer<'_> {
                 typecheck_expr(self.ird, lowered, Type::Prim(Prim::Bool));
                 ExprKind::Not(lowered)
             }
+            ast::QueryExpr::IsLess(e1, e2) => {
+                let lowered1 = self.lower_expr(e1);
+                let lowered2 = self.lower_expr(e2);
+                let ty1 = infer_expr_type(self.ird, lowered1);
+                let ty2 = infer_expr_type(self.ird, lowered2);
+
+                match (ty1, ty2) {
+                    (Type::Prim(Prim::I64), Type::Prim(Prim::I64)) =>
+                        ExprKind::IsLessI(lowered1, lowered2),
+                    (Type::Prim(Prim::F64), Type::Prim(Prim::F64)) =>
+                        ExprKind::IsLessF(lowered1, lowered2),
+                    (Type::Prim(Prim::I64), Type::Prim(Prim::F64)) => {
+                        let converted1 = self.ird.exprs.alloc_with_id(|id| Expr {
+                            id,
+                            kind: ExprKind::IntToFloat(lowered1),
+                        });
+                        ExprKind::IsLessF(converted1, lowered2)
+                    }
+                    (Type::Prim(Prim::F64), Type::Prim(Prim::I64)) => {
+                        let converted2 = self.ird.exprs.alloc_with_id(|id| Expr {
+                            id,
+                            kind: ExprKind::IntToFloat(lowered2),
+                        });
+                        ExprKind::IsLessF(lowered1, converted2)
+                    }
+                    _ => panic!("Cannot compare non-numeric types")
+                }
+
+            }
+            ast::QueryExpr::IsGreater(e1, e2) => {
+                let less_flipped_ast = ast::QueryExpr::IsLess(e2.clone(), e1.clone());
+                return self.lower_expr(&less_flipped_ast);
+            }
+            ast::QueryExpr::IsGreaterOrEq(e1, e2) => {
+                let less_ast = ast::QueryExpr::IsLess(e1.clone(), e2.clone());
+                let lowered_less = self.lower_expr(&less_ast);
+                ExprKind::Not(lowered_less)
+            }
+            ast::QueryExpr::IsLessOrEq(e1, e2) => {
+                let greater_ast = ast::QueryExpr::IsGreater(e1.clone(), e2.clone());
+                let lowered_greater = self.lower_expr(&greater_ast);
+                ExprKind::Not(lowered_greater)
+            }
             ast::QueryExpr::Path(p) => match p.as_slice() {
                 [v] => ExprKind::Var(self.get_def(v.into())),
                 [v, m] => {

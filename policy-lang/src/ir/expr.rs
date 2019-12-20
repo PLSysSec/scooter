@@ -27,6 +27,9 @@ pub enum ExprKind {
     IsEq(Type, Id<Expr>, Id<Expr>),
     /// Negation on bools
     Not(Id<Expr>),
+    /// Inequalities on numbers
+    IsLessI(Id<Expr>, Id<Expr>),
+    IsLessF(Id<Expr>, Id<Expr>),
 
     /// Convert an integer into a float. These nodes don't appear in
     /// syntax, but are inserted by the typechecker.
@@ -80,6 +83,8 @@ pub fn infer_expr_type(ird: &IrData, expr_id: Id<Expr>) -> Type {
         ExprKind::AppendL(ty, _, _) => Type::List(Box::new(ty.clone())),
         ExprKind::IsEq(_, _, _) => Type::Prim(Prim::Bool),
         ExprKind::Not(_) => Type::Prim(Prim::Bool),
+        ExprKind::IsLessF(_, _) => Type::Prim(Prim::Bool),
+        ExprKind::IsLessI(_, _) => Type::Prim(Prim::Bool),
         ExprKind::IntToFloat(_) => Type::Prim(Prim::F64),
         ExprKind::List(exprs) => {
             if exprs.len() == 0 {

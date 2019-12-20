@@ -10,6 +10,11 @@ pub enum QueryExpr {
     IsNeq(Box<QueryExpr>, Box<QueryExpr>),
     Not(Box<QueryExpr>),
 
+    IsLess(Box<QueryExpr>, Box<QueryExpr>),
+    IsLessOrEq(Box<QueryExpr>, Box<QueryExpr>),
+    IsGreater(Box<QueryExpr>, Box<QueryExpr>),
+    IsGreaterOrEq(Box<QueryExpr>, Box<QueryExpr>),
+
     Path(Vec<String>),
     Object(ObjectLiteral),
     List(Vec<Box<QueryExpr>>),
