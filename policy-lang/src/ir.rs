@@ -2,6 +2,7 @@ use crate::ast;
 use id_arena::Arena;
 pub use id_arena::Id;
 use std::collections::HashMap;
+use std::fmt;
 
 mod lower;
 pub use lower::*;
@@ -90,10 +91,10 @@ impl Collection {
 pub enum Type {
     Prim(Prim),
     Id(Id<Collection>),
-    IdAny,
     Collection(Id<Collection>),
     List(Box<Type>),
-    Any,
+    ListAny,
+    ListId,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum Prim {
@@ -102,6 +103,30 @@ pub enum Prim {
     F64,
     Bool,
 }
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Type::Prim(p) => write!(f, "{}", p),
+            Type::Id(id) => write!(f, "Id({:?})", id),
+            Type::Collection(id) => write!(f, "Coll({:?})", id),
+            Type::List(bty) => write!(f, "List({})", *bty),
+            Type::ListAny => write!(f, "List(Any)"),
+            Type::ListId => write!(f, "ListId"),
+        }
+    }
+}
+impl fmt::Display for Prim {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Prim::String => write!(f, "String"),
+            Prim::I64 => write!(f, "I64"),
+            Prim::F64 => write!(f, "F64"),
+            Prim::Bool => write!(f, "Bool"),
+        }
+    }
+}
+
 
 /// IrData contains the type and name resolution data resulting from lowering the AST to a CompletePolicy.
 /// When comparing policies, you'll use the same IrData to analyze both of them

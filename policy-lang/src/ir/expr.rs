@@ -76,16 +76,16 @@ pub fn infer_expr_type(ird: &IrData, expr_id: Id<Expr>) -> Type {
         ExprKind::IntToFloat(_) => Type::Prim(Prim::F64),
         ExprKind::List(exprs) => {
             if exprs.len() == 0 {
-                unimplemented!("We don't know how to infer the type of an empty list!")
+                Type::ListAny
             } else {
                 let expr_type = infer_expr_type(ird, exprs[0]);
-                let mut result_type = expr_type.clone();
                 for expr in exprs.into_iter() {
-                    if infer_expr_type(ird, *expr) != expr_type {
-                        result_type = Type::Any;
+                    let inferred_type = infer_expr_type(ird, *expr);
+                    if inferred_type != expr_type {
+                        panic!("Contents of list don't have the same type!")
                     }
                 }
-                Type::List(Box::new(result_type))
+                Type::List(Box::new(expr_type.clone()))
             }
         }
         ExprKind::If(ty, _, _, _) => ty.clone(),
@@ -95,28 +95,28 @@ pub fn typecheck_expr(ird: &IrData, expr_id: Id<Expr>, expected_type: Type) {
     let inferred_type = infer_expr_type(ird, expr_id);
     assert!(
         is_subtype(&inferred_type, &expected_type),
-        "Static type error: expected {:?}, found {:?}",
+        "Static type error: expected {}, found {}",
         expected_type,
         inferred_type
     );
 }
-fn is_subtype(t1: &Type, t2: &Type) -> bool {
+pub fn is_subtype(t1: &Type, t2: &Type) -> bool {
     match t2 {
         _ if t1 == t2 => true,
-        Type::Any => true,
-        Type::IdAny => match t1 {
-            Type::Id(_) => true,
+        Type::List(inner_type2) => match t1 {
+            Type::ListAny => true,
+            Type::List(inner_type1) => is_subtype(inner_type1, inner_type2),
             _ => false,
         },
-        Type::List(inner_type2) => match t1 {
-            Type::List(inner_type1) => is_subtype(inner_type1, inner_type2),
-            Type::Id(coll) => match **inner_type2 {
-                Type::Id(coll2) => *coll == coll2,
-                Type::IdAny => true,
+        Type::ListId => match t1 {
+            Type::ListAny => true,
+            Type::List(inner_type1) => match **inner_type1 {
+                Type::Id(_) => true,
                 _ => false,
             }
+            Type::Id(_) => true,
             _ => false,
-        },
+        }
         _ => false
     }
 }

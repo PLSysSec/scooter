@@ -11,7 +11,7 @@ Message {
     },
 
     to : Id(User) {
-        read: m -> m.from + (if false then m.from else m.to),
+        read: m -> m.from + (if false then [] else [m.to]),
         write: none,
     },
 

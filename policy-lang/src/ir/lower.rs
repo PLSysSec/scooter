@@ -157,7 +157,7 @@ impl Lowerer<'_> {
         let param = self.ird.create_def(&pf.param, param_type);
         let old_mapping = self.def_map.insert(pf.param.clone(), param);
         let body = self.lower_expr(&pf.expr);
-        typecheck_expr(self.ird, body, Type::List(Box::new(Type::IdAny)));
+        typecheck_expr(self.ird, body, Type::ListId);
         match old_mapping {
             Some(did) => {
                 self.def_map.insert(pf.param.clone(), did);
@@ -224,14 +224,8 @@ impl Lowerer<'_> {
                         if *t1 == *t2 {
                             ExprKind::AppendL(*t1, lowered1, lowered2)
                         } else {
-                            match (*t1, *t2) {
-                                (Type::Id(_), Type::Id(_))
-                                | (Type::IdAny, Type::Id(_))
-                                | (Type::Id(_), Type::IdAny) => {
-                                    ExprKind::AppendL(Type::IdAny, lowered1, lowered2)
-                                }
-                                _ => ExprKind::AppendL(Type::Any, lowered1, lowered2),
-                            }
+                            panic!(format!("Cannot append List({}) to List({}).",
+                                           *t1, *t2))
                         }
                     }
                     (Type::List(t1), Type::Id(coll)) => {
@@ -243,10 +237,8 @@ impl Lowerer<'_> {
                             Type::Id(coll2) if coll2 == coll => {
                                 ExprKind::AppendL(Type::Id(coll), lowered1, converted)
                             }
-                            Type::Id(_) | Type::IdAny => {
-                                ExprKind::AppendL(Type::IdAny, lowered1, converted)
-                            }
-                            _ => ExprKind::AppendL(Type::Any, lowered1, converted),
+                            _ => panic!(format!("Cannot add an Id of {:?} to a List({})",
+                                                coll, t1)),
                         }
                     }
                     (Type::Id(coll), Type::List(t2)) => {
@@ -258,10 +250,8 @@ impl Lowerer<'_> {
                             Type::Id(coll2) if coll2 == coll => {
                                 ExprKind::AppendL(Type::Id(coll), converted, lowered2)
                             }
-                            Type::Id(_) | Type::IdAny => {
-                                ExprKind::AppendL(Type::IdAny, converted, lowered2)
-                            }
-                            _ => ExprKind::AppendL(Type::Any, converted, lowered1),
+                            _ => panic!(format!("Cannot add an Id of {:?} to a List({})",
+                                                coll, t2)),
                         }
                     }
                     (Type::Id(coll1), Type::Id(coll2)) => {
@@ -276,7 +266,8 @@ impl Lowerer<'_> {
                         if coll1 == coll2 {
                             ExprKind::AppendL(Type::Id(coll1), converted1, converted2)
                         } else {
-                            ExprKind::AppendL(Type::IdAny, converted1, converted2)
+                            panic!("Cannot OR Id of {:?} with Id of {:?}",
+                                   coll1, coll2)
                         }
                     }
                     (Type::Prim(Prim::I64), Type::Prim(Prim::I64)) => {
@@ -380,8 +371,14 @@ impl Lowerer<'_> {
                 let lowered_e2 = self.lower_expr(e2);
                 let e1_type = infer_expr_type(self.ird, lowered_e1);
                 let e2_type = infer_expr_type(self.ird, lowered_e2);
-                assert_eq!(e1_type, e2_type, "Branches of if have different types");
-                ExprKind::If(e1_type, lowered_cond, lowered_e1, lowered_e2)
+                let result_type = if is_subtype(&e1_type, &e2_type) {
+                    e2_type.clone()
+                } else if is_subtype(&e2_type, &e1_type) {
+                    e1_type.clone()
+                } else {
+                    panic!("Cannot reconcile branches of if: true branch has type {}, but false branch has type {}", e1_type, e2_type)
+                };
+                ExprKind::If(result_type, lowered_cond, lowered_e1, lowered_e2)
             }
             ast::QueryExpr::IntConst(i) => ExprKind::IntConst(i.clone()),
             ast::QueryExpr::FloatConst(f) => ExprKind::FloatConst(f.clone()),
