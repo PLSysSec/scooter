@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum QueryExpr {
     Plus(Box<QueryExpr>, Box<QueryExpr>),
     Minus(Box<QueryExpr>, Box<QueryExpr>),
@@ -20,7 +20,7 @@ pub enum QueryExpr {
     StringConst(String),
     BoolConst(bool),
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ObjectLiteral {
     pub coll: String,
     pub fields: Vec<(String, Box<QueryExpr>)>,

@@ -154,10 +154,6 @@ fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
             "(= {} {})",
             gen_query_expr(ird, *e1),
             gen_query_expr(ird, *e2)),
-        ExprKind::IsNeq(_ty, e1, e2) => format!(
-            "(not (= {} {}))",
-            gen_query_expr(ird, *e1),
-            gen_query_expr(ird, *e2)),
         ExprKind::Not(e) => format!(
             "(not {})",
             gen_query_expr(ird, *e)),
