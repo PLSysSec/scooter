@@ -17,6 +17,6 @@ Message {
 
     text : String {
         read: m -> m.to + m.from,
-        write: none,
+        write: m -> (if m.from == m.to then [m.from] else []),
     },
 }

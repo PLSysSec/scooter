@@ -298,6 +298,72 @@ impl Lowerer<'_> {
                     ),
                 }
             }
+            ast::QueryExpr::IsEq(e1, e2) => {
+                let lowered1 = self.lower_expr(e1);
+                let lowered2 = self.lower_expr(e2);
+                let ty1 = infer_expr_type(self.ird, lowered1);
+                let ty2 = infer_expr_type(self.ird, lowered2);
+
+                if is_subtype(&ty1, &ty2) {
+                    ExprKind::IsEq(ty2.clone(), lowered1, lowered2)
+                } else if is_subtype(&ty2, &ty1) {
+                    ExprKind::IsEq(ty1.clone(), lowered1, lowered2)
+                } else {
+                    match (ty1, ty2) {
+                        (Type::Prim(Prim::I64), Type::Prim(Prim::F64)) => {
+                            let converted1 = self.ird.exprs.alloc_with_id(|id| Expr {
+                                id,
+                                kind: ExprKind::IntToFloat(lowered1),
+                            });
+                            ExprKind::IsEq(Type::Prim(Prim::F64), converted1, lowered2)
+                        }
+                        (Type::Prim(Prim::F64), Type::Prim(Prim::I64)) => {
+                            let converted2 = self.ird.exprs.alloc_with_id(|id| Expr {
+                                id,
+                                kind: ExprKind::IntToFloat(lowered2),
+                            });
+                            ExprKind::IsEq(Type::Prim(Prim::F64), lowered1, converted2)
+                        }
+                        (ty1, ty2) => panic!("Static type error: left side of == is {}, right side is {}", ty1, ty2),
+                    }
+                }
+            }
+            ast::QueryExpr::IsNeq(e1, e2) => {
+
+                let lowered1 = self.lower_expr(e1);
+                let lowered2 = self.lower_expr(e2);
+                let ty1 = infer_expr_type(self.ird, lowered1);
+                let ty2 = infer_expr_type(self.ird, lowered2);
+
+                if is_subtype(&ty1, &ty2) {
+                    ExprKind::IsNeq(ty2.clone(), lowered1, lowered2)
+                } else if is_subtype(&ty2, &ty1) {
+                    ExprKind::IsNeq(ty1.clone(), lowered1, lowered2)
+                } else {
+                    match (ty1, ty2) {
+                        (Type::Prim(Prim::I64), Type::Prim(Prim::F64)) => {
+                            let converted1 = self.ird.exprs.alloc_with_id(|id| Expr {
+                                id,
+                                kind: ExprKind::IntToFloat(lowered1),
+                            });
+                            ExprKind::IsNeq(Type::Prim(Prim::F64), converted1, lowered2)
+                        }
+                        (Type::Prim(Prim::F64), Type::Prim(Prim::I64)) => {
+                            let converted2 = self.ird.exprs.alloc_with_id(|id| Expr {
+                                id,
+                                kind: ExprKind::IntToFloat(lowered2),
+                            });
+                            ExprKind::IsNeq(Type::Prim(Prim::F64), lowered1, converted2)
+                        }
+                        (ty1, ty2) => panic!("Static type error: left side of == is {}, right side is {}", ty1, ty2),
+                    }
+                }
+            }
+            ast::QueryExpr::Not(e) => {
+                let lowered = self.lower_expr(e);
+                typecheck_expr(self.ird, lowered, Type::Prim(Prim::Bool));
+                ExprKind::Not(lowered)
+            }
             ast::QueryExpr::Path(p) => match p.as_slice() {
                 [v] => ExprKind::Var(self.get_def(v.into())),
                 [v, m] => {

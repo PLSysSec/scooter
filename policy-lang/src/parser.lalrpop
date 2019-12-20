@@ -78,6 +78,9 @@ Comma<T>: Vec<T> = { // (1)
 QueryExpr: Box<QueryExpr> = {
     <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::Plus(l, r)),
     <l: QueryExpr> "-" <r: QueryExpr2> => Box::new(QueryExpr::Minus(l, r)),
+    <l: QueryExpr> "==" <r: QueryExpr2> => Box::new(QueryExpr::IsEq(l, r)),
+    <l: QueryExpr> "!=" <r: QueryExpr2> => Box::new(QueryExpr::IsNeq(l, r)),
+    "!" <e: QueryExpr2> => Box::new(QueryExpr::Not(e)),
     QueryExpr2
 }
 
@@ -92,6 +95,7 @@ QueryExpr2: Box<QueryExpr> = {
     Object => Box::new(QueryExpr::Object(<>)),
     ConditionalExpr => <>,
     List => Box::new(QueryExpr::List(<>)),
+    "(" <e:QueryExpr> ")" => e,
 }
 
 Ident: String = {

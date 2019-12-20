@@ -23,6 +23,12 @@ pub enum ExprKind {
     /// Subtracting floats
     SubF(Id<Expr>, Id<Expr>),
 
+    /// Type-annotated equality
+    IsEq(Type, Id<Expr>, Id<Expr>),
+    IsNeq(Type, Id<Expr>, Id<Expr>),
+    /// Negation on bools
+    Not(Id<Expr>),
+
     /// Convert an integer into a float. These nodes don't appear in
     /// syntax, but are inserted by the typechecker.
     IntToFloat(Id<Expr>),
@@ -73,6 +79,9 @@ pub fn infer_expr_type(ird: &IrData, expr_id: Id<Expr>) -> Type {
         ExprKind::SubF(_, _) => Type::Prim(Prim::F64),
         ExprKind::AppendS(_, _) => Type::Prim(Prim::String),
         ExprKind::AppendL(ty, _, _) => Type::List(Box::new(ty.clone())),
+        ExprKind::IsEq(_, _, _) => Type::Prim(Prim::Bool),
+        ExprKind::IsNeq(_, _, _) => Type::Prim(Prim::Bool),
+        ExprKind::Not(_) => Type::Prim(Prim::Bool),
         ExprKind::IntToFloat(_) => Type::Prim(Prim::F64),
         ExprKind::List(exprs) => {
             if exprs.len() == 0 {
