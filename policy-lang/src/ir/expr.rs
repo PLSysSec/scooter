@@ -36,7 +36,7 @@ pub enum ExprKind {
     IntToFloat(Id<Expr>),
     /// Field lookup on an object. The collection id is inserted by
     /// the typechecker.
-    Path(Id<Collection>, Id<Def>, Id<Def>),
+    Path(Id<Collection>, Id<Expr>, Id<Def>),
     /// A variable
     Var(Id<Def>),
     /// An object expression. Made up of the object type, a list of
@@ -47,6 +47,9 @@ pub enum ExprKind {
     /// missing fields take their values from the corresponding field
     /// on the template object.
     Object(Id<Collection>, Vec<(Id<Def>, Id<Expr>)>, Option<Id<Expr>>),
+
+    /// Look up an id in a collection
+    LookupById(Id<Collection>, Id<Expr>),
     /// A list expression
     List(Vec<Id<Expr>>),
     /// Conditional expression
@@ -75,6 +78,7 @@ pub fn infer_expr_type(ird: &IrData, expr_id: Id<Expr>) -> Type {
         ExprKind::Path(_collection, _obj, field) => ird.def_type(*field).clone(),
         ExprKind::Var(m) => ird.def_type(*m).clone(),
         ExprKind::Object(collection, _fields, _t_obj) => Type::Collection(*collection),
+        ExprKind::LookupById(collection, _id_expr) => Type::Collection(*collection),
         ExprKind::AddI(_, _) => Type::Prim(Prim::I64),
         ExprKind::AddF(_, _) => Type::Prim(Prim::F64),
         ExprKind::SubI(_, _) => Type::Prim(Prim::I64),

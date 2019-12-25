@@ -15,8 +15,12 @@ pub enum QueryExpr {
     IsGreater(Box<QueryExpr>, Box<QueryExpr>),
     IsGreaterOrEq(Box<QueryExpr>, Box<QueryExpr>),
 
-    Path(Vec<String>),
+    Var(String),
+    FieldAccess(Box<QueryExpr>, String),
     Object(ObjectLiteral),
+
+    LookupById(String, Box<QueryExpr>),
+
     List(Vec<Box<QueryExpr>>),
     If(Box<QueryExpr>, Box<QueryExpr>, Box<QueryExpr>),
 

@@ -75,6 +75,11 @@ Comma<T>: Vec<T> = { // (1)
     }
 };
 
+CollectionExpr: Box<QueryExpr> = {
+    <col: Ident> "::" "ById" "(" <idexpr: QueryExpr> ")" =>
+    Box::new(QueryExpr::LookupById(col, idexpr))
+}
+
 QueryExpr: Box<QueryExpr> = {
     <l: QueryExpr> "+" <r: QueryExpr2> => Box::new(QueryExpr::Plus(l, r)),
     <l: QueryExpr> "-" <r: QueryExpr2> => Box::new(QueryExpr::Minus(l, r)),
@@ -89,7 +94,7 @@ QueryExpr: Box<QueryExpr> = {
 }
 
 QueryExpr2: Box<QueryExpr> = {
-    Path => Box::new(QueryExpr::Path(<>)),
+    Var => Box::new(QueryExpr::Var(<>)),
     <s:r#""(.*)""#> => Box::new(QueryExpr::StringConst(
         s.get(1..s.len()-1).unwrap().to_string())),
     <i:r"[0-9]+"> => Box::new(QueryExpr::IntConst(i64::from_str(i).unwrap())),
@@ -98,24 +103,18 @@ QueryExpr2: Box<QueryExpr> = {
     "false" => Box::new(QueryExpr::BoolConst(false)),
     Object => Box::new(QueryExpr::Object(<>)),
     ConditionalExpr => <>,
+    CollectionExpr => <>,
     List => Box::new(QueryExpr::List(<>)),
     "(" <e:QueryExpr> ")" => e,
+    <o: QueryExpr2> "." <f: Ident> => Box::new(QueryExpr::FieldAccess(o, f)),
 }
 
 Ident: String = {
     <s:r"[a-zA-Z]\w*"> => s.to_string()
 }
 
-Path: Vec<String> = {
-    <v:(<Ident> ".")+> <i:Ident?> => match i {
-        None => v,
-        Some(i) => {
-            let mut v = v;
-            v.push(i);
-            v
-        }
-    },
-    <i:Ident> => vec!(i)
+Var: String = {
+     Ident => <>
 }
 
 // Migration Lang stuff

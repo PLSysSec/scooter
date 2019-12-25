@@ -132,10 +132,11 @@ fn gen_list_expr(ird: &IrData, eids: &[Id<Expr>]) -> String {
 fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
     let expr = &ird[eid];
     match &expr.kind {
+        ExprKind::Var(v) => format!("{}", mangled_ident(&ird[*v].name)),
         ExprKind::Path(_collection, obj, field) => format!(
             "({} {})",
             mangled_ident(&ird[*field].name),
-            mangled_ident(&ird[*obj].name)
+            gen_query_expr(ird, *obj),
         ),
         ExprKind::List(exprs) => gen_list_expr(ird, exprs.as_slice()),
         ExprKind::AppendL(_ty, l, r) => format!(
@@ -161,7 +162,7 @@ fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
             "(< {} {})",
             gen_query_expr(ird, *e1),
             gen_query_expr(ird, *e2)),
-        _ => unimplemented!("Not implemented for policies yet"),
+        _ => unimplemented!("Not yet implemented for policies"),
     }
 }
 

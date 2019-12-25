@@ -203,7 +203,7 @@ impl Lowerer<'_> {
                         ExprKind::SubF(lowered1, lowered2)
                     }
                     (ty1, ty2) => unimplemented!(
-                        "Cannot resolve + operator for types {:?} and {:?}",
+                        "Cannot resolve - operator for types {:?} and {:?}",
                         ty1,
                         ty2
                     ),
@@ -381,21 +381,16 @@ impl Lowerer<'_> {
                 let lowered_greater = self.lower_expr(&greater_ast);
                 ExprKind::Not(lowered_greater)
             }
-            ast::QueryExpr::Path(p) => match p.as_slice() {
-                [v] => ExprKind::Var(self.get_def(v.into())),
-                [v, m] => {
-                    let obj = self.get_def(&v);
-                    let cid = match self.ird.type_of(obj) {
-                        Type::Collection(cid) => *cid,
-                        _ => panic!(
-                            "Attempted to access field {} of {} which is not an object",
-                            &m, &v
-                        ),
-                    };
-                    let field = self.ird.field(cid, &m).id;
-                    ExprKind::Path(cid, obj, field)
+            ast::QueryExpr::Var(v) => ExprKind::Var(self.get_def(v.into())),
+            ast::QueryExpr::FieldAccess(e, f) => {
+                let obj_expr = self.lower_expr(e);
+                if let Type::Collection(cid) = infer_expr_type(self.ird, obj_expr) {
+                    let field = self.ird.field(cid, f).id;
+                    ExprKind::Path(cid, obj_expr, field)
+                } else {
+                    panic!("Attempted to access field {} of {:?} which is not an object",
+                           f, e);
                 }
-                _ => unreachable!("Longer paths can never be valid by construction"),
             },
             ast::QueryExpr::Object(ast::ObjectLiteral {
                 coll: coll_name,
@@ -443,6 +438,16 @@ impl Lowerer<'_> {
                         .collect(),
                     lowered_template_obj,
                 )
+            }
+            ast::QueryExpr::LookupById(coll_name, id_expr) => {
+                let lowered_id_expr = self.lower_expr(id_expr);
+                let coll = self
+                    .ird
+                    .active_collections()
+                    .find(|c| c.name.eq_str(coll_name))
+                    .expect(&format!("Unknown collection {}", coll_name));
+                let coll_id = coll.id.clone();
+                ExprKind::LookupById(coll_id, lowered_id_expr)
             }
             ast::QueryExpr::List(exprs) => {
                 ExprKind::List(exprs.iter().map(|expr| self.lower_expr(expr)).collect())
