@@ -144,7 +144,6 @@ fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
             gen_query_expr(ird, *l),
             gen_query_expr(ird, *r)
         ),
-        ExprKind::BoolConst(b) => format!("{}", b),
         ExprKind::If(_ty, cond, e1, e2) => format!(
             "(ite {} {} {})",
             gen_query_expr(ird, *cond),
@@ -162,7 +161,15 @@ fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
             "(< {} {})",
             gen_query_expr(ird, *e1),
             gen_query_expr(ird, *e2)),
-        _ => unimplemented!("Not yet implemented for policies"),
+        ExprKind::LookupById(coll_id, id_expr) => format!(
+            "(lookup-{} {})",
+            &ird[*coll_id].name.1,
+            gen_query_expr(ird, *id_expr)),
+        ExprKind::BoolConst(b) => format!("{}", b),
+        ExprKind::IntConst(i) => format!("{}", i),
+        ExprKind::FloatConst(f) => format!("{}", f),
+        ExprKind::StringConst(s) => format!("\"{}\"", s),
+        _ => unimplemented!("Not yet implemented for policies: {:?}", &expr.kind),
     }
 }
 
@@ -186,17 +193,22 @@ fn gen_preamble(ird: &IrData) -> String {
     for c in ird.collections() {
         let fs: String = c.fields().map(|(_, f)| gen_field(ird, *f)).collect();
 
-        out += &format!(
-            "(declare-datatypes (({0} 0)) ((({0} {1}))))\n",
+        out += &format!(r#"
+            (declare-datatypes (({0} 0)) ((({0} {1}))))"#,
             mangled_ident(&c.name),
             fs
         );
 
-        out += &format!(
-            "(assert (forall ((a {0}) (b {0})) (=> (= ({1} a) ({1} b)) (= a b))))",
+        out += &format!(r#"
+            (assert (forall ((a {0}) (b {0})) (=> (= ({1} a) ({1} b)) (= a b))))"#,
             mangled_ident(&c.name),
             mangled_ident(&ird.field(c.id, "id").name)
         );
+
+        out += &format!(r#"
+            (declare-fun lookup-{} (Value) {})"#,
+            &c.name.1,
+            mangled_ident(&c.name));
     }
 
     out
@@ -204,8 +216,18 @@ fn gen_preamble(ird: &IrData) -> String {
 
 fn gen_field(ird: &IrData, f: Id<Def>) -> String {
     let def = &ird[f];
+    let ty = ird.def_type(f);
+    let z3_ty = match ty {
+        Type::Prim(Prim::I64) => "Int",
+        Type::Prim(Prim::F64) => "Float",
+        Type::Prim(Prim::Bool) => "Bool",
+        Type::Prim(Prim::String) => "String",
+        Type::Id(_) => "Value",
+        Type::List(_) => "SMT doesn't support lists yet",
+        _ => panic!("Object fields cannot have the type {}", *ty),
+    };
 
-    format!("({} Value)", mangled_ident(&def.name))
+    format!("({} {})", mangled_ident(&def.name), z3_ty)
 }
 
 fn mangled_ident(ident: &Ident) -> String {
@@ -213,5 +235,6 @@ fn mangled_ident(ident: &Ident) -> String {
 }
 
 fn gen_echo(msg: &str) -> String {
-    format!("(echo \"{}\")", msg)
+    format!(r#"
+            (echo "{}")"#, msg)
 }

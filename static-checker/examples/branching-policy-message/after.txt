@@ -1,6 +1,11 @@
 User {
     create: public,
     delete: none,
+
+    trustworthyness : I64 {
+        read: m -> m.id,
+        write: none,
+    },
 }
 Message {
     create: public,
@@ -12,7 +17,7 @@ Message {
 
     to : Id(User) {
         read: m -> m.to + m.from,
-        write: none,
+        write: m -> (if User::ById(m.to).trustworthyness > 20 then [m.to] else []),
     },
 
     text : String {
