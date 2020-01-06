@@ -153,18 +153,19 @@ fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
         ExprKind::IsEq(_ty, e1, e2) => format!(
             "(= {} {})",
             gen_query_expr(ird, *e1),
-            gen_query_expr(ird, *e2)),
-        ExprKind::Not(e) => format!(
-            "(not {})",
-            gen_query_expr(ird, *e)),
+            gen_query_expr(ird, *e2)
+        ),
+        ExprKind::Not(e) => format!("(not {})", gen_query_expr(ird, *e)),
         ExprKind::IsLessI(e1, e2) | ExprKind::IsLessF(e1, e2) => format!(
             "(< {} {})",
             gen_query_expr(ird, *e1),
-            gen_query_expr(ird, *e2)),
+            gen_query_expr(ird, *e2)
+        ),
         ExprKind::LookupById(coll_id, id_expr) => format!(
             "(lookup-{} {})",
             &ird[*coll_id].name.1,
-            gen_query_expr(ird, *id_expr)),
+            gen_query_expr(ird, *id_expr)
+        ),
         ExprKind::BoolConst(b) => format!("{}", b),
         ExprKind::IntConst(i) => format!("{}", i),
         ExprKind::FloatConst(f) => format!("{}", f),
@@ -193,27 +194,32 @@ fn gen_preamble(ird: &IrData) -> String {
     for c in ird.collections() {
         let fs: String = c.fields().map(|(_, f)| gen_field(ird, *f)).collect();
 
-        out += &format!(r#"
+        out += &format!(
+            r#"
             (declare-datatypes (({0} 0)) ((({0} {1}))))"#,
             mangled_ident(&c.name),
             fs
         );
 
-        out += &format!(r#"
+        out += &format!(
+            r#"
             (assert (forall ((a {0}) (b {0})) (=> (= ({1} a) ({1} b)) (= a b))))"#,
             mangled_ident(&c.name),
             mangled_ident(&ird.field(c.id, "id").name)
         );
 
-        out += &format!(r#"
+        out += &format!(
+            r#"
             (declare-fun lookup-{} (Value) {})"#,
             &c.name.1,
-            mangled_ident(&c.name));
+            mangled_ident(&c.name)
+        );
         out += &format!(
             r#"
             (assert (forall ((id Value)) (= id ({} (lookup-{} id)))))"#,
             mangled_ident(&ird.field(c.id, "id").name),
             &c.name.1
+        );
     }
 
     out
@@ -240,6 +246,9 @@ fn mangled_ident(ident: &Ident) -> String {
 }
 
 fn gen_echo(msg: &str) -> String {
-    format!(r#"
-            (echo "{}")"#, msg)
+    format!(
+        r#"
+            (echo "{}")"#,
+        msg
+    )
 }
