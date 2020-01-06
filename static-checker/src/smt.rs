@@ -209,6 +209,11 @@ fn gen_preamble(ird: &IrData) -> String {
             (declare-fun lookup-{} (Value) {})"#,
             &c.name.1,
             mangled_ident(&c.name));
+        out += &format!(
+            r#"
+            (assert (forall ((id Value)) (= id ({} (lookup-{} id)))))"#,
+            mangled_ident(&ird.field(c.id, "id").name),
+            &c.name.1
     }
 
     out
