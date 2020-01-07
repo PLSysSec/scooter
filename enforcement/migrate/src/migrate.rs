@@ -104,7 +104,7 @@ fn interpret_action(
                     )
                 );
                 // Inser the field into the object
-                result.insert(field_name, exec_query_function(&env, &init, &result));
+                result.insert(field_name, exec_query_function(&env, &init, &result, db_conn));
                 replace_doc(&db_conn, &collection, item_id, result);
             }
         }
@@ -131,7 +131,7 @@ fn interpret_action(
                 // that here, we don't have to worry about changing
                 // the type, as that is handled entirely at the
                 // IR/typechecking level.
-                result.insert(field_name, exec_query_function(&env, &new_init, &result));
+                result.insert(field_name, exec_query_function(&env, &new_init, &result, db_conn));
                 replace_doc(&db_conn, &collection, item_id, result);
             }
         }
@@ -178,7 +178,7 @@ fn interpret_action(
                     CompleteObjectCommand::CreateObject { collection, value } => {
                         // Evaluate the object expression, and make
                         // sure it's an Object value.
-                        if let Value::Object(obj) = evaluator.eval_expr(&value) {
+                        if let Value::Object(obj) = evaluator.eval_expr(db_conn, &value) {
                             // Static checking should ensure that it's
                             // the right kind of object (has all the
                             // fields), so we're not going to check
@@ -198,7 +198,7 @@ fn interpret_action(
                         id_expr,
                     } => {
                         // Make sure the id expression evaluates to an id value
-                        if let Value::Id(id) = evaluator.eval_expr(&id_expr) {
+                        if let Value::Id(id) = evaluator.eval_expr(db_conn, &id_expr) {
                             // Delete the document
                             delete_doc(&db_conn, &env[collection], id)
                         } else {
@@ -220,7 +220,7 @@ fn interpret_action(
 }
 
 /// Possible value types in our languages
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     /// Primitive integers
     Int(i64),
@@ -301,19 +301,107 @@ impl Evaluator<'_> {
         None
     }
     // Evaluate an expression down to a value
-    fn eval_expr(&self, expr_id: &Id<Expr>) -> Value {
+    fn eval_expr(&self, db_conn: &Database, expr_id: &Id<Expr>) -> Value {
         match &self.ird[*expr_id].kind {
-            // Constants evaluate to the constant value
-            ExprKind::IntConst(i) => Value::Int(i.clone()),
-            ExprKind::FloatConst(f) => Value::Float(f.clone()),
-            ExprKind::StringConst(s) => Value::String(s.clone()),
-            ExprKind::BoolConst(b) => Value::Bool(b.clone()),
+            // String append
+            ExprKind::AppendS(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(db_conn, subexpr_l);
+                let arg_r = self.eval_expr(db_conn, subexpr_r);
+                if let (Value::String(s1), Value::String(s2)) = (arg_l, arg_r) {
+                    Value::String(s1 + &s2)
+                } else {
+                    panic!("Arguments to append aren't strings at runtime! Type system failure");
+                }
+            }
+            // List append
+            ExprKind::AppendL(_ty, subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(db_conn, subexpr_l);
+                let arg_r = self.eval_expr(db_conn, subexpr_r);
+                if let (Value::List(s1), Value::List(s2)) = (arg_l, arg_r) {
+                    let mut result = s1.clone();
+                    result.append(&mut s2.clone());
+                    Value::List(result)
+                } else {
+                    panic!("Arguments to append aren't strings at runtime! Type system failure");
+                }
+            }
+            // Math operators
+            ExprKind::AddI(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(db_conn, subexpr_l);
+                let arg_r = self.eval_expr(db_conn, subexpr_r);
+                if let (Value::Int(i1), Value::Int(i2)) = (arg_l, arg_r) {
+                    Value::Int(i1 + i2)
+                } else {
+                    panic!("Runtime type error: arguments to addi aren't ints");
+                }
+            }
+            ExprKind::AddF(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(db_conn, subexpr_l);
+                let arg_r = self.eval_expr(db_conn, subexpr_r);
+                if let (Value::Float(f1), Value::Float(f2)) = (arg_l, arg_r) {
+                    Value::Float(f1 + f2)
+                } else {
+                    panic!("Runtime type error: arguments to addf aren't floats");
+                }
+            }
+            ExprKind::SubI(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(db_conn, subexpr_l);
+                let arg_r = self.eval_expr(db_conn, subexpr_r);
+                if let (Value::Int(i1), Value::Int(i2)) = (arg_l, arg_r) {
+                    Value::Int(i1 - i2)
+                } else {
+                    panic!("Runtime type error: arguments to addi aren't ints");
+                }
+            }
+            ExprKind::SubF(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(db_conn, subexpr_l);
+                let arg_r = self.eval_expr(db_conn, subexpr_r);
+                if let (Value::Float(f1), Value::Float(f2)) = (arg_l, arg_r) {
+                    Value::Float(f1 - f2)
+                } else {
+                    panic!("Runtime type error: arguments to addf aren't floats");
+                }
+            }
+            // Checking if two values are equal
+            ExprKind::IsEq(_ty, se1, se2) => {
+                Value::Bool(self.eval_expr(db_conn, se1) == self.eval_expr(db_conn, se2))
+            }
+            // Negate a boolean
+            ExprKind::Not(e) => match self.eval_expr(db_conn, e) {
+                Value::Bool(b) => Value::Bool(!b),
+                _ => panic!("Runtime type error: argument to 'not' isn't a bool"),
+            },
+            // Comparison operators
+            ExprKind::IsLessI(se1, se2) => {
+                match (self.eval_expr(db_conn, se1), self.eval_expr(db_conn, se2)) {
+                    (Value::Int(i1), Value::Int(i2)) => Value::Bool(i1 < i2),
+                    _ => panic!("Runtime type error: arguments to less than (int) are not ints"),
+                }
+            }
+            ExprKind::IsLessF(se1, se2) => {
+                match (self.eval_expr(db_conn, se1), self.eval_expr(db_conn, se2)) {
+                    (Value::Float(f1), Value::Float(f2)) => Value::Bool(f1 < f2),
+                    _ => {
+                        panic!("Runtime type error: arguments to less than (float) are not floats")
+                    }
+                }
+            }
+            // Type conversion
+            ExprKind::IntToFloat(subexpr) => {
+                let arg = self.eval_expr(db_conn, subexpr);
+                if let Value::Int(i) = arg {
+                    Value::Float(i as f64)
+                } else {
+                    panic!(
+                        "Runtime type error: argument to conversion isn't an int {:?}",
+                        arg
+                    );
+                }
+            }
             // Paths are field lookups on an object.
-            ExprKind::Path(col_id, var, field) => {
+            ExprKind::Path(col_id, obj_expr, field) => {
                 // Look up the object
-                let obj = self
-                    .lookup(var)
-                    .expect("Couldn't find a value in scope for identifier");
+                let obj = self.eval_expr(db_conn, obj_expr);
                 // Get the string name of the field, using the col_id
                 // that the typechecker put in.
                 let field_name = self.ird[*col_id].field_name(field);
@@ -335,13 +423,19 @@ impl Evaluator<'_> {
                     _ => panic!("Cannot get fields of non-object values"),
                 }
             }
+            // Variable lookup
+            ExprKind::Var(id) => self
+                .lookup(id)
+                .expect(&format!("No binding in scope for var {:?}", id)),
             // An object spefifier, like User { username: "Alex", ...u}
             ExprKind::Object(col_id, fields, template_obj_expr) => {
                 let collection = &self.ird[*col_id];
                 let mut result_object = doc! {};
                 // If there's a template value expression, evaluate
                 // it.
-                let template_obj_val = template_obj_expr.as_ref().map(|expr| self.eval_expr(expr));
+                let template_obj_val = template_obj_expr
+                    .as_ref()
+                    .map(|expr| self.eval_expr(db_conn, expr));
                 for (field_name, field_id) in collection.fields() {
                     // We don't need to directly propogate the id, as
                     // it'll be assigned by mongo when we add to the
@@ -353,7 +447,7 @@ impl Evaluator<'_> {
                     let field_value = match fields.iter().find(|(id, _expr)| field_id == id) {
                         // If we find it, evaluate the expression
                         // given, and use it's value for the field.
-                        Some((_id, expr)) => self.eval_expr(expr),
+                        Some((_id, expr)) => self.eval_expr(db_conn, expr),
                         // Otherwise, use the value from the template
                         // object value.
                         None => match &template_obj_val {
@@ -375,113 +469,53 @@ impl Evaluator<'_> {
                 }
                 Value::Object(result_object)
             }
-            // String append
-            ExprKind::AppendS(subexpr_l, subexpr_r) => {
-                let arg_l = self.eval_expr(subexpr_l);
-                let arg_r = self.eval_expr(subexpr_r);
-                if let (Value::String(s1), Value::String(s2)) = (arg_l, arg_r) {
-                    Value::String(s1 + &s2)
-                } else {
-                    panic!("Arguments to append aren't strings at runtime! Type system failure");
-                }
-            }
-            // List append
-            ExprKind::AppendL(_ty, subexpr_l, subexpr_r) => {
-                let arg_l = self.eval_expr(subexpr_l);
-                let arg_r = self.eval_expr(subexpr_r);
-                if let (Value::List(s1), Value::List(s2)) = (arg_l, arg_r) {
-                    let mut result = s1.clone();
-                    result.append(&mut s2.clone());
-                    Value::List(result)
-                } else {
-                    panic!("Arguments to append aren't strings at runtime! Type system failure");
-                }
-            }
-            // Variable lookup
-            ExprKind::Var(id) => self
-                .lookup(id)
-                .expect(&format!("No binding in scope for var {:?}", id)),
-            // Math operators
-            ExprKind::AddI(subexpr_l, subexpr_r) => {
-                let arg_l = self.eval_expr(subexpr_l);
-                let arg_r = self.eval_expr(subexpr_r);
-                if let (Value::Int(i1), Value::Int(i2)) = (arg_l, arg_r) {
-                    Value::Int(i1 + i2)
-                } else {
-                    panic!("Runtime type error: arguments to addi aren't ints");
-                }
-            }
-            ExprKind::AddF(subexpr_l, subexpr_r) => {
-                let arg_l = self.eval_expr(subexpr_l);
-                let arg_r = self.eval_expr(subexpr_r);
-                if let (Value::Float(f1), Value::Float(f2)) = (arg_l, arg_r) {
-                    Value::Float(f1 + f2)
-                } else {
-                    panic!("Runtime type error: arguments to addf aren't floats");
-                }
-            }
-            ExprKind::SubI(subexpr_l, subexpr_r) => {
-                let arg_l = self.eval_expr(subexpr_l);
-                let arg_r = self.eval_expr(subexpr_r);
-                if let (Value::Int(i1), Value::Int(i2)) = (arg_l, arg_r) {
-                    Value::Int(i1 - i2)
-                } else {
-                    panic!("Runtime type error: arguments to addi aren't ints");
-                }
-            }
-            ExprKind::SubF(subexpr_l, subexpr_r) => {
-                let arg_l = self.eval_expr(subexpr_l);
-                let arg_r = self.eval_expr(subexpr_r);
-                if let (Value::Float(f1), Value::Float(f2)) = (arg_l, arg_r) {
-                    Value::Float(f1 - f2)
-                } else {
-                    panic!("Runtime type error: arguments to addf aren't floats");
-                }
-            }
-            // Type conversion
-            ExprKind::IntToFloat(subexpr) => {
-                let arg = self.eval_expr(subexpr);
-                if let Value::Int(i) = arg {
-                    Value::Float(i as f64)
-                } else {
-                    panic!(
-                        "Runtime type error: argument to conversion isn't an int {:?}",
-                        arg
-                    );
-                }
-            }
+            ExprKind::LookupById(coll_id, expr) => match self.eval_expr(db_conn, expr) {
+                Value::Id(id) => match db_conn
+                    .collection(&self.ird[*coll_id].name.1)
+                    .find_one(Some(doc! {"_id": id.clone()}), None)
+                {
+                    Result::Ok(Some(doc)) => Value::Object(doc),
+                    _ => panic!("Couldn't find doc matching id {}", id),
+                },
+                _ => panic!("Runtime type error: lookup argument isn't an id"),
+            },
             // Lists
             ExprKind::List(subexprs) => Value::List(
                 subexprs
                     .into_iter()
-                    .map(|subexpr| self.eval_expr(subexpr))
+                    .map(|subexpr| self.eval_expr(db_conn, subexpr))
                     .collect(),
             ),
             // Conditional expressions
             ExprKind::If(_ty, cond, e1, e2) => {
-                if let Value::Bool(c) = self.eval_expr(cond) {
+                if let Value::Bool(c) = self.eval_expr(db_conn, cond) {
                     if c {
-                        self.eval_expr(e1)
+                        self.eval_expr(db_conn, e1)
                     } else {
-                        self.eval_expr(e2)
+                        self.eval_expr(db_conn, e2)
                     }
                 } else {
                     panic!("Runtime type error: condition of if doesn't evaluate to a bool")
                 }
             }
+            // Constants evaluate to the constant value
+            ExprKind::IntConst(i) => Value::Int(i.clone()),
+            ExprKind::FloatConst(f) => Value::Float(f.clone()),
+            ExprKind::StringConst(s) => Value::String(s.clone()),
+            ExprKind::BoolConst(b) => Value::Bool(b.clone()),
         }
     }
 }
 
 // Execute a query function (lambda) on an argument
-fn exec_query_function(ir_env: &IrData, f: &Lambda, arg: &Document) -> Value {
+fn exec_query_function(ir_env: &IrData, f: &Lambda, arg: &Document, db_conn: &Database) -> Value {
     // Make an evaluator
     let mut evaluator = Evaluator::new(ir_env);
     let Lambda { param, body } = f;
     // Push the parameter to scope
     evaluator.push_scope(param, Value::Object(arg.clone()));
     // eval
-    let result = evaluator.eval_expr(&body);
+    let result = evaluator.eval_expr(db_conn, &body);
     // We don't have to worry about popping scope because this
     // evaluator is going away anyway.
     result
