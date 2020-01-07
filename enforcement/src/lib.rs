@@ -3,7 +3,7 @@ use mongodb::oid::ObjectId;
 pub use mongodb::{bson, doc};
 mod from_bson;
 pub use from_bson::*;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
 pub mod translate;
 use std::marker::PhantomData;
 use std::fmt;
@@ -42,9 +42,23 @@ impl RecordId {
     }
 }
 
-#[derive(Serialize, Deserialize)]
 pub struct TypedRecordId<T: DBCollection>(RecordId,
                                           PhantomData<T>);
+
+impl <T> Serialize for TypedRecordId<T> where T: DBCollection {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer {
+        self.0.serialize(serializer)
+    }
+}
+impl <'de, T> Deserialize<'de> for TypedRecordId<T> where T: DBCollection {
+    fn deserialize<D>(deserializer: D) -> Result<TypedRecordId<T>, D::Error>
+    where
+        D: Deserializer<'de> {
+        Ok(Self(RecordId::deserialize(deserializer)?, PhantomData))
+    }
+}
 impl <T> Clone for TypedRecordId<T> where T: DBCollection {
     fn clone(&self) -> Self {
         TypedRecordId(self.0.clone(), PhantomData)
