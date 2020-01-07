@@ -88,7 +88,7 @@ mod {}_policies {{
         pol_mod += &gen_policy_body(ird, &coll_policy.delete);
         for (field_name, field_id) in col.fields().into_iter() {
             if field_name == "id" {
-                continue
+                continue;
             }
             let field_policy = policy.field_policy(*field_id);
             col_struct += &format!(
@@ -148,7 +148,8 @@ fn translate_queryexpr(ird: &IrData, e_id: Id<Expr>) -> String {
             "{}.into_iter().chain({}).collect::<Vec<{}>>()",
             translate_queryexpr(ird, *e1),
             translate_queryexpr(ird, *e2),
-            lower_ty(ird,ty)),
+            lower_ty(ird, ty)
+        ),
         ExprKind::AppendS(e1, e2) => format!(
             "({} + {})",
             translate_queryexpr(ird, *e1),
@@ -182,9 +183,10 @@ fn translate_queryexpr(ird: &IrData, e_id: Id<Expr>) -> String {
             ird[*coll_id].field_name(&f)
         ),
         ExprKind::Var(id) => format!("{}", mangled_ident(&ird[*id].name)),
-        ExprKind::LookupById(_, id_expr) => {
-            format!("{}.lookup()", translate_queryexpr(ird, *id_expr))
-        }
+        ExprKind::LookupById(_, id_expr) => format!(
+            "{}.lookup(conn).expect(\"Couldn't find user\")",
+            translate_queryexpr(ird, *id_expr)
+        ),
         ExprKind::List(exprs) => {
             let mut out = "vec![".to_string();
             for expr in exprs.into_iter() {
@@ -227,8 +229,7 @@ fn translate_queryexpr(ird: &IrData, e_id: Id<Expr>) -> String {
                 out += &format!("{}: ", field_name);
                 match found_field {
                     Some((_id, expr)) => out += &format!("{},", translate_queryexpr(ird, *expr)),
-                    None => out += &format!("template_obj_expr.{},",
-                                            field_name),
+                    None => out += &format!("template_obj_expr.{},", field_name),
                 }
             }
             out += "} }";
