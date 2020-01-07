@@ -98,6 +98,12 @@ impl<T> ToRecordIdVec for TypedRecordId<T> where T: DBCollection{
     }
 }
 
+impl<T> ToRecordIdVec for Vec<TypedRecordId<T>> where T: DBCollection {
+    fn to_record_id_vec(&self) -> Vec<RecordId>{
+        self.iter().map(|v| v.clone().into()).collect()
+    }
+}
+
 impl From<RecordId> for ObjectId {
     fn from(id: RecordId) -> ObjectId {
         id.0
