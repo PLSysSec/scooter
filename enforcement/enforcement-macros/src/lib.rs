@@ -293,14 +293,18 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             impl DBCollection for #ident {
                 type Partial=#partial_ident;
                 fn find_by_id(connection: &AuthConn, id: RecordId) -> Option<Self::Partial> {
+                    match Self::find_full_by_id(connection.conn(), id) {
+                        Some(item) => Some(item.fully_resolve(connection)),
+                        None => None,
+                    }
+                }
+                fn find_full_by_id(connection: &DBConn, id: RecordId) -> Option<Self> {
                     use mongodb::db::ThreadedDatabase;
-                    match connection
-                        .conn()
-                        .mongo_conn
+                    match connection.mongo_conn
                         .collection(#ident_string)
                         .find_one(Some(doc! {"_id":id}), None)
                     {
-                        Result::Ok(Some(doc)) => Some(#ident::from_document(doc).fully_resolve(connection)),
+                        Result::Ok(Some(doc)) => Some(#ident::from_document(doc)),
                         _ => None,
                     }
                 }

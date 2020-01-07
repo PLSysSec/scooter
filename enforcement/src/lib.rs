@@ -67,8 +67,8 @@ impl <T> fmt::Debug for TypedRecordId<T> where T: DBCollection {
 }
 
 impl <T> TypedRecordId<T> where T: DBCollection{
-    pub fn lookup(&self, conn: &AuthConn) -> Option<T::Partial> {
-        T::find_by_id(conn, self.clone().into())
+    pub fn lookup(&self, conn: &AuthConn) -> Option<T> {
+        T::find_full_by_id(conn.conn(), self.clone().into())
     }
 }
 
@@ -163,6 +163,7 @@ impl <'a> AuthConn <'a>{
 pub trait DBCollection: Sized {
     type Partial;
     fn find_by_id(connection: &AuthConn, id: RecordId) -> Option<Self::Partial>;
+    fn find_full_by_id(connection: &DBConn, id: RecordId) -> Option<Self>;
     fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<RecordId>>;
     fn save_all(connection: &AuthConn, items: Vec<&Self::Partial>) -> bool;
     fn delete_by_id(connection: &AuthConn, id: RecordId) -> bool;
