@@ -15,14 +15,18 @@ User {
         read: public,
         write: none,
     },
+    trustworthyness : I64 {
+        read: m -> m.id,
+        write: none,
+    },
 }
 
 Message {
-    create: public,
+    create: m -> m.from,
     delete: none,
     from : Id(User) {
         read: m -> m.from + m.to,
-        write: none,
+        write: m -> (if User::ById(m.from).trustworthyness > 10 then [m.from] else []),
     },
 
     to : Id(User) {
