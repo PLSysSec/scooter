@@ -34,12 +34,12 @@ mod test {
         };
 
         let retrieved_alex = User::find_by_id(
-            &db_conn.as_princ(Principle::Id(uid_alex.clone())),
-            uid_alex.clone(),
+            &db_conn.as_princ(Principle::Id(uid_alex.clone().into())),
+            uid_alex.clone().into(),
         )
         .unwrap();
         let publicly_retrieved_alex =
-            User::find_by_id(&db_conn.as_princ(Principle::Public), uid_alex.clone()).unwrap();
+            User::find_by_id(&db_conn.as_princ(Principle::Public), uid_alex.clone().into()).unwrap();
 
         assert_eq!(Some("alex_hash".to_string()), retrieved_alex.pass_hash);
         assert_eq!(None, publicly_retrieved_alex.pass_hash);
@@ -60,33 +60,33 @@ mod test {
         .expect("Didn't get any ids back!");
 
         // Write only the pass hash
-        let alex_obj = BuildUser::new(alex_id.clone())
+        let alex_obj = BuildUser::new(alex_id.clone().into())
             .pass_hash("monster_mash".to_string())
             .finalize();
 
         assert!(!alex_obj.save(&db_conn.as_princ(Principle::Public)));
         {
             let retrieved_alex = User::find_by_id(
-                &db_conn.as_princ(Principle::Id(alex_id.clone())),
-                alex_id.clone(),
+                &db_conn.as_princ(Principle::Id(alex_id.clone().into())),
+                alex_id.clone().into(),
             )
             .unwrap();
             let publicly_retrieved_alex =
-                User::find_by_id(&db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
+                User::find_by_id(&db_conn.as_princ(Principle::Public), alex_id.clone().into()).unwrap();
 
             assert_eq!(Some("alex_hash".to_string()), retrieved_alex.pass_hash);
             assert_eq!(None, publicly_retrieved_alex.pass_hash);
         }
-        assert!(alex_obj.save(&db_conn.as_princ(Principle::Id(alex_id.clone()))));
+        assert!(alex_obj.save(&db_conn.as_princ(Principle::Id(alex_id.clone().into()))));
 
         {
             let retrieved_alex = User::find_by_id(
-                &db_conn.as_princ(Principle::Id(alex_id.clone())),
-                alex_id.clone(),
+                &db_conn.as_princ(Principle::Id(alex_id.clone().into())),
+                alex_id.clone().into(),
             )
             .unwrap();
             let publicly_retrieved_alex =
-                User::find_by_id(&db_conn.as_princ(Principle::Public), alex_id.clone()).unwrap();
+                User::find_by_id(&db_conn.as_princ(Principle::Public), alex_id.clone().into()).unwrap();
 
             assert_eq!(Some("monster_mash".to_string()), retrieved_alex.pass_hash);
             assert_eq!(None, publicly_retrieved_alex.pass_hash);
@@ -109,8 +109,8 @@ mod test {
         .expect("Didn't get any ids back!");
 
         let result = User::delete_by_id(
-            &db_conn.as_princ(Principle::Id(alex_id.clone())),
-            alex_id.clone(),
+            &db_conn.as_princ(Principle::Id(alex_id.clone().into())),
+            alex_id.clone().into(),
         );
         assert!(!result);
     }

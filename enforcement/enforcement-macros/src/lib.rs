@@ -308,7 +308,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                         _ => None,
                     }
                 }
-                fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<RecordId>> {
+                fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<TypedRecordId<Self>>> {
                     use mongodb::db::ThreadedDatabase;
                     for item in items.iter() {
                         if ! #policy_module::create(&item, connection)
