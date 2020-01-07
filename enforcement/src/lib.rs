@@ -169,6 +169,7 @@ pub trait DBCollection: Sized {
     type Partial;
     fn find_by_id(connection: &AuthConn, id: RecordId) -> Option<Self::Partial>;
     fn find_full_by_id(connection: &DBConn, id: RecordId) -> Option<Self>;
+    fn insert_one(connection: &AuthConn, item: Self) -> Option<TypedRecordId<Self>>;
     fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<TypedRecordId<Self>>>;
     fn save_all(connection: &AuthConn, items: Vec<&Self::Partial>) -> bool;
     fn delete_by_id(connection: &AuthConn, id: RecordId) -> bool;

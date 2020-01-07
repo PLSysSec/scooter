@@ -308,6 +308,9 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                         _ => None,
                     }
                 }
+                fn insert_one(connection: &AuthConn, item: Self) -> Option<TypedRecordId<Self>> {
+                    Self::insert_many(connection, vec![item]).map(|v| v.into_iter().next().expect("Got an empty vec"))
+                }
                 fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<TypedRecordId<Self>>> {
                     use mongodb::db::ThreadedDatabase;
                     for item in items.iter() {
