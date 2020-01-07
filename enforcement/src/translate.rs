@@ -197,7 +197,7 @@ fn translate_queryexpr(ird: &IrData, e_id: Id<Expr>) -> String {
             out
         }
         ExprKind::If(_ty, cond, e1, e2) => format!(
-            "(if {} then {{ {} }} else {{ {} }})",
+            "(if {} {{ {} }} else {{ {} }})",
             translate_queryexpr(ird, *cond),
             translate_queryexpr(ird, *e1),
             translate_queryexpr(ird, *e2)
