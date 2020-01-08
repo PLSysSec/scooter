@@ -313,6 +313,7 @@ fn lower_type_with_table(table: &HashMap<String, Id<Collection>>, ty: &ast::Fiel
         ast::FieldType::List(inner_type) => {
             Type::List(Box::new(lower_type_with_table(table, inner_type)))
         }
+        ast::FieldType::Bool => Type::Prim(Prim::Bool),
     }
 }
 

@@ -29,6 +29,7 @@ FieldType: FieldType = {
     "String" => FieldType::String,
     "I64" => FieldType::I64,
     "F64" => FieldType::F64,
+    "Bool" => FieldType::Bool,
     "Id" "(" <coll:Ident> ")" => FieldType::Id(coll),
     "[" <ft:FieldType> "]" => FieldType::List(Box::new(ft)),
 }

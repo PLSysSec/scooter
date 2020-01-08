@@ -1,4 +1,3 @@
-
 pub mod migrate;
 #[cfg(test)]
 mod tests {
@@ -19,10 +18,10 @@ mod tests {
     /// # Arguments
     /// * `fname` - The path to the file to read
     fn get_contents(fname: &Path) -> io::Result<String> {
-    let mut out = String::new();
-    std::fs::File::open(fname)?.read_to_string(&mut out)?;
-    Ok(out)
-}
+        let mut out = String::new();
+        std::fs::File::open(fname)?.read_to_string(&mut out)?;
+        Ok(out)
+    }
     #[test]
     fn add_and_remove_fields() {
         // The name of the collection
@@ -311,7 +310,6 @@ mod tests {
             .expect("Couldn't find alex duplicate doc!");
         assert_eq!(alex_duplicate.get_str("pass_hash"), Ok("alex_hash"));
         assert_eq!(alex_duplicate.get_i64("num_followers"), Ok(42));
-
     }
     #[test]
     fn delete_users() {
@@ -590,8 +588,7 @@ mod tests {
         );
 
         // Perform a migration, the contents of the policy file, and
-        // this migration string. The string removes the num_followers
-        // column from the schema.
+        // this migration string.
         migrate(
             db_name,
             get_contents(
@@ -616,7 +613,10 @@ mod tests {
             .collect();
         let _alex_phone = all_phones
             .iter()
-            .find(|doc| RecordId::from_object_id(doc.get_object_id("owner").unwrap().clone()) == uid_alex.clone().into())
+            .find(|doc| {
+                RecordId::from_object_id(doc.get_object_id("owner").unwrap().clone())
+                    == uid_alex.clone().into()
+            })
             .expect("Couldn't find alex phone !");
     }
     #[test]
@@ -691,5 +691,122 @@ mod tests {
                 .expect("Couldn't find username key after migration"),
             &vec![bson!("Alex"), bson!("Alex_alias")]
         );
+    }
+
+    #[test]
+    fn stamp_messages() {
+        // The name of the user collection
+        let col_name = "User".to_string();
+        let mcol_name = "Message".to_string();
+        // Create a connection to the database
+        let db_name = "stamp_messages_test".to_string();
+        let db_conn = DBConn::new(&db_name);
+        // Drop any existing collection by the same name, so that the
+        // collection is empty.
+        db_conn.mongo_conn.collection(&col_name).drop().unwrap();
+        db_conn.mongo_conn.collection(&mcol_name).drop().unwrap();
+
+        // Two user objects, to be inserted into the database. Note
+        // that these users have a "num_followers" field.
+        let users: Vec<_> = vec![
+            user! {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+                num_followers: 42,
+            },
+            user! {
+                username: "John".to_string(),
+                pass_hash: "john_hash".to_string(),
+                num_followers: 0,
+            },
+        ];
+        // Insert the users into the database, and get back their ids
+        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let (uid_alex, uid_john) = match uids.as_slice() {
+            [id1, id2] => (id1, id2),
+            _ => panic!("Not the right number of returned ids"),
+        };
+        // Make connection objects for both users
+        let alex_conn = &db_conn.as_princ(Principle::Id(uid_alex.clone().into()));
+        let john_conn = &db_conn.as_princ(Principle::Id(uid_john.clone().into()));
+
+        let m1_id = Message::insert_one(
+            alex_conn,
+            message! { from: uid_alex.clone(),
+            to: uid_john.clone(),
+            text: "Suuuup boi".to_string() },
+        )
+        .unwrap();
+        let m2_id = Message::insert_one(
+            john_conn,
+            message! { from: uid_john.clone(),
+            to: uid_alex.clone(),
+            text: "Yo".to_string() },
+        )
+        .unwrap();
+        let m3_id = Message::insert_one(
+            alex_conn,
+            message! { from: uid_alex.clone(),
+            to: uid_john.clone(),
+            text: "Whatchu up to tn?".to_string() },
+        )
+        .unwrap();
+        let m4_id = Message::insert_one(
+            john_conn,
+            message! { from: uid_john.clone(),
+            to: uid_alex.clone(),
+            text: "literally nothing".to_string() },
+        )
+        .unwrap();
+
+        migrate(
+            db_name,
+            get_contents(
+                Path::new(&std::env::current_dir().unwrap())
+                    .join("policy.txt".to_string())
+                    .as_ref(),
+            )
+            .unwrap(),
+            r#"
+                Message::AddField(popular_sender,  Bool, m -> User::ById(m.from).num_followers > 20)
+                "#
+            .to_string(),
+        );
+
+        let m1_doc = db_conn
+            .mongo_conn
+            .collection(&mcol_name)
+            .find_one(Some(doc! {"_id": m1_id}), None)
+            .expect("Failed to retreive message #1 doc")
+            .expect("Failed to retreive message #1 doc (2)");
+
+        assert_eq!(m1_doc.get_bool("popular_sender").unwrap(), true);
+
+        let m2_doc = db_conn
+            .mongo_conn
+            .collection(&mcol_name)
+            .find_one(Some(doc! {"_id": m2_id}), None)
+            .expect("Failed to retreive message #2 doc")
+            .expect("Failed to retreive message #2 doc (2)");
+
+        assert_eq!(m2_doc.get_bool("popular_sender").unwrap(), false);
+
+        let m3_doc = db_conn
+            .mongo_conn
+            .collection(&mcol_name)
+            .find_one(Some(doc! {"_id": m3_id}), None)
+            .expect("Failed to retreive message #3 doc")
+            .expect("Failed to retreive message #3 doc (2)");
+
+        assert_eq!(m3_doc.get_bool("popular_sender").unwrap(), true);
+
+        let m4_doc = db_conn
+            .mongo_conn
+            .collection(&mcol_name)
+            .find_one(Some(doc! {"_id": m4_id}), None)
+            .expect("Failed to retreive message #2 doc")
+            .expect("Failed to retreive message #2 doc (2)");
+
+        assert_eq!(m4_doc.get_bool("popular_sender").unwrap(), false);
     }
 }

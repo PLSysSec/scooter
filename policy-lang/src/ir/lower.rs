@@ -650,6 +650,7 @@ impl Lowerer<'_> {
             ast::FieldType::String => Type::Prim(Prim::String),
             ast::FieldType::I64 => Type::Prim(Prim::I64),
             ast::FieldType::F64 => Type::Prim(Prim::F64),
+            ast::FieldType::Bool => Type::Prim(Prim::Bool),
             ast::FieldType::Id(s) => {
                 let (id, _coll_typ) = self.resolve_collection(&s);
                 Type::Id(id)

@@ -103,7 +103,7 @@ fn interpret_action(
                         field_name
                     )
                 );
-                // Inser the field into the object
+                // Insert the field into the object
                 result.insert(field_name, exec_query_function(&env, &init, &result, db_conn));
                 replace_doc(&db_conn, &collection, item_id, result);
             }
