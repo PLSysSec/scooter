@@ -768,7 +768,7 @@ mod tests {
             )
             .unwrap(),
             r#"
-                Message::AddField(popular_sender,  Bool, m -> User::ById(m.from).num_followers > 20)
+                Message::AddField(popular_sender,  Bool, m -> (if User::ById(m.from).num_followers < 20 then false else true))
                 "#
             .to_string(),
         );
