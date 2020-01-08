@@ -616,7 +616,7 @@ mod tests {
             .collect();
         let _alex_phone = all_phones
             .iter()
-            .find(|doc| RecordId::from_object_id(doc.get_object_id("owner").unwrap().clone()) == *uid_alex)
+            .find(|doc| RecordId::from_object_id(doc.get_object_id("owner").unwrap().clone()) == uid_alex.clone().into())
             .expect("Couldn't find alex phone !");
     }
     #[test]
