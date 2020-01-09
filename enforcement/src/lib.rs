@@ -158,8 +158,8 @@ impl DBConn {
             principle: id,
         }
     }
-    pub fn new(db_name: &str) -> DBConn {
-        let client = Client::connect("localhost", 27017)
+    pub fn new(host: &str, port: u16, db_name: &str) -> DBConn {
+        let client = Client::connect(host, port)
             .expect("Failed to initialize client.");
         DBConn {mongo_conn: client.db(db_name)}
     }

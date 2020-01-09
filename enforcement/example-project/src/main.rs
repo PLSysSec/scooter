@@ -12,7 +12,7 @@ mod test {
 
     #[test]
     fn insert_then_read() {
-        let db_conn = DBConn::new("test2");
+        let db_conn = DBConn::new("localhost", 27017,"test2");
 
         let users: Vec<_> = vec![
             user! {
@@ -52,7 +52,7 @@ mod test {
 
     #[test]
     fn set_password() {
-        let db_conn = DBConn::new("test2");
+        let db_conn = DBConn::new("localhost", 27017,"test2");
         let alex_id = User::insert_many(
             &db_conn.as_princ(Principle::Public),
             vec![user! {username: "Alex".to_string(),
@@ -103,7 +103,7 @@ mod test {
 
     #[test]
     fn fail_delete_user() {
-        let db_conn = DBConn::new("test2");
+        let db_conn = DBConn::new("localhost", 27017,"test2");
 
         let alex_id = User::insert_many(
             &db_conn.as_princ(Principle::Public),
@@ -126,7 +126,7 @@ mod test {
 
     #[test]
     fn set_from_trustworthy() {
-        let db_conn = DBConn::new("test2");
+        let db_conn = DBConn::new("localhost", 27017,"test2");
 
         // Add two users, alex and john, where alex has a
         // trustworthyness above ten, and john has one below ten.
