@@ -7,6 +7,8 @@ use serde::{Serialize, Deserialize, Serializer, Deserializer};
 pub mod translate;
 use std::marker::PhantomData;
 use std::fmt;
+use std::fs::read_to_string;
+use std::path::Path;
 
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -151,6 +153,13 @@ pub struct DBConn {
     pub mongo_conn: Database,
 }
 
+#[derive(Deserialize)]
+struct ConnConf {
+    host: String,
+    port: u16,
+    db: String,
+}
+
 impl DBConn {
     pub fn as_princ(&self, id: Principle) -> AuthConn {
         AuthConn {
@@ -162,6 +171,11 @@ impl DBConn {
         let client = Client::connect(host, port)
             .expect("Failed to initialize client.");
         DBConn {mongo_conn: client.db(db_name)}
+    }
+
+    pub fn from_toml_conf<P: AsRef<Path>>(conf: P) -> DBConn {
+        let conf: ConnConf = toml::from_str(&read_to_string(conf).unwrap()).unwrap();
+        Self::new(&conf.host, conf.port, &conf.db)
     }
 }
 

@@ -12,3 +12,4 @@ mongodb = '0.3.12'
 enforcement-macros = {path="./enforcement-macros"}
 serde = { version = "1.0", features = ["derive"] }
 policy-lang = {path = "../policy-lang"}
+toml = "0.5.5"
