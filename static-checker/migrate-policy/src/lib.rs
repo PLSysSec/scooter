@@ -180,9 +180,9 @@ fn interpret_migration_on_policy(
                         field,
                         get_policy_from_initializer(ird, &policy, field, init),
                     ),
-                _ => panic!("todo: other migration actions")
+                _ => panic!("todo: other migration actions"),
             },
-            _ => panic!("todo: Create and delete")
+            _ => panic!("todo: Create and delete"),
         }
     }
 
@@ -214,23 +214,47 @@ fn get_policy_from_initializer(
 fn defs_in_expr(ird: &IrData, e_id: Id<Expr>) -> Vec<Id<Def>> {
     let expr = &ird[e_id];
     match &expr.kind {
-        ExprKind::AppendS(e1_id, e2_id) | ExprKind::AppendL(_, e1_id, e2_id) |
-        ExprKind::AddI(e1_id, e2_id) | ExprKind::AddF(e1_id, e2_id) |
-        ExprKind::SubI(e1_id, e2_id) | ExprKind::SubF(e1_id, e2_id) |
-        ExprKind::IsEq(_, e1_id, e2_id) |
-        ExprKind::IsLessI(e1_id, e2_id) | ExprKind::IsLessF(e1_id, e2_id) =>
-            defs_in_expr(ird, *e1_id).into_iter().chain(defs_in_expr(ird, *e2_id).into_iter()).collect(),
-        ExprKind::Not(se_id) | ExprKind::IntToFloat(se_id) =>
-            defs_in_expr(ird, *se_id),
-        ExprKind::If(_, e1_id, e2_id, e3_id) =>
-            defs_in_expr(ird, *e1_id).into_iter().chain(defs_in_expr(ird, *e2_id).into_iter()).chain(defs_in_expr(ird, *e3_id)).collect(),
-        ExprKind::List(exprs) => exprs.iter().flat_map(|expr| defs_in_expr(ird, *expr)).collect(),
-        ExprKind::Object(_, field_exprs, template_expr) =>
-            field_exprs.iter().flat_map(|(_ident, expr)| defs_in_expr(ird, *expr)).chain(template_expr.map(|expr| defs_in_expr(ird, expr)).unwrap_or(vec![])).collect(),
-        ExprKind::IntConst(_) | ExprKind::FloatConst(_) | ExprKind::StringConst(_) | ExprKind::BoolConst(_) => vec![],
+        ExprKind::AppendS(e1_id, e2_id)
+        | ExprKind::AppendL(_, e1_id, e2_id)
+        | ExprKind::AddI(e1_id, e2_id)
+        | ExprKind::AddF(e1_id, e2_id)
+        | ExprKind::SubI(e1_id, e2_id)
+        | ExprKind::SubF(e1_id, e2_id)
+        | ExprKind::IsEq(_, e1_id, e2_id)
+        | ExprKind::IsLessI(e1_id, e2_id)
+        | ExprKind::IsLessF(e1_id, e2_id) => defs_in_expr(ird, *e1_id)
+            .into_iter()
+            .chain(defs_in_expr(ird, *e2_id).into_iter())
+            .collect(),
+        ExprKind::Not(se_id) | ExprKind::IntToFloat(se_id) => defs_in_expr(ird, *se_id),
+        ExprKind::If(_, e1_id, e2_id, e3_id) => defs_in_expr(ird, *e1_id)
+            .into_iter()
+            .chain(defs_in_expr(ird, *e2_id).into_iter())
+            .chain(defs_in_expr(ird, *e3_id))
+            .collect(),
+        ExprKind::List(exprs) => exprs
+            .iter()
+            .flat_map(|expr| defs_in_expr(ird, *expr))
+            .collect(),
+        ExprKind::Object(_, field_exprs, template_expr) => field_exprs
+            .iter()
+            .flat_map(|(_ident, expr)| defs_in_expr(ird, *expr))
+            .chain(
+                template_expr
+                    .map(|expr| defs_in_expr(ird, expr))
+                    .unwrap_or(vec![]),
+            )
+            .collect(),
+        ExprKind::IntConst(_)
+        | ExprKind::FloatConst(_)
+        | ExprKind::StringConst(_)
+        | ExprKind::BoolConst(_) => vec![],
         ExprKind::Var(_) => vec![],
         ExprKind::LookupById(_coll, se_id) => defs_in_expr(ird, *se_id),
-        ExprKind::Path(_coll, se_id, def) => defs_in_expr(ird, *se_id).into_iter().chain(vec![*def]).collect()
+        ExprKind::Path(_coll, se_id, def) => defs_in_expr(ird, *se_id)
+            .into_iter()
+            .chain(vec![*def])
+            .collect(),
     }
 }
 
