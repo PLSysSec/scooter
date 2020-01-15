@@ -166,19 +166,40 @@ fn expr_to_string(ird: &IrData, e_id: Id<Expr>) -> String {
 }
 
 fn interpret_migration_on_policy(
-    _ird: &IrData,
+    ird: &IrData,
     policy: CompletePolicy,
     migration: CompleteMigration,
 ) -> CompletePolicy {
     let mut result_policy = policy.clone();
 
+    for cmd in migration.0.into_iter() {
+        match cmd {
+            CompleteMigrationCommand::CollAction { table: _, action } => match action {
+                CompleteMigrationAction::AddField { field, ty: _, init } => result_policy
+                    .add_field_policy(
+                        field,
+                        get_policy_from_initializer(ird, &policy, field, init),
+                    ),
+                _ => panic!("todo: other migration actions")
+            },
+            _ => panic!("todo: Create and delete")
+        }
+    }
+
     result_policy
 }
 
-fn get_policy_from_initializer(_ird: &IrData,
-                               _old_policy: &CompletePolicy,
-                               _init: Lambda) -> Policy {
-    Policy::None
+fn get_policy_from_initializer(
+    _ird: &IrData,
+    _old_policy: &CompletePolicy,
+    field_id: Id<Def>,
+    _init: Lambda,
+) -> FieldPolicy {
+    FieldPolicy {
+        field_id,
+        read: Policy::None,
+        edit: Policy::None,
+    }
 }
 
 mod test {
@@ -224,8 +245,8 @@ mod test {
         write: none,
     },
     pass_hash : String {
-        read: public,
-        write: public,
+        read: none,
+        write: none,
     },
 }
 ";
