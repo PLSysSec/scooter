@@ -3,6 +3,8 @@ use policy_lang::{parse_migration, parse_policy};
 
 use std::io::{self, Read};
 
+/// Take two filenames, a policy and a migration, and produce a new
+/// policy as a string, by reading those files.
 pub fn migrate_policy_from_files(
     policy_path: impl ToString,
     migration_path: impl ToString,
@@ -18,6 +20,9 @@ fn get_contents(fname: &str) -> io::Result<String> {
     Ok(out)
 }
 
+/// Take the text of a policy and a migration, and produce a new
+/// policy, that doesn't leak any information from the old policy, but
+/// is valid post-migration.
 pub fn migrate_policy(policy_text: &str, migration_text: &str) -> String {
     let parsed_policy = parse_policy(policy_text).expect("Couldn't parse policy");
     let parsed_migration = parse_migration(migration_text).expect("Couldn't parse migration");
