@@ -284,4 +284,36 @@ mod test {
 ";
         assert_eq!(out_text, expected_result_text);
     }
+
+    #[test]
+    fn add_private_depends_field() {
+        let policy_text = r"User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: none,
+        write: none,
+    },
+}
+";
+        let migration_text = r#"User::AddField(pass_hash, String, u -> u.username + "_hash")"#;
+        let out_text = migrate_policy(policy_text, migration_text);
+
+        let expected_result_text = r"User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: none,
+        write: none,
+    },
+    pass_hash : String {
+        read: none,
+        write: none,
+    },
+}
+";
+        assert_eq!(out_text, expected_result_text);
+    }
 }
