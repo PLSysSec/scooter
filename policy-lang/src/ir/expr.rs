@@ -1,6 +1,7 @@
 use super::*;
 use id_arena::Id;
-#[derive(Debug)]
+
+#[derive(Debug, Clone)]
 pub struct Expr {
     pub id: Id<Expr>,
     pub kind: ExprKind,
@@ -8,7 +9,7 @@ pub struct Expr {
 
 /// Possible expression types in our language. By this point, ad-hoc
 /// polymorphism/operator overloading has been resolved.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExprKind {
     /// String append
     AppendS(Id<Expr>, Id<Expr>),
@@ -61,7 +62,7 @@ pub enum ExprKind {
     BoolConst(bool),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Lambda {
     pub param: Id<Def>,
     pub body: Id<Expr>,

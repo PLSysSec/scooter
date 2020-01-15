@@ -4,7 +4,7 @@ use super::expr::*;
 use super::*;
 use crate::ast;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CompletePolicy {
     fields: HashMap<Id<Def>, FieldPolicy>,
     colls: HashMap<Id<Collection>, CollectionPolicy>,
@@ -17,6 +17,10 @@ impl CompletePolicy {
 
     pub fn field_policy(&self, fid: Id<Def>) -> &FieldPolicy {
         &self.fields[&fid]
+    }
+
+    pub fn add_field_policy(&mut self, fid: Id<Def>, pol: FieldPolicy) {
+        self.fields.insert(fid, pol);
     }
 }
 
@@ -74,20 +78,20 @@ pub enum CompleteMigrationAction {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CollectionPolicy {
     pub create: Policy,
     pub delete: Policy,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FieldPolicy {
     pub field_id: Id<Def>,
     pub read: Policy,
     pub edit: Policy,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Policy {
     Public,
     None,
