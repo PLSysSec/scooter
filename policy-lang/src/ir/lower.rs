@@ -22,6 +22,22 @@ impl CompletePolicy {
     pub fn add_field_policy(&mut self, fid: Id<Def>, pol: FieldPolicy) {
         self.fields.insert(fid, pol);
     }
+
+    pub fn remove_field_policy(&mut self, fid: Id<Def>) -> FieldPolicy {
+        self.fields
+            .remove(&fid)
+            .expect("Could not remove the policy because it doesn't exist")
+    }
+
+    pub fn add_collection_policy(&mut self, cid: Id<Collection>, pol: CollectionPolicy) {
+        self.colls.insert(cid, pol);
+    }
+
+    pub fn remove_collection_policy(&mut self, cid: Id<Collection>) -> CollectionPolicy {
+        self.colls
+            .remove(&cid)
+            .expect("Could not remove the policy because it doesn't exist")
+    }
 }
 
 #[derive(Debug)]
@@ -228,8 +244,7 @@ impl Lowerer<'_> {
                         if *t1 == *t2 {
                             ExprKind::AppendL(*t1, lowered1, lowered2)
                         } else {
-                            panic!(format!("Cannot append List({}) to List({}).",
-                                           *t1, *t2))
+                            panic!(format!("Cannot append List({}) to List({}).", *t1, *t2))
                         }
                     }
                     (Type::List(t1), Type::Id(coll)) => {
@@ -241,8 +256,9 @@ impl Lowerer<'_> {
                             Type::Id(coll2) if coll2 == coll => {
                                 ExprKind::AppendL(Type::Id(coll), lowered1, converted)
                             }
-                            _ => panic!(format!("Cannot add an Id of {:?} to a List({})",
-                                                coll, t1)),
+                            _ => {
+                                panic!(format!("Cannot add an Id of {:?} to a List({})", coll, t1))
+                            }
                         }
                     }
                     (Type::Id(coll), Type::List(t2)) => {
@@ -254,8 +270,9 @@ impl Lowerer<'_> {
                             Type::Id(coll2) if coll2 == coll => {
                                 ExprKind::AppendL(Type::Id(coll), converted, lowered2)
                             }
-                            _ => panic!(format!("Cannot add an Id of {:?} to a List({})",
-                                                coll, t2)),
+                            _ => {
+                                panic!(format!("Cannot add an Id of {:?} to a List({})", coll, t2))
+                            }
                         }
                     }
                     (Type::Id(coll1), Type::Id(coll2)) => {
@@ -270,8 +287,7 @@ impl Lowerer<'_> {
                         if coll1 == coll2 {
                             ExprKind::AppendL(Type::Id(coll1), converted1, converted2)
                         } else {
-                            panic!("Cannot OR Id of {:?} with Id of {:?}",
-                                   coll1, coll2)
+                            panic!("Cannot OR Id of {:?} with Id of {:?}", coll1, coll2)
                         }
                     }
                     (Type::Prim(Prim::I64), Type::Prim(Prim::I64)) => {
@@ -328,7 +344,10 @@ impl Lowerer<'_> {
                             });
                             ExprKind::IsEq(Type::Prim(Prim::F64), lowered1, converted2)
                         }
-                        (ty1, ty2) => panic!("Static type error: left side of == is {}, right side is {}", ty1, ty2),
+                        (ty1, ty2) => panic!(
+                            "Static type error: left side of == is {}, right side is {}",
+                            ty1, ty2
+                        ),
                     }
                 }
             }
@@ -349,10 +368,12 @@ impl Lowerer<'_> {
                 let ty2 = infer_expr_type(self.ird, lowered2);
 
                 match (ty1, ty2) {
-                    (Type::Prim(Prim::I64), Type::Prim(Prim::I64)) =>
-                        ExprKind::IsLessI(lowered1, lowered2),
-                    (Type::Prim(Prim::F64), Type::Prim(Prim::F64)) =>
-                        ExprKind::IsLessF(lowered1, lowered2),
+                    (Type::Prim(Prim::I64), Type::Prim(Prim::I64)) => {
+                        ExprKind::IsLessI(lowered1, lowered2)
+                    }
+                    (Type::Prim(Prim::F64), Type::Prim(Prim::F64)) => {
+                        ExprKind::IsLessF(lowered1, lowered2)
+                    }
                     (Type::Prim(Prim::I64), Type::Prim(Prim::F64)) => {
                         let converted1 = self.ird.exprs.alloc_with_id(|id| Expr {
                             id,
@@ -367,9 +388,8 @@ impl Lowerer<'_> {
                         });
                         ExprKind::IsLessF(lowered1, converted2)
                     }
-                    _ => panic!("Cannot compare non-numeric types")
+                    _ => panic!("Cannot compare non-numeric types"),
                 }
-
             }
             ast::QueryExpr::IsGreater(e1, e2) => {
                 let less_flipped_ast = ast::QueryExpr::IsLess(e2.clone(), e1.clone());
@@ -392,10 +412,12 @@ impl Lowerer<'_> {
                     let field = self.ird.field(cid, f).id;
                     ExprKind::Path(cid, obj_expr, field)
                 } else {
-                    panic!("Attempted to access field {} of {:?} which is not an object",
-                           f, e);
+                    panic!(
+                        "Attempted to access field {} of {:?} which is not an object",
+                        f, e
+                    );
                 }
-            },
+            }
             ast::QueryExpr::Object(ast::ObjectLiteral {
                 coll: coll_name,
                 fields,

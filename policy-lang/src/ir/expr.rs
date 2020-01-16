@@ -1,5 +1,6 @@
 use super::*;
 use id_arena::Id;
+use std::iter;
 
 #[derive(Debug, Clone)]
 pub struct Expr {
@@ -68,7 +69,6 @@ pub struct Lambda {
     pub body: Id<Expr>,
 }
 
-
 pub fn infer_expr_type(ird: &IrData, expr_id: Id<Expr>) -> Type {
     let expr = &ird[expr_id];
     match &expr.kind {
@@ -130,10 +130,50 @@ pub fn is_subtype(t1: &Type, t2: &Type) -> bool {
             Type::List(inner_type1) => match **inner_type1 {
                 Type::Id(_) => true,
                 _ => false,
-            }
+            },
             Type::Id(_) => true,
             _ => false,
-        }
-        _ => false
+        },
+        _ => false,
+    }
+}
+
+/// Preorder traversal
+pub fn expr_to_all_subexprs<'a>(ird: &'a IrData, e_id: Id<Expr>) -> Box<dyn Iterator<Item = &'a Id<Expr>> + 'a> {
+    let expr = &ird[e_id];
+    match &expr.kind {
+        ExprKind::AppendS(e1_id, e2_id)
+        | ExprKind::AppendL(_, e1_id, e2_id)
+        | ExprKind::AddI(e1_id, e2_id)
+        | ExprKind::AddF(e1_id, e2_id)
+        | ExprKind::SubI(e1_id, e2_id)
+        | ExprKind::SubF(e1_id, e2_id)
+        | ExprKind::IsEq(_, e1_id, e2_id)
+        | ExprKind::IsLessI(e1_id, e2_id)
+        | ExprKind::IsLessF(e1_id, e2_id) => Box::new(iter::once(&expr.id)
+            .chain(expr_to_all_subexprs(ird, *e1_id))
+            .chain(expr_to_all_subexprs(ird, *e2_id))),
+        ExprKind::Not(se_id) | ExprKind::IntToFloat(se_id) => Box::new(iter::once(&expr.id)
+            .chain(expr_to_all_subexprs(ird, *se_id))),
+        ExprKind::If(_, e1_id, e2_id, e3_id) => Box::new(iter::once(&expr.id)
+            .chain(expr_to_all_subexprs(ird, *e1_id))
+            .chain(expr_to_all_subexprs(ird, *e2_id))
+            .chain(expr_to_all_subexprs(ird, *e3_id))),
+        ExprKind::List(exprs) => Box::new(iter::once(&expr.id)
+            .chain(exprs.iter().flat_map(move |expr| expr_to_all_subexprs(ird, *expr)))),
+        ExprKind::Object(_, field_exprs, template_expr) => Box::new(iter::once(&expr.id)
+            .chain(field_exprs.iter().flat_map(move |(_ident, expr)| expr_to_all_subexprs(ird, *expr)))
+            .chain(if let Some(texpr) = template_expr {
+                expr_to_all_subexprs(ird, *texpr)
+            } else {
+                Box::new(iter::empty())
+            })),
+        ExprKind::IntConst(_)
+        | ExprKind::FloatConst(_)
+        | ExprKind::StringConst(_)
+        | ExprKind::BoolConst(_) => Box::new(iter::once(&expr.id)),
+        ExprKind::Var(_) => Box::new(iter::once(&expr.id)),
+        ExprKind::LookupById(_coll, se_id) => Box::new(iter::once(&expr.id).chain(expr_to_all_subexprs(ird, *se_id))),
+        ExprKind::Path(_coll, se_id, _def) => Box::new(iter::once(&expr.id).chain(expr_to_all_subexprs(ird, *se_id))),
     }
 }
