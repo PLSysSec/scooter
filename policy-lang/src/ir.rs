@@ -206,6 +206,13 @@ impl IrData {
         assert!(self.def_types.insert(def, new_type).is_some());
     }
 
+    pub fn create_expr(&mut self, kind: ExprKind) -> Id<Expr> {
+        self.exprs.alloc_with_id(|id| Expr {
+            id,
+            kind: kind,
+        })
+    }
+
     /// A convenience method that handles the multiple lookups required to get the field definition
     pub fn field(&self, cid: Id<Collection>, fname: &str) -> &Def {
         &self[self[cid]

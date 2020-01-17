@@ -14,9 +14,16 @@ impl CompletePolicy {
     pub fn collection_policy(&self, cid: Id<Collection>) -> &CollectionPolicy {
         &self.colls[&cid]
     }
+    pub fn collection_policy_mut<'a> (&'a mut self, cid: Id<Collection>) -> &'a mut CollectionPolicy {
+        self.colls.get_mut(&cid).expect("Cannot find policy")
+    }
 
     pub fn field_policy(&self, fid: Id<Def>) -> &FieldPolicy {
         &self.fields[&fid]
+    }
+
+    pub fn field_policy_mut(&mut self, fid: Id<Def>) -> &mut FieldPolicy {
+        self.fields.get_mut(&fid).expect("Cannot find field policy")
     }
 
     pub fn add_field_policy(&mut self, fid: Id<Def>, pol: FieldPolicy) {
@@ -84,7 +91,8 @@ pub enum CompleteMigrationAction {
         new_init: Lambda,
     },
     RenameField {
-        field_id: Id<Def>,
+        old_field_id: Id<Def>,
+        new_field_id: Id<Def>,
         old_name: String,
         new_name: String,
     },
@@ -584,7 +592,8 @@ impl Lowerer<'_> {
                     .add_field(collection_id, new_field.clone(), field_ty);
 
                 CompleteMigrationAction::RenameField {
-                    field_id: field_id,
+                    old_field_id: field_id,
+                    new_field_id: self.ird.field(collection_id, &new_field).id,
                     old_name: old_field,
                     new_name: new_field,
                 }
