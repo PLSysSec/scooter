@@ -11,7 +11,7 @@ use std::fs::read_to_string;
 use std::path::Path;
 
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Principle {
     Id(RecordId),
     Public,
