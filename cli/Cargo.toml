@@ -4,7 +4,11 @@ version = "0.1.0"
 authors = ["John Renner <john@jrenner.net>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+# Here's an example of a TOML "array of tables" section, in this case specifying
+# a binary target name and path.
+[[bin]]
+name = "migrate"
+path = "src/main.rs"
 
 [dependencies]
 clap = "2.33.0"
