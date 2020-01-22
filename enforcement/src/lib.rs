@@ -42,6 +42,10 @@ impl RecordId {
     pub fn from_object_id(id: ObjectId) -> RecordId {
         RecordId(id)
     }
+
+    pub unsafe fn ascribe_collection<T: DBCollection>(self) -> TypedRecordId<T> {
+        TypedRecordId(self, PhantomData)
+    }
 }
 
 pub struct TypedRecordId<T: DBCollection>(RecordId,
@@ -196,6 +200,7 @@ impl <'a> AuthConn <'a>{
 pub trait DBCollection: Sized {
     type Partial;
     fn find_by_id(connection: &AuthConn, id: RecordId) -> Option<Self::Partial>;
+    fn find_all(connection: &AuthConn) -> Option<Vec<Self::Partial>>;
     fn find_full_by_id(connection: &DBConn, id: RecordId) -> Option<Self>;
     fn insert_one(connection: &AuthConn, item: Self) -> Option<TypedRecordId<Self>>;
     fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<TypedRecordId<Self>>>;

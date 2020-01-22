@@ -170,7 +170,10 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                     #(#field_adders)*
                     pub fn finalize(&self) -> #partial_ident {
-                        #partial_ident {#(#field_setters),*,id:self.id.clone()}
+                        #partial_ident {
+                            #(#field_setters),*,
+                            id: unsafe { self.id.clone().ascribe_collection() }
+                        }
                     }
                 }
             }
@@ -179,14 +182,14 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             #[derive(Debug)]
             #input_vis struct #partial_ident {
                 #(#optioned_fields),*,
-                id: #enforcement_crate_name::RecordId
+                pub id: #enforcement_crate_name::TypedRecordId<#ident>
             }
             impl #ident {
                 pub fn fully_resolve(&self, conn: &AuthConn) -> #partial_ident {
                     #partial_ident {
                         #(#field_builders),*,
-                        id: self.id.clone()
-                            .expect("Can't resolve an object without an id!")
+                        id: unsafe { self.id.clone()
+                            .expect("Can't resolve an object without an id!").ascribe_collection() }
                     }
                 }
             }
@@ -209,7 +212,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             let field_str = field_ident.to_string();
             let field_type = &field.ty;
             quote! {
-                #field_ident: <#field_type>::from_bson(doc.remove(#field_str).unwrap())
+                #field_ident: <#field_type>::from_bson(doc.remove(#field_str).expect(#field_str))
             }
         });
         quote! {
@@ -259,14 +262,14 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     use mongodb::db::ThreadedDatabase;
                     for item in items.iter() {
                         let get_doc = doc! {
-                            "_id": item.id.clone()
+                            "_id": RecordId::from(item.id.clone())
                         };
                         let full_item = #ident::from_document(
                             connection
                                 .conn()
                                 .mongo_conn
                                 .collection(#ident_string)
-                                .find_one(Some(doc! {"_id":item.id.clone()}),
+                                .find_one(Some(doc! {"_id": RecordId::from(item.id.clone()) }),
                                           None)
                                 .unwrap()
                                 .expect("Tried to modify an object not from the database!"));
@@ -274,7 +277,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                     for item in items.into_iter() {
                         let get_doc = doc! {
-                            "_id": item.id.clone()
+                            "_id": RecordId::from(item.id.clone())
                         };
                         let mut set_doc = bson::Document::new();
                         #(#field_set_partial_arms)*
@@ -305,6 +308,20 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                         .find_one(Some(doc! {"_id":id}), None)
                     {
                         Result::Ok(Some(doc)) => Some(#ident::from_document(doc)),
+                        _ => None,
+                    }
+                }
+                fn find_all(connection: &AuthConn) -> Option<Vec<Self::Partial>> {
+                    use mongodb::db::ThreadedDatabase;
+                    match connection.conn().mongo_conn
+                        .collection(#ident_string)
+                        .find(None, None)
+                    {
+                        Result::Ok(doc) => Some(
+                            doc
+                               .filter_map(Result::ok)
+                               .map(|obj| #ident::from_document(obj).fully_resolve(connection))
+                               .collect()),
                         _ => None,
                     }
                 }

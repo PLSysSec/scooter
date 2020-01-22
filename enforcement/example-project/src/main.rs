@@ -212,4 +212,30 @@ mod test {
             assert_eq!(Some(uid_john.clone()), retreived_1st_message.from);
         }
     }
+
+    #[test]
+    fn find_all() {
+        let db_conn = DBConn::new("localhost", 27017,"test2");
+
+        let users: Vec<_> = vec![
+            user! {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+                num_followers: 0,
+                trustworthyness: 15,
+            },
+            user! {
+                username: "John".to_string(),
+                pass_hash: "john_hash".to_string(),
+                num_followers: 0,
+                trustworthyness: 5,
+            },
+        ];
+
+        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let all: Vec<_> = User::find_all(&db_conn.as_princ(Principle::Public)).unwrap().iter().map(|obj| obj.id.clone()).collect();
+        for id in uids {
+            assert!(all.contains(&id))
+        }
+    }
 }
