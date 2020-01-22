@@ -155,6 +155,7 @@ impl<T> From<TypedRecordId<T>> for Bson where T: DBCollection{
     }
 }
 
+#[derive(Clone)]
 pub struct DBConn {
     pub mongo_conn: Database,
 }
