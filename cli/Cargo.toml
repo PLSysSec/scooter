@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 clap = "2.33.0"
 chrono = "0.4.10"
+migrate = {path="../enforcement/migrate"}
+static-checker = {path="../static-checker"}

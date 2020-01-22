@@ -1,7 +1,8 @@
-use std::fs::{File, create_dir, read_dir};
+use std::fs::{File, create_dir, read_dir, read_to_string};
 use std::env::current_dir;
-use std::path::PathBuf;
+use std::path::{Path,PathBuf};
 use std::io;
+use static_checker;
 
 use chrono::prelude::*;
 
@@ -30,7 +31,7 @@ impl Project {
         let new_dir = self.migration_dir().join(fname);
 
         create_dir(new_dir.clone())?;
-        File::create(new_dir.join("up.mig"));
+        File::create(new_dir.join("up.mig"))?;
         Ok(new_dir)
     }
 
@@ -40,6 +41,14 @@ impl Project {
         });
 
         Ok(iter)
+    }
+
+    pub fn policy_file(&self) -> PathBuf {
+        self.root_dir.join("policy.txt")
+    }
+
+    pub fn dry_run_migration(&self, file_path: impl AsRef<Path>) -> String {
+        static_checker::migrate::migrate_policy_from_files(self.policy_file(), file_path)
     }
 
     fn migration_dir(&self) -> PathBuf {

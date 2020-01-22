@@ -3,23 +3,20 @@ use policy_lang::{parse_migration, parse_policy};
 
 use std::collections::HashMap;
 use std::io::{self, Read};
+use std::fs::read_to_string;
+use std::path::Path;
 use std::iter;
 
 /// Take two filenames, a policy and a migration, and produce a new
 /// policy as a string, by reading those files.
 pub fn migrate_policy_from_files(
-    policy_path: impl ToString,
-    migration_path: impl ToString,
+    policy_path: impl AsRef<Path>,
+    migration_path: impl AsRef<Path>,
 ) -> String {
     migrate_policy(
-        &get_contents(&policy_path.to_string()).expect("Couldn't read policy file"),
-        &get_contents(&migration_path.to_string()).expect("Couldn't read migration file"),
+        &read_to_string(policy_path).expect("Couldn't read policy file"),
+        &read_to_string(migration_path).expect("Couldn't read migration file"),
     )
-}
-fn get_contents(fname: &str) -> io::Result<String> {
-    let mut out = String::new();
-    std::fs::File::open(fname)?.read_to_string(&mut out)?;
-    Ok(out)
 }
 
 /// Take the text of a policy and a migration, and produce a new
@@ -376,8 +373,6 @@ fn remove_invalidated_policies(
                 .filter(|(field_name, _field_id)| *field_name != "id")
         })
         .map(|(field_name, field_id)| {
-            println!("Field name is {}, id is {:?}", field_name, field_id);
-            println!("{:?}", old_policy);
             (*field_id, old_policy.field_policy(*field_id))
         })
         .collect();
@@ -478,8 +473,9 @@ fn field_lookups_in_expr(ird: &IrData, e_id: Id<Expr>) -> Vec<Id<Def>> {
         .collect()
 }
 
+#[cfg(test)]
 mod test {
-    use crate::migrate_policy;
+    use super::*;
 
     #[test]
     fn parse_and_print() {

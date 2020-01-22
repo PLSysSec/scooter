@@ -9,5 +9,15 @@ pub fn init() {
 
 pub fn new(migration_name: &str) {
     let proj = Project::find_from_cwd().unwrap();
-    proj.create_migration(migration_name);
+    proj.create_migration(migration_name).unwrap();
+}
+
+pub fn run(migration_path: &str) {
+
+}
+
+pub fn dry_run(migration_path: &str) {
+    let proj = Project::find_from_cwd().unwrap();
+    let new_policy = proj.dry_run_migration(migration_path);
+    println!("{}", new_policy);
 }
