@@ -336,15 +336,22 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                                 return None
                             }
                     }
+
+                    let num_items = items.len();
+
                     match connection.conn().mongo_conn.collection(#ident_string)
                         .insert_many(items.into_iter().map(|i| #ident::to_document(&i)), None)
                     {
                         Result::Ok(mongodb::results::InsertManyResult {
                             inserted_ids: ids, ..
-                        }) => Some(
-                            // Unwrap is safe because these are guaranteed to be ids
-                            ids.values().map(|b| b.as_object_id().unwrap().clone().into())
-                                .collect()),
+                        }) => {
+                            let mut out = vec![];
+                            for idx in 0..num_items{
+                                // Unwrap is safe because these are guaranteed to be ids
+                                out.push(ids[&idx].as_object_id().unwrap().clone().into());
+                            }
+                            Some(out)
+                        },
                        _ => None,
                     }
                 }

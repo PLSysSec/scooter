@@ -13,7 +13,7 @@ use std::path::Path;
 
 pub mod gen_prelude {
     pub use mongodb;
-    pub use bson::{doc,bson};
+    pub use ::bson::{self, doc, bson};
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
