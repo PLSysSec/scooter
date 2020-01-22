@@ -168,7 +168,7 @@ struct ConnConf {
 }
 
 impl DBConn {
-    pub fn as_princ(&self, id: Principle) -> AuthConn {
+    pub fn as_princ(self, id: Principle) -> AuthConn {
         AuthConn {
             inner_conn: self,
             principle: id,
@@ -195,14 +195,14 @@ impl DBConn {
     }
 }
 
-pub struct AuthConn<'a> {
-    inner_conn: &'a DBConn,
+pub struct AuthConn {
+    inner_conn: DBConn,
     principle: Principle,
 }
 
-impl <'a> AuthConn <'a>{
-    pub fn conn(&self) -> &'a DBConn {
-        self.inner_conn
+impl AuthConn {
+    pub fn conn(&self) -> &DBConn {
+        &self.inner_conn
     }
     pub fn principle(&self) -> Principle {
         self.principle.clone()

@@ -29,19 +29,19 @@ mod test {
             },
         ];
 
-        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
 
         let retrieved_alex = User::find_by_id(
-            &db_conn.as_princ(Principle::Id(uid_alex.clone().into())),
+            &db_conn.clone().as_princ(Principle::Id(uid_alex.clone().into())),
             uid_alex.clone().into(),
         )
         .unwrap();
         let publicly_retrieved_alex = User::find_by_id(
-            &db_conn.as_princ(Principle::Public),
+            &db_conn.clone().as_princ(Principle::Public),
             uid_alex.clone().into(),
         )
         .unwrap();
@@ -54,7 +54,7 @@ mod test {
     fn set_password() {
         let db_conn = DBConn::new("localhost", 27017,"test2");
         let alex_id = User::insert_many(
-            &db_conn.as_princ(Principle::Public),
+            &db_conn.clone().as_princ(Principle::Public),
             vec![user! {username: "Alex".to_string(),
                         pass_hash: "alex_hash".to_string(),
                         num_followers: 0,
@@ -70,30 +70,30 @@ mod test {
             .pass_hash("monster_mash".to_string())
             .finalize();
 
-        assert!(!alex_obj.save(&db_conn.as_princ(Principle::Public)));
+        assert!(!alex_obj.save(&db_conn.clone().as_princ(Principle::Public)));
         {
             let retrieved_alex = User::find_by_id(
-                &db_conn.as_princ(Principle::Id(alex_id.clone().into())),
+                &db_conn.clone().as_princ(Principle::Id(alex_id.clone().into())),
                 alex_id.clone().into(),
             )
             .unwrap();
             let publicly_retrieved_alex =
-                User::find_by_id(&db_conn.as_princ(Principle::Public), alex_id.clone().into())
+                User::find_by_id(&db_conn.clone().as_princ(Principle::Public), alex_id.clone().into())
                     .unwrap();
 
             assert_eq!(Some("alex_hash".to_string()), retrieved_alex.pass_hash);
             assert_eq!(None, publicly_retrieved_alex.pass_hash);
         }
-        assert!(alex_obj.save(&db_conn.as_princ(Principle::Id(alex_id.clone().into()))));
+        assert!(alex_obj.save(&db_conn.clone().as_princ(Principle::Id(alex_id.clone().into()))));
 
         {
             let retrieved_alex = User::find_by_id(
-                &db_conn.as_princ(Principle::Id(alex_id.clone().into())),
+                &db_conn.clone().as_princ(Principle::Id(alex_id.clone().into())),
                 alex_id.clone().into(),
             )
             .unwrap();
             let publicly_retrieved_alex =
-                User::find_by_id(&db_conn.as_princ(Principle::Public), alex_id.clone().into())
+                User::find_by_id(&db_conn.clone().as_princ(Principle::Public), alex_id.clone().into())
                     .unwrap();
 
             assert_eq!(Some("monster_mash".to_string()), retrieved_alex.pass_hash);
@@ -106,7 +106,7 @@ mod test {
         let db_conn = DBConn::new("localhost", 27017,"test2");
 
         let alex_id = User::insert_many(
-            &db_conn.as_princ(Principle::Public),
+            &db_conn.clone().as_princ(Principle::Public),
             vec![user! {username: "Alex".to_string(),
                         pass_hash: "alex_hash".to_string(),
                         num_followers: 0,
@@ -118,7 +118,7 @@ mod test {
         .expect("Didn't get any ids back!");
 
         let result = User::delete_by_id(
-            &db_conn.as_princ(Principle::Id(alex_id.clone().into())),
+            &db_conn.clone().as_princ(Principle::Id(alex_id.clone().into())),
             alex_id.clone().into(),
         );
         assert!(!result);
@@ -146,14 +146,14 @@ mod test {
         ];
 
         // Insert the users, and get their ids
-        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
         // Make connection objects for both users
-        let alex_conn = &db_conn.as_princ(Principle::Id(uid_alex.clone().into()));
-        let john_conn = &db_conn.as_princ(Principle::Id(uid_john.clone().into()));
+        let alex_conn = &db_conn.clone().as_princ(Principle::Id(uid_alex.clone().into()));
+        let john_conn = &db_conn.clone().as_princ(Principle::Id(uid_john.clone().into()));
 
         // Insert a message from alex to john, and get its id
         let mid_fromalex = Message::insert_one(
@@ -232,8 +232,8 @@ mod test {
             },
         ];
 
-        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
-        let all: Vec<_> = User::find_all(&db_conn.as_princ(Principle::Public)).unwrap().iter().map(|obj| obj.id.clone()).collect();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let all: Vec<_> = User::find_all(&db_conn.clone().as_princ(Principle::Public)).unwrap().iter().map(|obj| obj.id.clone()).collect();
         for id in uids {
             assert!(all.contains(&id))
         }
