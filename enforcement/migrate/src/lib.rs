@@ -2,8 +2,7 @@ pub mod migrate;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mongodb::db::ThreadedDatabase;
-    use mongodb::{bson, doc};
+    use bson::{Document, bson, doc};
 
     mod types;
     use enforcement::*;
@@ -28,10 +27,10 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "add_and_remove_fields_test".to_string();
-        let db_conn = DBConn::new(&db_name);
+        let db_conn = DBConn::new("localhost", 27017, &db_name);
         // Drop any existing collection by the same name, so that the
         // collection is empty.
-        db_conn.mongo_conn.collection(&col_name).drop().unwrap();
+        db_conn.mongo_conn.collection(&col_name).drop(None).ok();
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -48,7 +47,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -57,7 +56,7 @@ mod tests {
             db_conn
                 .mongo_conn
                 .collection(&col_name)
-                .count(None, None)
+                .count_documents(None, None)
                 .unwrap(),
             2
         );
@@ -148,12 +147,12 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "rename_field_addrm_test".to_string();
-        let db_conn = DBConn::new(&db_name);
+        let db_conn = DBConn::new("localhost", 27017, &db_name);
         // Drop any existing collection by the same name, so that the
         // collection is empty.
         let coll = db_conn.mongo_conn.collection(&col_name);
-        coll.drop().unwrap();
-        assert_eq!(coll.count(None, None).unwrap(), 0);
+        coll.drop(None).ok();
+        assert_eq!(coll.count_documents(None, None).unwrap(), 0);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -170,7 +169,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -179,7 +178,7 @@ mod tests {
             db_conn
                 .mongo_conn
                 .collection(&col_name)
-                .count(None, None)
+                .count_documents(None, None)
                 .unwrap(),
             2
         );
@@ -239,12 +238,12 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "duplicate_messages_test".to_string();
-        let db_conn = DBConn::new(&db_name);
+        let db_conn = DBConn::new("localhost", 27017, &db_name);
         // Drop any existing collection by the same name, so that the
         // collection is empty.
         let coll = db_conn.mongo_conn.collection(&col_name);
-        coll.drop().unwrap();
-        assert_eq!(coll.count(None, None).unwrap(), 0);
+        coll.drop(None).ok();
+        assert_eq!(coll.count_documents(None, None).unwrap(), 0);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -261,12 +260,12 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let _uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         assert_eq!(
             db_conn
                 .mongo_conn
                 .collection(&col_name)
-                .count(None, None)
+                .count_documents(None, None)
                 .unwrap(),
             2
         );
@@ -292,11 +291,11 @@ mod tests {
             db_conn
                 .mongo_conn
                 .collection(&col_name)
-                .count(None, None)
+                .count_documents(None, None)
                 .unwrap(),
             4
         );
-        let all_docs: Vec<mongodb::Document> = db_conn
+        let all_docs: Vec<Document> = db_conn
             .mongo_conn
             .collection(&col_name)
             .find(None, None)
@@ -317,12 +316,12 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "delete_users_test".to_string();
-        let db_conn = DBConn::new(&db_name);
+        let db_conn = DBConn::new("localhost", 27017, &db_name);
         // Drop any existing collection by the same name, so that the
         // collection is empty.
         let coll = db_conn.mongo_conn.collection(&col_name);
-        coll.drop().unwrap();
-        assert_eq!(coll.count(None, None).unwrap(), 0);
+        coll.drop(None).ok();
+        assert_eq!(coll.count_documents(None, None).unwrap(), 0);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -339,12 +338,12 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let _uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         assert_eq!(
             db_conn
                 .mongo_conn
                 .collection(&col_name)
-                .count(None, None)
+                .count_documents(None, None)
                 .unwrap(),
             2
         );
@@ -369,7 +368,7 @@ mod tests {
             db_conn
                 .mongo_conn
                 .collection(&col_name)
-                .count(None, None)
+                .count_documents(None, None)
                 .unwrap(),
             0
         );
@@ -380,12 +379,12 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "add_half_follower_test".to_string();
-        let db_conn = DBConn::new(&db_name);
+        let db_conn = DBConn::new("localhost", 27017, &db_name);
         // Drop any existing collection by the same name, so that the
         // collection is empty.
         let coll = db_conn.mongo_conn.collection(&col_name);
-        coll.drop().unwrap();
-        assert_eq!(coll.count(None, None).unwrap(), 0);
+        coll.drop(None).ok();
+        assert_eq!(coll.count_documents(None, None).unwrap(), 0);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -401,7 +400,7 @@ mod tests {
                 num_followers: 0,
             },
         ];
-        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -410,7 +409,7 @@ mod tests {
             db_conn
                 .mongo_conn
                 .collection(&col_name)
-                .count(None, None)
+                .count_documents(None, None)
                 .unwrap(),
             2
         );
@@ -464,10 +463,10 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "rename_field_test".to_string();
-        let db_conn = DBConn::new(&db_name);
+        let db_conn = DBConn::new("localhost", 27017, &db_name);
         // Drop any existing collection by the same name, so that the
         // collection is empty.
-        db_conn.mongo_conn.collection(&col_name).drop().unwrap();
+        db_conn.mongo_conn.collection(&col_name).drop(None).ok();
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -484,7 +483,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -493,7 +492,7 @@ mod tests {
             db_conn
                 .mongo_conn
                 .collection(&col_name)
-                .count(None, None)
+                .count_documents(None, None)
                 .unwrap(),
             2
         );
@@ -553,10 +552,10 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "create_parallel_collection_test".to_string();
-        let db_conn = DBConn::new(&db_name);
+        let db_conn = DBConn::new("localhost", 27017, &db_name);
         // Drop any existing collection by the same name, so that the
         // collection is empty.
-        db_conn.mongo_conn.collection(&col_name).drop().unwrap();
+        db_conn.mongo_conn.collection(&col_name).drop(None).ok();
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -573,7 +572,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -582,7 +581,7 @@ mod tests {
             db_conn
                 .mongo_conn
                 .collection(&col_name)
-                .count(None, None)
+                .count_documents(None, None)
                 .unwrap(),
             2
         );
@@ -603,7 +602,7 @@ mod tests {
                 "#
             .to_string(),
         );
-        let all_phones: Vec<mongodb::Document> = db_conn
+        let all_phones: Vec<Document> = db_conn
             .mongo_conn
             .collection("Phone")
             .find(None, None)
@@ -625,10 +624,10 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "enable_multiple_usernames_test".to_string();
-        let db_conn = DBConn::new(&db_name);
+        let db_conn = DBConn::new("localhost", 27017, &db_name);
         // Drop any existing collection by the same name, so that the
         // collection is empty.
-        db_conn.mongo_conn.collection(&col_name).drop().unwrap();
+        db_conn.mongo_conn.collection(&col_name).drop(None).ok();
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -645,7 +644,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -654,7 +653,7 @@ mod tests {
             db_conn
                 .mongo_conn
                 .collection(&col_name)
-                .count(None, None)
+                .count_documents(None, None)
                 .unwrap(),
             2
         );
@@ -700,11 +699,11 @@ mod tests {
         let mcol_name = "Message".to_string();
         // Create a connection to the database
         let db_name = "stamp_messages_test".to_string();
-        let db_conn = DBConn::new(&db_name);
+        let db_conn = DBConn::new("localhost", 27017, &db_name);
         // Drop any existing collection by the same name, so that the
         // collection is empty.
-        db_conn.mongo_conn.collection(&col_name).drop().unwrap();
-        db_conn.mongo_conn.collection(&mcol_name).drop().unwrap();
+        db_conn.mongo_conn.collection(&col_name).drop(None).ok();
+        db_conn.mongo_conn.collection(&mcol_name).drop(None).ok();
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -721,14 +720,14 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
         // Make connection objects for both users
-        let alex_conn = &db_conn.as_princ(Principle::Id(uid_alex.clone().into()));
-        let john_conn = &db_conn.as_princ(Principle::Id(uid_john.clone().into()));
+        let alex_conn = &db_conn.clone().as_princ(Principle::Id(uid_alex.clone().into()));
+        let john_conn = &db_conn.clone().as_princ(Principle::Id(uid_john.clone().into()));
 
         let m1_id = Message::insert_one(
             alex_conn,

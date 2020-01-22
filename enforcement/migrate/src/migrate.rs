@@ -2,10 +2,9 @@ use policy_lang;
 
 use policy_lang::ir::*;
 
-use mongodb::db::{Database, ThreadedDatabase};
-use mongodb::oid::ObjectId;
-use mongodb::{bson, doc};
-use mongodb::{Bson, Client, Document, ThreadedClient};
+use mongodb::{Database};
+use bson::{Bson, Document, bson, doc, oid::ObjectId};
+use mongodb::{Client};
 
 /// Migrate a database, whose schema is outlined in a policy file,
 /// using migration commands specified in a migration file.
@@ -53,9 +52,9 @@ fn interpret_migration(
     _policy_ir: CompletePolicy,
 ) {
     // Create a connection to the database
-    let db_conn = Client::connect("localhost", 27017)
+    let db_conn = Client::with_uri_str("mongodb://localhost:27017")
         .expect("Failed to initialize client.")
-        .db(&db_name);
+        .database(&db_name);
     // Loop over the migration commands in sequence
     for cmd in migration_ir.0.into_iter() {
         match cmd {
@@ -70,7 +69,7 @@ fn interpret_migration(
 
 // Run a single migration action on a table
 fn interpret_action(
-    db_conn: &mongodb::db::Database,
+    db_conn: &Database,
     env: &IrData,
     collection: &Collection,
     action: CompleteMigrationAction,
@@ -140,9 +139,9 @@ fn interpret_action(
         // equivalent to Coll::Addfield(new_name, old_type, x ->
         // x.field) followed by Coll::DeleteField(field)
         CompleteMigrationAction::RenameField {
-            field_id: _,
             old_name,
             new_name,
+            ..
         } => {
             // Loop over the records
             for item in coll_docs(&db_conn, &collection).into_iter() {
