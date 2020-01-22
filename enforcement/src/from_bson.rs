@@ -1,4 +1,4 @@
-use mongodb::Bson;
+use bson::Bson;
 use serde::{Deserialize, Serialize};
 
 pub trait FromBson {
@@ -10,7 +10,7 @@ where
     T: Deserialize<'de>,
 {
     fn from_bson(bson: Bson) -> Self {
-        mongodb::from_bson(bson).unwrap()
+        bson::from_bson(bson).unwrap()
     }
 }
 
@@ -23,6 +23,6 @@ where
     T: Serialize,
 {
     fn to_bson(&self) -> Bson {
-        mongodb::to_bson(self).unwrap()
+        bson::to_bson(self).unwrap()
     }
 }

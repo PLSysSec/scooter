@@ -217,13 +217,13 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         });
         quote! {
             impl MongoDocument for #ident {
-                fn from_document(mut doc: mongodb::Document) -> Self {
+                fn from_document(mut doc: bson::Document) -> Self {
                     #ident {
                         #(#doc_get_fields),*,
                         id: Some(doc.get_object_id("_id").unwrap().clone().into())
                     }
                 }
-                fn to_document(&self) -> mongodb::Document {
+                fn to_document(&self) -> bson::Document {
                     let mut doc = doc! {
                         #(#doc_set_fields),*
                     };
@@ -259,7 +259,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             });
             quote!{
                 fn save_all(connection: &AuthConn, items: Vec<&#partial_ident>) -> bool {
-                    use mongodb::db::ThreadedDatabase;
+                    use mongodb::Database;
                     for item in items.iter() {
                         let get_doc = doc! {
                             "_id": RecordId::from(item.id.clone())
@@ -302,7 +302,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
                 fn find_full_by_id(connection: &DBConn, id: RecordId) -> Option<Self> {
-                    use mongodb::db::ThreadedDatabase;
+                    use mongodb::Database;
                     match connection.mongo_conn
                         .collection(#ident_string)
                         .find_one(Some(doc! {"_id":id}), None)
@@ -312,7 +312,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
                 fn find_all(connection: &AuthConn) -> Option<Vec<Self::Partial>> {
-                    use mongodb::db::ThreadedDatabase;
+                    use mongodb::Database;
                     match connection.conn().mongo_conn
                         .collection(#ident_string)
                         .find(None, None)
@@ -329,7 +329,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     Self::insert_many(connection, vec![item]).map(|v| v.into_iter().next().expect("Got an empty vec"))
                 }
                 fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<TypedRecordId<Self>>> {
-                    use mongodb::db::ThreadedDatabase;
+                    use mongodb::Database;
                     for item in items.iter() {
                         if ! #policy_module::create(&item, connection)
                             .accessible_by(&connection.principle()) {
@@ -337,10 +337,10 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                             }
                     }
                     match connection.conn().mongo_conn.collection(#ident_string)
-                        .insert_many(items.iter().map(#ident::to_document).collect(), None)
+                        .insert_many(items.into_iter().map(|i| #ident::to_document(&i)), None)
                     {
-                        Result::Ok(mongodb::coll::results::InsertManyResult {
-                            inserted_ids: Some(ids), ..
+                        Result::Ok(mongodb::results::InsertManyResult {
+                            inserted_ids: ids, ..
                         }) => Some(
                             // Unwrap is safe because these are guaranteed to be ids
                             ids.values().map(|b| b.as_object_id().unwrap().clone().into())
@@ -349,7 +349,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
                 fn delete_by_id(connection: &AuthConn, id: RecordId) -> bool {
-                    use mongodb::db::ThreadedDatabase;
+                    use mongodb::Database;
                     match connection
                         .conn()
                         .mongo_conn
@@ -367,8 +367,8 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     match connection.conn().mongo_conn.collection(#ident_string)
                         .delete_one(doc! {"_id":id}, None)
                     {
-                        Result::Ok(mongodb::coll::results::DeleteResult {
-                            acknowledged: True, ..
+                        Result::Ok(mongodb::results::DeleteResult {
+                            deleted_count: 1
                         }) => true,
                         _ => false
                     }

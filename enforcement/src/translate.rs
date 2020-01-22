@@ -50,7 +50,7 @@ fn gen_policy_body(ird: &IrData, policy: &Policy) -> String {
     }
 }
 fn gen_schema_macros(ird: &IrData, policy: CompletePolicy) -> String {
-    let mut out = "use enforcement::*;\n".to_string();
+    let mut out = "use enforcement::{gen_prelude::*, *};\n".to_string();
     for col in ird.collections() {
         let coll_policy = policy.collection_policy(col.id);
         let mut col_struct = format!(

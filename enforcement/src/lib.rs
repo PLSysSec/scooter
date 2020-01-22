@@ -1,6 +1,7 @@
 pub use enforcement_macros::collection;
-use mongodb::oid::ObjectId;
-pub use mongodb::{bson, doc};
+use bson::oid::ObjectId;
+use bson::{Bson, Document};
+use mongodb::{Database, Client, options::{ClientOptions, StreamAddress}};
 mod from_bson;
 pub use from_bson::*;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
@@ -10,6 +11,10 @@ use std::fmt;
 use std::fs::read_to_string;
 use std::path::Path;
 
+pub mod gen_prelude {
+    pub use mongodb;
+    pub use bson::{doc,bson};
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Principle {
@@ -33,8 +38,8 @@ impl PolicyValue {
 }
 
 pub trait MongoDocument {
-    fn from_document(doc: mongodb::Document) -> Self;
-    fn to_document(&self) -> mongodb::Document;
+    fn from_document(doc: Document) -> Self;
+    fn to_document(&self) -> Document;
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RecordId(ObjectId);
@@ -139,19 +144,16 @@ impl <T> From<ObjectId> for TypedRecordId<T> where T: DBCollection {
         TypedRecordId(RecordId(id), PhantomData)
     }
 }
-impl From<RecordId> for mongodb::Bson {
-    fn from(id: RecordId) -> mongodb::Bson {
+impl From<RecordId> for Bson {
+    fn from(id: RecordId) -> Bson {
         id.0.into()
     }
 }
-impl<T> From<TypedRecordId<T>> for mongodb::Bson where T: DBCollection{
-    fn from(id: TypedRecordId<T>) -> mongodb::Bson {
+impl<T> From<TypedRecordId<T>> for Bson where T: DBCollection{
+    fn from(id: TypedRecordId<T>) -> Bson {
         id.0.into()
     }
 }
-use mongodb::db::Database;
-use mongodb::Client;
-use mongodb::ThreadedClient;
 
 pub struct DBConn {
     pub mongo_conn: Database,
@@ -172,9 +174,18 @@ impl DBConn {
         }
     }
     pub fn new(host: &str, port: u16, db_name: &str) -> DBConn {
-        let client = Client::connect(host, port)
+        let options = ClientOptions::builder()
+                  .hosts(vec![
+                      StreamAddress {
+                          hostname: host.into(),
+                          port: Some(port),
+                      }
+                  ])
+                  .build();
+
+        let client = Client::with_options(options)
             .expect("Failed to initialize client.");
-        DBConn {mongo_conn: client.db(db_name)}
+        DBConn {mongo_conn: client.database(db_name)}
     }
 
     pub fn from_toml_conf<P: AsRef<Path>>(conf: P) -> DBConn {
