@@ -6,19 +6,25 @@ use mongodb::{Database};
 use bson::{Bson, Document, bson, doc, oid::ObjectId};
 use mongodb::{Client};
 
+/// Descriptor for the mongodb database a migration would operate on
+pub struct DbConf {
+    pub host: String,
+    pub port: u16,
+    pub db_name: String
+}
 /// Migrate a database, whose schema is outlined in a policy file,
 /// using migration commands specified in a migration file.
 ///
 /// # Arguments
 ///
-/// * `db_name` - The name of the database to migrate
+/// * `db_conf` - Configuration for the database
 ///
 /// * `policy_text` - The policy-lang source specifying the intial
 /// configuration of the database
 ///
 /// * `migration_text` - The migration-lang source specifying the
 /// migration
-pub fn migrate(db_name: String, policy_text: String, migration_text: String) {
+pub fn migrate(db_conf: DbConf, policy_text: String, migration_text: String) {
     // Parse the policy text into an ast
     let policy_ast = policy_lang::parse_policy(&policy_text).expect("Couldn't parse policy");
     // Parse the migration text into an ast
@@ -30,7 +36,7 @@ pub fn migrate(db_name: String, policy_text: String, migration_text: String) {
     let policy_ir = policy_env.lower(&policy_ast);
     let migration_ir = policy_env.lower_migration(migration_ast);
     // Run the migration
-    interpret_migration(db_name, policy_env, migration_ir, policy_ir)
+    interpret_migration(db_conf, policy_env, migration_ir, policy_ir)
 }
 
 /// Interpret the commands in a migration file, using a given database
@@ -38,7 +44,7 @@ pub fn migrate(db_name: String, policy_text: String, migration_text: String) {
 ///
 /// # Arguments
 ///
-/// `db_name` - The name of the database to run the migration on
+/// `db_conf` - Configuration for the database to run the migration on
 ///
 /// `migration_ast` - The parsed migration (a list of migration commands)
 ///
@@ -46,15 +52,15 @@ pub fn migrate(db_name: String, policy_text: String, migration_text: String) {
 ///
 /// `policy_ir` - The original policy itself
 fn interpret_migration(
-    db_name: String,
+    db_conf: DbConf,
     env: IrData,
     migration_ir: CompleteMigration,
     _policy_ir: CompletePolicy,
 ) {
     // Create a connection to the database
-    let db_conn = Client::with_uri_str("mongodb://localhost:27017")
+    let db_conn = Client::with_uri_str(&format!("mongodb://{}:{}", db_conf.host, db_conf.port))
         .expect("Failed to initialize client.")
-        .database(&db_name);
+        .database(&db_conf.db_name);
     // Loop over the migration commands in sequence
     for cmd in migration_ir.0.into_iter() {
         match cmd {

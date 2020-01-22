@@ -1,4 +1,5 @@
 pub mod migrate;
+pub use migrate::*;
 #[cfg(test)]
 mod tests {
     use super::*;

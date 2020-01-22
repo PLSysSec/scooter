@@ -1,8 +1,9 @@
-use std::fs::{File, create_dir, read_dir, read_to_string};
+use std::fs::{File, create_dir, read_dir, read_to_string, write};
 use std::env::current_dir;
 use std::path::{Path,PathBuf};
 use std::io;
 use static_checker;
+use migrate::{DbConf};
 
 use chrono::prelude::*;
 
@@ -43,12 +44,34 @@ impl Project {
         Ok(iter)
     }
 
+
+    pub fn dry_run_migration(&self, file_path: impl AsRef<Path>) -> String {
+        static_checker::migrate::migrate_policy_from_files(self.policy_file(), file_path)
+    }
+
+    pub fn run_migration(&self, file_path: impl AsRef<Path>) -> io::Result<()> {
+        let fp_ref = file_path.as_ref();
+        let policy = read_to_string(self.policy_file())?;
+        let migration = read_to_string(fp_ref)?;
+        ::migrate::migrate::migrate(self.db_conf()?, policy, migration);
+
+        let new_policy = self.dry_run_migration(fp_ref);
+        write(self.policy_file(), new_policy)?;
+
+        Ok(())
+    }
+
     pub fn policy_file(&self) -> PathBuf {
         self.root_dir.join("policy.txt")
     }
 
-    pub fn dry_run_migration(&self, file_path: impl AsRef<Path>) -> String {
-        static_checker::migrate::migrate_policy_from_files(self.policy_file(), file_path)
+    fn db_conf(&self) -> io::Result<DbConf> {
+        let conf: toml::Value = toml::from_str(&read_to_string(self.root_dir.join("db.toml"))?)?;
+        Ok(DbConf {
+            host: conf["host"].as_str().unwrap().to_string(),
+            port: conf["port"].as_integer().unwrap() as u16,
+            db_name: conf["db"].as_str().unwrap().to_string()
+        })
     }
 
     fn migration_dir(&self) -> PathBuf {

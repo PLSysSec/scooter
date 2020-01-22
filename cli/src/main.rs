@@ -16,10 +16,12 @@ fn main() {
             .setting(AppSettings::ArgRequiredElseHelp))
         .subcommand(SubCommand::with_name("run")
             .about("Executes a migration on the live database")
-            .arg(Arg::with_name("migration-file")))
+            .arg(Arg::with_name("migration-file"))
+            .setting(AppSettings::ArgRequiredElseHelp))
         .subcommand(SubCommand::with_name("dry-run")
             .about("Produces the policy that results from the migration")
-            .arg(Arg::with_name("migration-file")));
+            .arg(Arg::with_name("migration-file"))
+            .setting(AppSettings::ArgRequiredElseHelp));
 
     let matches = app.get_matches();
 

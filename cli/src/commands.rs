@@ -13,7 +13,9 @@ pub fn new(migration_name: &str) {
 }
 
 pub fn run(migration_path: &str) {
-
+    let proj = Project::find_from_cwd().unwrap();
+    proj.run_migration(migration_path).unwrap();
+    println!("Migration successful");
 }
 
 pub fn dry_run(migration_path: &str) {
