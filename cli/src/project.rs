@@ -3,7 +3,7 @@ use std::env::current_dir;
 use std::path::{Path,PathBuf};
 use std::io;
 use static_checker;
-use migrate::{DbConf};
+use migrate::{DbConf, migrate};
 
 use chrono::prelude::*;
 
@@ -53,7 +53,7 @@ impl Project {
         let fp_ref = file_path.as_ref();
         let policy = read_to_string(self.policy_file())?;
         let migration = read_to_string(fp_ref)?;
-        ::migrate::migrate::migrate(self.db_conf()?, policy, migration);
+        migrate(self.db_conf()?, policy, migration);
 
         let new_policy = self.dry_run_migration(fp_ref);
         write(self.policy_file(), new_policy)?;

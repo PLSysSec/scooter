@@ -6,17 +6,13 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[[bin]]
-name = "migrate"
-path = "src/main.rs"
-
 [dependencies]
 mongodb = '0.9.0'
-policy-lang = {path = "../../policy-lang"}
+policy-lang = {path = "../policy-lang"}
 bson = "0.14.0"
 
 [dev-dependencies]
-enforcement = {path=".."}
+enforcement = {path="../mongodb-enforcement"}
 
 [build-dependencies]
-enforcement = {path = ".."}
+enforcement = {path = "../mongodb-enforcement"}

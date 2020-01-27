@@ -1,0 +1,9 @@
+[workspace]
+
+members = [
+    "mongodb-enforcement",
+    "mongodb-migrate",
+    "policy-lang",
+    "static-checker",
+    "cli"
+]

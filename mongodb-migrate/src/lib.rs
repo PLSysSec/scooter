@@ -1,7 +1,8 @@
-pub mod migrate;
-pub use migrate::*;
+mod migrate;
+pub use crate::migrate::*;
 #[cfg(test)]
 mod tests {
+    use std::fs::read_to_string;
     use super::*;
     use bson::{Document, bson, doc};
 
@@ -13,15 +14,7 @@ mod tests {
 
     use std::io::{self, Read};
     use std::path::Path;
-    /// Returns the contents of the file at a given path
-    ///
-    /// # Arguments
-    /// * `fname` - The path to the file to read
-    fn get_contents(fname: &Path) -> io::Result<String> {
-        let mut out = String::new();
-        std::fs::File::open(fname)?.read_to_string(&mut out)?;
-        Ok(out)
-    }
+    use std::env::current_dir;
     #[test]
     fn add_and_remove_fields() {
         // The name of the collection
@@ -66,11 +59,10 @@ mod tests {
         // this migration string. The string removes the num_followers
         // column from the schema.
         migrate(
-            db_name,
-            get_contents(
+            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            read_to_string(
                 Path::new(&std::env::current_dir().unwrap())
                     .join("policy.txt".to_string())
-                    .as_ref(),
             )
             .unwrap(),
             r#"
@@ -188,11 +180,9 @@ mod tests {
         // this migration string. The string removes the num_followers
         // column from the schema.
         migrate(
-            db_name,
-            get_contents(
-                Path::new(&std::env::current_dir().unwrap())
-                    .join("policy.txt".to_string())
-                    .as_ref(),
+            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            read_to_string(
+                std::env::current_dir().unwrap().join("policy.txt".to_string()),
             )
             .unwrap(),
             r#"
@@ -274,13 +264,8 @@ mod tests {
         // Perform a migration, the contents of the policy file, and
         // this migration string. The string duplicates users.
         migrate(
-            db_name,
-            get_contents(
-                Path::new(&std::env::current_dir().unwrap())
-                    .join("policy.txt".to_string())
-                    .as_ref(),
-            )
-            .unwrap(),
+            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ForEach(u -> User::Create(User {username: u.username + "_duplicate"
                                                       ...u}))
@@ -352,13 +337,8 @@ mod tests {
         // Perform a migration, the contents of the policy file, and
         // this migration string. The string duplicates users.
         migrate(
-            db_name,
-            get_contents(
-                Path::new(&std::env::current_dir().unwrap())
-                    .join("policy.txt".to_string())
-                    .as_ref(),
-            )
-            .unwrap(),
+            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ForEach(u -> User::Delete(u.id))
                 "#
@@ -418,13 +398,8 @@ mod tests {
         // Perform a migration, the contents of the policy file, and
         // this migration string. The string duplicates users.
         migrate(
-            db_name,
-            get_contents(
-                Path::new(&std::env::current_dir().unwrap())
-                    .join("policy.txt".to_string())
-                    .as_ref(),
-            )
-            .unwrap(),
+            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ChangeField(num_followers, F64, u -> u.num_followers - 0.5)
                 "#
@@ -502,13 +477,8 @@ mod tests {
         // this migration string. The string removes the num_followers
         // column from the schema.
         migrate(
-            db_name,
-            get_contents(
-                Path::new(&std::env::current_dir().unwrap())
-                    .join("policy.txt".to_string())
-                    .as_ref(),
-            )
-            .unwrap(),
+            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::RenameField(num_followers, num_friends)
                 "#
@@ -590,13 +560,8 @@ mod tests {
         // Perform a migration, the contents of the policy file, and
         // this migration string.
         migrate(
-            db_name,
-            get_contents(
-                Path::new(&std::env::current_dir().unwrap())
-                    .join("policy.txt".to_string())
-                    .as_ref(),
-            )
-            .unwrap(),
+            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 CreateCollection(Phone, {owner: Id(User)})
                 User::ForEach(u -> Phone::Create(Phone {owner: u.id}))
@@ -663,13 +628,8 @@ mod tests {
         // this migration string. The string removes the num_followers
         // column from the schema.
         migrate(
-            db_name,
-            get_contents(
-                Path::new(&std::env::current_dir().unwrap())
-                    .join("policy.txt".to_string())
-                    .as_ref(),
-            )
-            .unwrap(),
+            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ChangeField(username, [String], u -> [u.username, u.username + "_alias"])
                 "#
@@ -760,13 +720,8 @@ mod tests {
         .unwrap();
 
         migrate(
-            db_name,
-            get_contents(
-                Path::new(&std::env::current_dir().unwrap())
-                    .join("policy.txt".to_string())
-                    .as_ref(),
-            )
-            .unwrap(),
+            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 Message::AddField(popular_sender,  Bool, m -> (if User::ById(m.from).num_followers < 20 then false else true))
                 "#

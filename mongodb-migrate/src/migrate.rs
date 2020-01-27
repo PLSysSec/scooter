@@ -2,9 +2,8 @@ use policy_lang;
 
 use policy_lang::ir::*;
 
-use mongodb::{Database};
+use mongodb::{Database, Client};
 use bson::{Bson, Document, bson, doc, oid::ObjectId};
-use mongodb::{Client};
 
 /// Descriptor for the mongodb database a migration would operate on
 pub struct DbConf {
