@@ -1,2 +1,2 @@
-pub mod smt;
 pub mod migrate;
+pub mod smt;

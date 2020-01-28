@@ -127,7 +127,6 @@ impl fmt::Display for Prim {
     }
 }
 
-
 /// IrData contains the type and name resolution data resulting from lowering the AST to a CompletePolicy.
 /// When comparing policies, you'll use the same IrData to analyze both of them
 /// so that all the type resolutions line up.
@@ -207,10 +206,7 @@ impl IrData {
     }
 
     pub fn create_expr(&mut self, kind: ExprKind) -> Id<Expr> {
-        self.exprs.alloc_with_id(|id| Expr {
-            id,
-            kind: kind,
-        })
+        self.exprs.alloc_with_id(|id| Expr { id, kind: kind })
     }
 
     /// A convenience method that handles the multiple lookups required to get the field definition

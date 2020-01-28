@@ -2,9 +2,9 @@ mod migrate;
 pub use crate::migrate::*;
 #[cfg(test)]
 mod tests {
-    use std::fs::read_to_string;
     use super::*;
-    use bson::{Document, bson, doc};
+    use bson::{bson, doc, Document};
+    use std::fs::read_to_string;
 
     mod types;
     use enforcement::*;
@@ -12,9 +12,9 @@ mod tests {
 
     use crate::migrate::migrate;
 
+    use std::env::current_dir;
     use std::io::{self, Read};
     use std::path::Path;
-    use std::env::current_dir;
     #[test]
     fn add_and_remove_fields() {
         // The name of the collection
@@ -59,10 +59,13 @@ mod tests {
         // this migration string. The string removes the num_followers
         // column from the schema.
         migrate(
-            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
             read_to_string(
-                Path::new(&std::env::current_dir().unwrap())
-                    .join("policy.txt".to_string())
+                Path::new(&std::env::current_dir().unwrap()).join("policy.txt".to_string()),
             )
             .unwrap(),
             r#"
@@ -180,9 +183,15 @@ mod tests {
         // this migration string. The string removes the num_followers
         // column from the schema.
         migrate(
-            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
             read_to_string(
-                std::env::current_dir().unwrap().join("policy.txt".to_string()),
+                std::env::current_dir()
+                    .unwrap()
+                    .join("policy.txt".to_string()),
             )
             .unwrap(),
             r#"
@@ -264,7 +273,11 @@ mod tests {
         // Perform a migration, the contents of the policy file, and
         // this migration string. The string duplicates users.
         migrate(
-            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
             read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ForEach(u -> User::Create(User {username: u.username + "_duplicate"
@@ -337,7 +350,11 @@ mod tests {
         // Perform a migration, the contents of the policy file, and
         // this migration string. The string duplicates users.
         migrate(
-            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
             read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ForEach(u -> User::Delete(u.id))
@@ -398,7 +415,11 @@ mod tests {
         // Perform a migration, the contents of the policy file, and
         // this migration string. The string duplicates users.
         migrate(
-            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
             read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ChangeField(num_followers, F64, u -> u.num_followers - 0.5)
@@ -477,7 +498,11 @@ mod tests {
         // this migration string. The string removes the num_followers
         // column from the schema.
         migrate(
-            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
             read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::RenameField(num_followers, num_friends)
@@ -560,7 +585,11 @@ mod tests {
         // Perform a migration, the contents of the policy file, and
         // this migration string.
         migrate(
-            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
             read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 CreateCollection(Phone, {owner: Id(User)})
@@ -628,7 +657,11 @@ mod tests {
         // this migration string. The string removes the num_followers
         // column from the schema.
         migrate(
-            DbConf { host: "localhost".to_string(), port: 27017, db_name},
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
             read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ChangeField(username, [String], u -> [u.username, u.username + "_alias"])
@@ -687,8 +720,12 @@ mod tests {
             _ => panic!("Not the right number of returned ids"),
         };
         // Make connection objects for both users
-        let alex_conn = &db_conn.clone().as_princ(Principle::Id(uid_alex.clone().into()));
-        let john_conn = &db_conn.clone().as_princ(Principle::Id(uid_john.clone().into()));
+        let alex_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_alex.clone().into()));
+        let john_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_john.clone().into()));
 
         let m1_id = Message::insert_one(
             alex_conn,

@@ -200,45 +200,43 @@ pub fn is_subtype(t1: &Type, t2: &Type) -> bool {
     }
 }
 
-pub fn expr_map(ird: &mut IrData,
-                f: &dyn Fn(&Expr) -> ExprKind,
-                e_id: Id<Expr>) -> Id<Expr> {
+pub fn expr_map(ird: &mut IrData, f: &dyn Fn(&Expr) -> ExprKind, e_id: Id<Expr>) -> Id<Expr> {
     let template = expr_map_to_template(ird, f, e_id);
     realize_template(ird, template)
 }
 
-fn realize_template(ird: &mut IrData, template: Box<ExprTemplate>) -> Id<Expr>{
+fn realize_template(ird: &mut IrData, template: Box<ExprTemplate>) -> Id<Expr> {
     match *template {
         ExprTemplate::AppendS(e1_templ, e2_templ) => {
             let arg1 = realize_template(ird, e1_templ);
             let arg2 = realize_template(ird, e2_templ);
             ird.create_expr(ExprKind::AppendS(arg1, arg2))
-        },
+        }
         ExprTemplate::AppendL(ty, e1_templ, e2_templ) => {
             let arg1 = realize_template(ird, e1_templ);
             let arg2 = realize_template(ird, e2_templ);
             ird.create_expr(ExprKind::AppendL(ty.clone(), arg1, arg2))
-        },
+        }
         ExprTemplate::AddI(e1_templ, e2_templ) => {
             let arg1 = realize_template(ird, e1_templ);
             let arg2 = realize_template(ird, e2_templ);
             ird.create_expr(ExprKind::AddI(arg1, arg2))
-        },
+        }
         ExprTemplate::AddF(e1_templ, e2_templ) => {
             let arg1 = realize_template(ird, e1_templ);
             let arg2 = realize_template(ird, e2_templ);
             ird.create_expr(ExprKind::AddF(arg1, arg2))
-        },
+        }
         ExprTemplate::SubI(e1_templ, e2_templ) => {
             let arg1 = realize_template(ird, e1_templ);
             let arg2 = realize_template(ird, e2_templ);
             ird.create_expr(ExprKind::SubI(arg1, arg2))
-        },
+        }
         ExprTemplate::SubF(e1_templ, e2_templ) => {
             let arg1 = realize_template(ird, e1_templ);
             let arg2 = realize_template(ird, e2_templ);
             ird.create_expr(ExprKind::SubF(arg1, arg2))
-        },
+        }
         ExprTemplate::IsEq(ty, e1_templ, e2_templ) => {
             let arg1 = realize_template(ird, e1_templ);
             let arg2 = realize_template(ird, e2_templ);
@@ -252,12 +250,12 @@ fn realize_template(ird: &mut IrData, template: Box<ExprTemplate>) -> Id<Expr>{
             let arg1 = realize_template(ird, e1_templ);
             let arg2 = realize_template(ird, e2_templ);
             ird.create_expr(ExprKind::IsLessI(arg1, arg2))
-        },
+        }
         ExprTemplate::IsLessF(e1_templ, e2_templ) => {
             let arg1 = realize_template(ird, e1_templ);
             let arg2 = realize_template(ird, e2_templ);
             ird.create_expr(ExprKind::IsLessF(arg1, arg2))
-        },
+        }
         ExprTemplate::IntToFloat(e_templ) => {
             let arg = realize_template(ird, e_templ);
             ird.create_expr(ExprKind::IntToFloat(arg))
@@ -266,21 +264,28 @@ fn realize_template(ird: &mut IrData, template: Box<ExprTemplate>) -> Id<Expr>{
             let arg1 = realize_template(ird, e_templ);
             ird.create_expr(ExprKind::Path(coll.clone(), arg1, field_id.clone()))
         }
-        ExprTemplate::Var(v) => {
-            ird.create_expr(ExprKind::Var(v.clone()))
-        }
+        ExprTemplate::Var(v) => ird.create_expr(ExprKind::Var(v.clone())),
         ExprTemplate::Object(coll, fields, template_expr) => {
-            let realized_fields = fields.into_iter().map(|(field_id, texpr)|
-                                                    (field_id, realize_template(ird, texpr))).collect();
+            let realized_fields = fields
+                .into_iter()
+                .map(|(field_id, texpr)| (field_id, realize_template(ird, texpr)))
+                .collect();
             let realized_expr = template_expr.map(|expr| realize_template(ird, expr));
-            ird.create_expr(ExprKind::Object(coll.clone(), realized_fields, realized_expr))
+            ird.create_expr(ExprKind::Object(
+                coll.clone(),
+                realized_fields,
+                realized_expr,
+            ))
         }
         ExprTemplate::LookupById(coll, id_expr_t) => {
             let arg1 = realize_template(ird, id_expr_t);
             ird.create_expr(ExprKind::LookupById(coll.clone(), arg1))
         }
         ExprTemplate::List(expr_ids) => {
-            let args = expr_ids.into_iter().map(|expr_id| realize_template(ird, expr_id)).collect();
+            let args = expr_ids
+                .into_iter()
+                .map(|expr_id| realize_template(ird, expr_id))
+                .collect();
             ird.create_expr(ExprKind::List(args))
         }
         ExprTemplate::If(ty, cond_templ, true_templ, false_templ) => {
@@ -341,9 +346,9 @@ fn expr_map_to_template(
             expr_map_to_template(ird, f, e1_id),
             expr_map_to_template(ird, f, e2_id),
         )),
-        ExprKind::IntToFloat(e_id) => Box::new(ExprTemplate::IntToFloat(expr_map_to_template(
-            ird, f, e_id,
-        ))),
+        ExprKind::IntToFloat(e_id) => {
+            Box::new(ExprTemplate::IntToFloat(expr_map_to_template(ird, f, e_id)))
+        }
         ExprKind::Path(coll, expr, field) => Box::new(ExprTemplate::Path(
             coll.clone(),
             expr_map_to_template(ird, f, expr),
@@ -358,16 +363,22 @@ fn expr_map_to_template(
                 .collect(),
             template_expr.map(|e_id| expr_map_to_template(ird, f, e_id)),
         )),
-        ExprKind::LookupById(coll, id_expr) =>
-            Box::new(ExprTemplate::LookupById(coll.clone(),
-                                              expr_map_to_template(ird, f, id_expr))),
-        ExprKind::List(expr_ids) =>
-            Box::new(ExprTemplate::List(expr_ids.iter().map(|expr_id| expr_map_to_template(ird, f, *expr_id)).collect())),
-        ExprKind::If(ty, cond_id, true_id, false_id) =>
-            Box::new(ExprTemplate::If(ty.clone(),
-                                      expr_map_to_template(ird, f, cond_id),
-                                      expr_map_to_template(ird, f, true_id),
-                                      expr_map_to_template(ird, f, false_id))),
+        ExprKind::LookupById(coll, id_expr) => Box::new(ExprTemplate::LookupById(
+            coll.clone(),
+            expr_map_to_template(ird, f, id_expr),
+        )),
+        ExprKind::List(expr_ids) => Box::new(ExprTemplate::List(
+            expr_ids
+                .iter()
+                .map(|expr_id| expr_map_to_template(ird, f, *expr_id))
+                .collect(),
+        )),
+        ExprKind::If(ty, cond_id, true_id, false_id) => Box::new(ExprTemplate::If(
+            ty.clone(),
+            expr_map_to_template(ird, f, cond_id),
+            expr_map_to_template(ird, f, true_id),
+            expr_map_to_template(ird, f, false_id),
+        )),
         ExprKind::IntConst(i) => Box::new(ExprTemplate::IntConst(i)),
         ExprKind::FloatConst(f) => Box::new(ExprTemplate::FloatConst(f)),
         ExprKind::StringConst(s) => Box::new(ExprTemplate::StringConst(s.clone())),

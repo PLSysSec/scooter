@@ -3,8 +3,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, AttributeArgs, Data, DataStruct, DeriveInput, Fields, Lit, Meta,
-    NestedMeta,
+    parse_macro_input, AttributeArgs, Data, DataStruct, DeriveInput, Fields, Lit, Meta, NestedMeta,
 };
 
 #[proc_macro_attribute]
@@ -197,7 +196,6 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-
     // Mongo document conversion
     let mongo_doc_impl = {
         let doc_set_fields = fields.iter().map(|field| {
@@ -240,7 +238,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             let field_check_write_partial_arms = fields.iter().map(|field| {
                 let field_ident = field.ident.as_ref().unwrap();
                 let write_ident = format_ident!("write_{}", field_ident);
-                quote!{
+                quote! {
                     if item.#field_ident.is_some() &&
                         ! #policy_module::#write_ident(&full_item, &connection)
                         .accessible_by(&connection.principle()) {
@@ -251,13 +249,13 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             let field_set_partial_arms = fields.iter().map(|field| {
                 let field_ident = field.ident.as_ref().unwrap();
                 let field_str = field_ident.to_string();
-                quote!{
+                quote! {
                     if let Some(v) = &item.#field_ident {
                         set_doc.insert(#field_str, v.clone());
                     }
                 }
             });
-            quote!{
+            quote! {
                 fn save_all(connection: &AuthConn, items: Vec<&#partial_ident>) -> bool {
                     use mongodb::Database;
                     for item in items.iter() {
@@ -292,7 +290,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                 }
             }
         };
-        quote!{
+        quote! {
             impl DBCollection for #ident {
                 type Partial=#partial_ident;
                 fn find_by_id(connection: &AuthConn, id: RecordId) -> Option<Self::Partial> {
@@ -387,7 +385,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
 
     // implementations for ".save" helper method on partials
     let save_impl = {
-        quote!{
+        quote! {
             impl #partial_ident {
                 pub fn save(&self, connection: &AuthConn) -> bool{
                     #ident::save_all(&connection, vec![self])

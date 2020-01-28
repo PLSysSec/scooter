@@ -2,10 +2,10 @@ use policy_lang::ir::*;
 use policy_lang::{parse_migration, parse_policy};
 
 use std::collections::HashMap;
-use std::io::{self, Read};
 use std::fs::read_to_string;
-use std::path::Path;
+use std::io::{self, Read};
 use std::iter;
+use std::path::Path;
 
 /// Take two filenames, a policy and a migration, and produce a new
 /// policy as a string, by reading those files.
@@ -28,7 +28,8 @@ pub fn migrate_policy(policy_text: &str, migration_text: &str) -> String {
     let mut ird = extract_types(&parsed_policy);
     let lowered_policy = ird.lower(&parsed_policy);
     let lowered_migration = ird.lower_migration(parsed_migration);
-    let resulting_policy = interpret_migration_on_policy(&mut ird, lowered_policy, lowered_migration);
+    let resulting_policy =
+        interpret_migration_on_policy(&mut ird, lowered_policy, lowered_migration);
     policy_to_string(&ird, resulting_policy)
 }
 
@@ -231,8 +232,10 @@ fn interpret_migration_on_policy(
                     old_name: _,
                     new_name: _,
                 } => {
-                    result_policy.add_field_policy(new_field_id,
-                                                   result_policy.field_policy(old_field_id).clone());
+                    result_policy.add_field_policy(
+                        new_field_id,
+                        result_policy.field_policy(old_field_id).clone(),
+                    );
                     renamed_fields.insert(old_field_id, new_field_id);
                 }
                 CompleteMigrationAction::ForEach { param: _, body: _ } => {
@@ -263,44 +266,63 @@ fn interpret_migration_on_policy(
 
     for coll_id in coll_ids.into_iter() {
         let coll_pol = result_policy.collection_policy_mut(coll_id);
-        if let Policy::Func(Lambda{param:p, body}) = coll_pol.create {
-            coll_pol.create = Policy::Func(Lambda{param: p,
-                                                  body: sub_expr(ird, body, &renamed_fields)});
+        if let Policy::Func(Lambda { param: p, body }) = coll_pol.create {
+            coll_pol.create = Policy::Func(Lambda {
+                param: p,
+                body: sub_expr(ird, body, &renamed_fields),
+            });
         }
-        if let Policy::Func(Lambda{param:p, body}) = coll_pol.delete {
-            coll_pol.delete = Policy::Func(Lambda{param: p,
-                                                  body: sub_expr(ird, body, &renamed_fields)});
+        if let Policy::Func(Lambda { param: p, body }) = coll_pol.delete {
+            coll_pol.delete = Policy::Func(Lambda {
+                param: p,
+                body: sub_expr(ird, body, &renamed_fields),
+            });
         }
     }
 
-    let field_ids: Vec<Id<Def>> = ird.collections().flat_map(|coll| coll.fields().filter(|(name, _id)| *name != "id").map(|(_name, id)| *id)).collect();
+    let field_ids: Vec<Id<Def>> = ird
+        .collections()
+        .flat_map(|coll| {
+            coll.fields()
+                .filter(|(name, _id)| *name != "id")
+                .map(|(_name, id)| *id)
+        })
+        .collect();
 
     for field_id in field_ids.into_iter() {
         let field_pol = result_policy.field_policy_mut(field_id);
-        if let Policy::Func(Lambda{param:p, body}) = field_pol.read {
-            field_pol.read = Policy::Func(Lambda{param: p,
-                                                 body: sub_expr(ird, body, &renamed_fields)});
+        if let Policy::Func(Lambda { param: p, body }) = field_pol.read {
+            field_pol.read = Policy::Func(Lambda {
+                param: p,
+                body: sub_expr(ird, body, &renamed_fields),
+            });
         }
-        if let Policy::Func(Lambda{param:p, body}) = field_pol.edit {
-            field_pol.edit = Policy::Func(Lambda{param: p,
-                                                 body: sub_expr(ird, body, &renamed_fields)});
+        if let Policy::Func(Lambda { param: p, body }) = field_pol.edit {
+            field_pol.edit = Policy::Func(Lambda {
+                param: p,
+                body: sub_expr(ird, body, &renamed_fields),
+            });
         }
     }
 
     result_policy
 }
 
-fn sub_expr(ird: &mut IrData, body: Id<Expr>, renamed_fields: &HashMap<Id<Def>, Id<Def>>) -> Id<Expr> {
-    expr_map(ird,
-             &|subexpr| {
-                 match &subexpr.kind {
-                     ExprKind::Path(coll, expr, def) =>
-                     ExprKind::Path(*coll, *expr,
-                                    *renamed_fields.get(&def).unwrap_or(&def)),
-                     _ => subexpr.kind.clone(),
-                 }
-             },
-             body)
+fn sub_expr(
+    ird: &mut IrData,
+    body: Id<Expr>,
+    renamed_fields: &HashMap<Id<Def>, Id<Def>>,
+) -> Id<Expr> {
+    expr_map(
+        ird,
+        &|subexpr| match &subexpr.kind {
+            ExprKind::Path(coll, expr, def) => {
+                ExprKind::Path(*coll, *expr, *renamed_fields.get(&def).unwrap_or(&def))
+            }
+            _ => subexpr.kind.clone(),
+        },
+        body,
+    )
 }
 
 fn remove_invalidated_policies(
@@ -372,9 +394,7 @@ fn remove_invalidated_policies(
             coll.fields()
                 .filter(|(field_name, _field_id)| *field_name != "id")
         })
-        .map(|(field_name, field_id)| {
-            (*field_id, old_policy.field_policy(*field_id))
-        })
+        .map(|(field_name, field_id)| (*field_id, old_policy.field_policy(*field_id)))
         .collect();
 
     // Get all `read` policies whose body refers to fields or

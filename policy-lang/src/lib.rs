@@ -93,13 +93,18 @@ mod tests {
         let p = parse_migration(
             r#"
             User::RemoveField(num_followers)
-            "#).unwrap();
+            "#,
+        )
+        .unwrap();
 
-        assert_eq!(p,
-                   Migration(vec![MigrationCommand::CollAction{
-                       table:"User".to_string(),
-                       action:MigrationAction::RemoveField{
-                           field:"num_followers".to_string()
-                       }}]));
+        assert_eq!(
+            p,
+            Migration(vec![MigrationCommand::CollAction {
+                table: "User".to_string(),
+                action: MigrationAction::RemoveField {
+                    field: "num_followers".to_string()
+                }
+            }])
+        );
     }
 }

@@ -14,7 +14,10 @@ impl CompletePolicy {
     pub fn collection_policy(&self, cid: Id<Collection>) -> &CollectionPolicy {
         &self.colls[&cid]
     }
-    pub fn collection_policy_mut<'a> (&'a mut self, cid: Id<Collection>) -> &'a mut CollectionPolicy {
+    pub fn collection_policy_mut<'a>(
+        &'a mut self,
+        cid: Id<Collection>,
+    ) -> &'a mut CollectionPolicy {
         self.colls.get_mut(&cid).expect("Cannot find policy")
     }
 

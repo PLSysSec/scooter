@@ -2,14 +2,14 @@ use policy_lang;
 
 use policy_lang::ir::*;
 
-use mongodb::{Database, Client};
-use bson::{Bson, Document, bson, doc, oid::ObjectId};
+use bson::{bson, doc, oid::ObjectId, Bson, Document};
+use mongodb::{Client, Database};
 
 /// Descriptor for the mongodb database a migration would operate on
 pub struct DbConf {
     pub host: String,
     pub port: u16,
-    pub db_name: String
+    pub db_name: String,
 }
 /// Migrate a database, whose schema is outlined in a policy file,
 /// using migration commands specified in a migration file.
@@ -108,7 +108,10 @@ fn interpret_action(
                     )
                 );
                 // Insert the field into the object
-                result.insert(field_name, exec_query_function(&env, &init, &result, db_conn));
+                result.insert(
+                    field_name,
+                    exec_query_function(&env, &init, &result, db_conn),
+                );
                 replace_doc(&db_conn, &collection, item_id, result);
             }
         }
@@ -135,7 +138,10 @@ fn interpret_action(
                 // that here, we don't have to worry about changing
                 // the type, as that is handled entirely at the
                 // IR/typechecking level.
-                result.insert(field_name, exec_query_function(&env, &new_init, &result, db_conn));
+                result.insert(
+                    field_name,
+                    exec_query_function(&env, &new_init, &result, db_conn),
+                );
                 replace_doc(&db_conn, &collection, item_id, result);
             }
         }
@@ -144,9 +150,7 @@ fn interpret_action(
         // equivalent to Coll::Addfield(new_name, old_type, x ->
         // x.field) followed by Coll::DeleteField(field)
         CompleteMigrationAction::RenameField {
-            old_name,
-            new_name,
-            ..
+            old_name, new_name, ..
         } => {
             // Loop over the records
             for item in coll_docs(&db_conn, &collection).into_iter() {

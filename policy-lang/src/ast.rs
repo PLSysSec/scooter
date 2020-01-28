@@ -103,21 +103,48 @@ pub enum MigrationCommand {
         table: String,
         action: MigrationAction,
     },
-    Create{table_name: String, layout: Vec<(String, FieldType)>},
-    Delete{table_name: String},
+    Create {
+        table_name: String,
+        layout: Vec<(String, FieldType)>,
+    },
+    Delete {
+        table_name: String,
+    },
 }
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectCommand {
-    CreateObject{collection: String, value: Box<QueryExpr>},
-    DeleteObject{collection: String, id_expr: Box<QueryExpr>},
+    CreateObject {
+        collection: String,
+        value: Box<QueryExpr>,
+    },
+    DeleteObject {
+        collection: String,
+        id_expr: Box<QueryExpr>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
 pub enum MigrationAction {
-    RemoveField{field: String},
-    AddField{field: String, ty: FieldType, init: Func},
-    ChangeField{field: String, new_ty: FieldType, new_init: Func},
-    RenameField{old_field: String, new_field: String},
-    ForEach{param: String, body: ObjectCommand},
+    RemoveField {
+        field: String,
+    },
+    AddField {
+        field: String,
+        ty: FieldType,
+        init: Func,
+    },
+    ChangeField {
+        field: String,
+        new_ty: FieldType,
+        new_init: Func,
+    },
+    RenameField {
+        old_field: String,
+        new_field: String,
+    },
+    ForEach {
+        param: String,
+        body: ObjectCommand,
+    },
 }

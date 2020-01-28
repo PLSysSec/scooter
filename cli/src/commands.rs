@@ -1,10 +1,8 @@
-
 use crate::project::Project;
 
 pub fn init() {
-  //  let root = find_root().unwrap();
-//    add_enforcement_dependency(root.join("Cargo.toml"));
-
+    //  let root = find_root().unwrap();
+    //    add_enforcement_dependency(root.join("Cargo.toml"));
 }
 
 pub fn new(migration_name: &str) {
