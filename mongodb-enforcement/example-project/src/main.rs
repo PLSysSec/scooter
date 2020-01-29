@@ -12,7 +12,7 @@ mod test {
 
     #[test]
     fn insert_then_read() {
-        let db_conn = DBConn::new("localhost", 27017,"test2");
+        let db_conn = get_dbconn();
 
         let users: Vec<_> = vec![
             user! {
@@ -52,7 +52,7 @@ mod test {
 
     #[test]
     fn set_password() {
-        let db_conn = DBConn::new("localhost", 27017,"test2");
+        let db_conn = get_dbconn();
         let alex_id = User::insert_many(
             &db_conn.clone().as_princ(Principle::Public),
             vec![user! {username: "Alex".to_string(),
@@ -103,7 +103,7 @@ mod test {
 
     #[test]
     fn fail_delete_user() {
-        let db_conn = DBConn::new("localhost", 27017,"test2");
+        let db_conn = get_dbconn();
 
         let alex_id = User::insert_many(
             &db_conn.clone().as_princ(Principle::Public),
@@ -124,9 +124,16 @@ mod test {
         assert!(!result);
     }
 
+    fn get_dbconn() -> DBConn {
+        let db_conn = DBConn::new("localhost", 27017,"test2");
+        db_conn.mongo_conn.collection("User").drop(None).ok();
+        db_conn.mongo_conn.collection("Message").drop(None).ok();
+        db_conn
+    }
+
     #[test]
     fn set_from_trustworthy() {
-        let db_conn = DBConn::new("localhost", 27017,"test2");
+        let db_conn = get_dbconn();
 
         // Add two users, alex and john, where alex has a
         // trustworthyness above ten, and john has one below ten.
@@ -215,7 +222,7 @@ mod test {
 
     #[test]
     fn find_all() {
-        let db_conn = DBConn::new("localhost", 27017,"test2");
+        let db_conn = get_dbconn();
 
         let users: Vec<_> = vec![
             user! {

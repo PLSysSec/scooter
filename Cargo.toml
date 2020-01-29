@@ -2,8 +2,10 @@
 
 members = [
     "mongodb-enforcement",
+    "mongodb-enforcement/example-project",
     "mongodb-migrate",
     "policy-lang",
     "static-checker",
     "cli"
 ]
+

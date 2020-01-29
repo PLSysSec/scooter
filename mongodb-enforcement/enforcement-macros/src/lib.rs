@@ -43,7 +43,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         quote! {
             #input_vis struct #ident {
                 #(#fields_iter),*,
-                pub id: Option<#enforcement_crate_name::RecordId>
+                pub id: Option<#enforcement_crate_name::TypedRecordId<Self>>
             }
         }
     };
@@ -161,17 +161,17 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             quote! {
                 #input_vis struct #builder_ident {
                     #(#builder_fields),*,
-                    id: #enforcement_crate_name::RecordId
+                    id: #enforcement_crate_name::TypedRecordId<#ident>
                 }
                 impl #builder_ident {
-                    pub fn new(object_id: RecordId) -> #builder_ident{
+                    pub fn new(object_id: TypedRecordId<#ident>) -> #builder_ident{
                         #builder_ident { #(#field_inits),*, id: object_id }
                     }
                     #(#field_adders)*
                     pub fn finalize(&self) -> #partial_ident {
                         #partial_ident {
                             #(#field_setters),*,
-                            id: unsafe { self.id.clone().ascribe_collection() }
+                            id: self.id.clone()
                         }
                     }
                 }
@@ -187,8 +187,8 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                 pub fn fully_resolve(&self, conn: &AuthConn) -> #partial_ident {
                     #partial_ident {
                         #(#field_builders),*,
-                        id: unsafe { self.id.clone()
-                            .expect("Can't resolve an object without an id!").ascribe_collection() }
+                        id: self.id.clone()
+                            .expect("Can't resolve an object without an id!")
                     }
                 }
             }
@@ -293,13 +293,13 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         quote! {
             impl DBCollection for #ident {
                 type Partial=#partial_ident;
-                fn find_by_id(connection: &AuthConn, id: RecordId) -> Option<Self::Partial> {
+                fn find_by_id(connection: &AuthConn, id: TypedRecordId<Self>) -> Option<Self::Partial> {
                     match Self::find_full_by_id(connection.conn(), id) {
                         Some(item) => Some(item.fully_resolve(connection)),
                         None => None,
                     }
                 }
-                fn find_full_by_id(connection: &DBConn, id: RecordId) -> Option<Self> {
+                fn find_full_by_id(connection: &DBConn, id: TypedRecordId<Self>) -> Option<Self> {
                     use mongodb::Database;
                     match connection.mongo_conn
                         .collection(#ident_string)
@@ -353,7 +353,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                        _ => None,
                     }
                 }
-                fn delete_by_id(connection: &AuthConn, id: RecordId) -> bool {
+                fn delete_by_id(connection: &AuthConn, id: TypedRecordId<Self>) -> bool {
                     use mongodb::Database;
                     match connection
                         .conn()

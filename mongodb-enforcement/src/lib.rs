@@ -130,14 +130,10 @@ where
 pub trait ToRecordIdVec {
     fn to_record_id_vec(&self) -> Vec<RecordId>;
 }
-impl ToRecordIdVec for RecordId {
+impl<T> ToRecordIdVec for Option<TypedRecordId<T>>
+where T: DBCollection {
     fn to_record_id_vec(&self) -> Vec<RecordId> {
-        vec![self.clone()]
-    }
-}
-impl ToRecordIdVec for Option<RecordId> {
-    fn to_record_id_vec(&self) -> Vec<RecordId> {
-        vec![self.clone().unwrap()]
+        vec![self.clone().unwrap().into()]
     }
 }
 
@@ -246,11 +242,11 @@ impl AuthConn {
 
 pub trait DBCollection: Sized {
     type Partial;
-    fn find_by_id(connection: &AuthConn, id: RecordId) -> Option<Self::Partial>;
+    fn find_by_id(connection: &AuthConn, id: TypedRecordId<Self>) -> Option<Self::Partial>;
     fn find_all(connection: &AuthConn) -> Option<Vec<Self::Partial>>;
-    fn find_full_by_id(connection: &DBConn, id: RecordId) -> Option<Self>;
+    fn find_full_by_id(connection: &DBConn, id: TypedRecordId<Self>) -> Option<Self>;
     fn insert_one(connection: &AuthConn, item: Self) -> Option<TypedRecordId<Self>>;
     fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<TypedRecordId<Self>>>;
     fn save_all(connection: &AuthConn, items: Vec<&Self::Partial>) -> bool;
-    fn delete_by_id(connection: &AuthConn, id: RecordId) -> bool;
+    fn delete_by_id(connection: &AuthConn, id: TypedRecordId<Self>) -> bool;
 }
