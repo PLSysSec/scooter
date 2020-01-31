@@ -24,7 +24,12 @@ const MIGRATION_HISTORY_COLL: &str = "migrations-run";
 ///
 /// * `migration_text` - The migration-lang source specifying the
 /// migration
-pub fn migrate(db_conf: DbConf, policy_text: &str, migration_text: &str, migration_name: &str) -> Result<(), String> {
+pub fn migrate(
+    db_conf: DbConf,
+    policy_text: &str,
+    migration_text: &str,
+    migration_name: &str,
+) -> Result<(), String> {
     // Parse the policy text into an ast
     let policy_ast = policy_lang::parse_policy(&policy_text).expect("Couldn't parse policy");
     // Parse the migration text into an ast
@@ -598,7 +603,8 @@ fn mark_migration_run(db_conf: &DbConf, migration_name: &str) {
     let db_conn = Client::with_uri_str(&format!("mongodb://{}:{}", db_conf.host, db_conf.port))
         .expect("Failed to initialize client.")
         .database(&db_conf.db_name);
-    db_conn.collection(MIGRATION_HISTORY_COLL)
+    db_conn
+        .collection(MIGRATION_HISTORY_COLL)
         .insert_one(doc! {"name": migration_name}, None)
         .expect("Couldn't insert document");
 }

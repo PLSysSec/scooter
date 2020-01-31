@@ -3,8 +3,6 @@ use policy_lang::{parse_migration, parse_policy};
 
 use std::collections::HashMap;
 use std::fs::read_to_string;
-use std::io::{self, Read};
-use std::iter;
 use std::path::Path;
 
 /// Take two filenames, a policy and a migration, and produce a new
@@ -394,7 +392,7 @@ fn remove_invalidated_policies(
             coll.fields()
                 .filter(|(field_name, _field_id)| *field_name != "id")
         })
-        .map(|(field_name, field_id)| (*field_id, old_policy.field_policy(*field_id)))
+        .map(|(_field_name, field_id)| (*field_id, old_policy.field_policy(*field_id)))
         .collect();
 
     // Get all `read` policies whose body refers to fields or

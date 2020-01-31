@@ -88,7 +88,7 @@ mod tests {
                 User::RemoveField(num_roomates)
                 "#,
             "test_migration",
-        );
+        ).expect("migration failed");
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
         let alex_result_doc = db_conn
@@ -207,7 +207,7 @@ mod tests {
                 User::RemoveField(num_followers)
                 "#,
             "test_migration",
-        );
+        ).expect("migration failed");
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
         let alex_result_doc = db_conn
@@ -287,7 +287,7 @@ mod tests {
                                                       ...u}))
                 "#,
             "test_migration",
-        );
+        ).expect("migration failed");
         // Make sure there are now double the users.
         assert_eq!(
             db_conn
@@ -358,7 +358,7 @@ mod tests {
                 User::ForEach(u -> User::Delete(u.id))
                 "#,
             "test_migration",
-        );
+        ).expect("migration failed");
         // Make sure there are now double the users.
         assert_eq!(
             db_conn
@@ -418,7 +418,7 @@ mod tests {
                 User::ChangeField(num_followers, F64, u -> u.num_followers - 0.5)
                 "#,
             "test_migration",
-        );
+        ).expect("migration failed");
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
         let alex_result_doc = db_conn
@@ -498,7 +498,7 @@ mod tests {
                 User::RenameField(num_followers, num_friends)
                 "#,
             "test_migration",
-        );
+        ).expect("migration failed");
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
         let alex_result_doc = db_conn
@@ -583,7 +583,7 @@ mod tests {
                 User::ForEach(u -> Phone::Create(Phone {owner: u.id}))
                 "#,
             "test_migration",
-        );
+        ).expect("migration failed");
         let all_phones: Vec<Document> = db_conn
             .mongo_conn
             .collection("Phone")
@@ -651,7 +651,7 @@ mod tests {
                 User::ChangeField(username, [String], u -> [u.username, u.username + "_alias"])
                 "#,
             "test_migration",
-        );
+        ).expect("migration failed");
         // Pull out one of the resulting docs, using the ids we got when we
         // inserted the originals.
         let alex_result_doc = db_conn
@@ -673,7 +673,6 @@ mod tests {
     #[test]
     fn stamp_messages() {
         // The name of the user collection
-        let col_name = "User".to_string();
         let mcol_name = "Message".to_string();
         // Create a connection to the database
         let db_name = "stamp_messages_test".to_string();
@@ -743,7 +742,7 @@ mod tests {
                 Message::AddField(popular_sender,  Bool, m -> (if User::ById(m.from).num_followers < 20 then false else true))
                 "#,
             "test_migration",
-        );
+        ).expect("migration failed");
 
         let m1_doc = db_conn
             .mongo_conn
