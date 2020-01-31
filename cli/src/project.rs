@@ -46,14 +46,21 @@ impl Project {
         static_checker::migrate::migrate_policy_from_files(self.policy_file(), file_path)
     }
 
-    pub fn run_migration(&self, file_path: impl AsRef<Path>) -> io::Result<()> {
+
+    pub fn run_migration(&self, file_path: impl AsRef<Path>) -> Result<(), String> {
+        fn stringify(err: io::Error) -> String { format!("{}", err) }
         let fp_ref = file_path.as_ref();
-        let policy = read_to_string(self.policy_file())?;
-        let migration = read_to_string(fp_ref)?;
-        migrate(self.db_conf()?, policy, migration);
+        let policy = read_to_string(self.policy_file()).map_err(stringify)?;
+        let migration = read_to_string(fp_ref).map_err(stringify)?;
+        let migration_name = fp_ref
+            .file_stem()
+            .expect("Cannot extract filename")
+            .to_str()
+            .expect("Not a valid string");
+        migrate(self.db_conf().map_err(stringify)?, &policy, &migration, &migration_name)?;
 
         let new_policy = self.dry_run_migration(fp_ref);
-        write(self.policy_file(), new_policy)?;
+        write(self.policy_file(), new_policy).map_err(stringify)?;
 
         Ok(())
     }

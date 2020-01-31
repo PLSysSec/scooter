@@ -11,8 +11,8 @@ pub fn new(migration_name: &str) {
 }
 
 pub fn run(migration_path: &str) {
-    let proj = Project::find_from_cwd().unwrap();
-    proj.run_migration(migration_path).unwrap();
+    let proj = Project::find_from_cwd().expect("Couln't find the current project");
+    proj.run_migration(migration_path).expect("Couldn't run the migration");
     println!("Migration successful");
 }
 

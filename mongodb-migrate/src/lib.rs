@@ -13,18 +13,31 @@ mod tests {
     use crate::migrate::migrate;
 
     use std::env::current_dir;
-    use std::io::{self, Read};
     use std::path::Path;
+    fn get_dbconn(db_name: &String) -> DBConn {
+        let db_conf = &DbConf {
+            host: "localhost".to_string(),
+            port: 27017,
+            db_name: db_name.clone(),
+        };
+        let db_conn = DBConn::new(&db_conf.host, db_conf.port, &db_conf.db_name);
+        db_conn.mongo_conn.collection("User").drop(None).ok();
+        db_conn.mongo_conn.collection("Message").drop(None).ok();
+        reset_migration_history(db_conf);
+        db_conn
+            .mongo_conn
+            .collection("migrations-run")
+            .drop(None)
+            .ok();
+        db_conn
+    }
     #[test]
     fn add_and_remove_fields() {
         // The name of the collection
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "add_and_remove_fields_test".to_string();
-        let db_conn = DBConn::new("localhost", 27017, &db_name);
-        // Drop any existing collection by the same name, so that the
-        // collection is empty.
-        db_conn.mongo_conn.collection(&col_name).drop(None).ok();
+        let db_conn = get_dbconn(&db_name);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -64,7 +77,7 @@ mod tests {
                 port: 27017,
                 db_name,
             },
-            read_to_string(
+            &read_to_string(
                 Path::new(&std::env::current_dir().unwrap()).join("policy.txt".to_string()),
             )
             .unwrap(),
@@ -73,8 +86,8 @@ mod tests {
                 User::AddField(num_friends, I64, u -> 1337)
                 User::AddField(num_roomates, I64, u -> 0)
                 User::RemoveField(num_roomates)
-                "#
-            .to_string(),
+                "#,
+            "test_migration",
         );
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
@@ -143,12 +156,7 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "rename_field_addrm_test".to_string();
-        let db_conn = DBConn::new("localhost", 27017, &db_name);
-        // Drop any existing collection by the same name, so that the
-        // collection is empty.
-        let coll = db_conn.mongo_conn.collection(&col_name);
-        coll.drop(None).ok();
-        assert_eq!(coll.count_documents(None, None).unwrap(), 0);
+        let db_conn = get_dbconn(&db_name);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -188,7 +196,7 @@ mod tests {
                 port: 27017,
                 db_name,
             },
-            read_to_string(
+            &read_to_string(
                 std::env::current_dir()
                     .unwrap()
                     .join("policy.txt".to_string()),
@@ -197,8 +205,8 @@ mod tests {
             r#"
                 User::AddField(num_friends, I64, u -> u.num_followers)
                 User::RemoveField(num_followers)
-                "#
-            .to_string(),
+                "#,
+            "test_migration",
         );
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
@@ -238,12 +246,7 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "duplicate_messages_test".to_string();
-        let db_conn = DBConn::new("localhost", 27017, &db_name);
-        // Drop any existing collection by the same name, so that the
-        // collection is empty.
-        let coll = db_conn.mongo_conn.collection(&col_name);
-        coll.drop(None).ok();
-        assert_eq!(coll.count_documents(None, None).unwrap(), 0);
+        let db_conn = get_dbconn(&db_name);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -278,12 +281,12 @@ mod tests {
                 port: 27017,
                 db_name,
             },
-            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
+            &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ForEach(u -> User::Create(User {username: u.username + "_duplicate"
                                                       ...u}))
-                "#
-            .to_string(),
+                "#,
+            "test_migration",
         );
         // Make sure there are now double the users.
         assert_eq!(
@@ -315,12 +318,7 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "delete_users_test".to_string();
-        let db_conn = DBConn::new("localhost", 27017, &db_name);
-        // Drop any existing collection by the same name, so that the
-        // collection is empty.
-        let coll = db_conn.mongo_conn.collection(&col_name);
-        coll.drop(None).ok();
-        assert_eq!(coll.count_documents(None, None).unwrap(), 0);
+        let db_conn = get_dbconn(&db_name);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -355,11 +353,11 @@ mod tests {
                 port: 27017,
                 db_name,
             },
-            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
+            &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ForEach(u -> User::Delete(u.id))
-                "#
-            .to_string(),
+                "#,
+            "test_migration",
         );
         // Make sure there are now double the users.
         assert_eq!(
@@ -377,12 +375,7 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "add_half_follower_test".to_string();
-        let db_conn = DBConn::new("localhost", 27017, &db_name);
-        // Drop any existing collection by the same name, so that the
-        // collection is empty.
-        let coll = db_conn.mongo_conn.collection(&col_name);
-        coll.drop(None).ok();
-        assert_eq!(coll.count_documents(None, None).unwrap(), 0);
+        let db_conn = get_dbconn(&db_name);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -420,11 +413,11 @@ mod tests {
                 port: 27017,
                 db_name,
             },
-            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
+            &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ChangeField(num_followers, F64, u -> u.num_followers - 0.5)
-                "#
-            .to_string(),
+                "#,
+            "test_migration",
         );
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
@@ -460,10 +453,7 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "rename_field_test".to_string();
-        let db_conn = DBConn::new("localhost", 27017, &db_name);
-        // Drop any existing collection by the same name, so that the
-        // collection is empty.
-        db_conn.mongo_conn.collection(&col_name).drop(None).ok();
+        let db_conn = get_dbconn(&db_name);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -503,11 +493,11 @@ mod tests {
                 port: 27017,
                 db_name,
             },
-            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
+            &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::RenameField(num_followers, num_friends)
-                "#
-            .to_string(),
+                "#,
+            "test_migration",
         );
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
@@ -548,10 +538,7 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "create_parallel_collection_test".to_string();
-        let db_conn = DBConn::new("localhost", 27017, &db_name);
-        // Drop any existing collection by the same name, so that the
-        // collection is empty.
-        db_conn.mongo_conn.collection(&col_name).drop(None).ok();
+        let db_conn = get_dbconn(&db_name);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -590,12 +577,12 @@ mod tests {
                 port: 27017,
                 db_name,
             },
-            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
+            &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 CreateCollection(Phone, {owner: Id(User)})
                 User::ForEach(u -> Phone::Create(Phone {owner: u.id}))
-                "#
-            .to_string(),
+                "#,
+            "test_migration",
         );
         let all_phones: Vec<Document> = db_conn
             .mongo_conn
@@ -619,10 +606,7 @@ mod tests {
         let col_name = "User".to_string();
         // Create a connection to the database
         let db_name = "enable_multiple_usernames_test".to_string();
-        let db_conn = DBConn::new("localhost", 27017, &db_name);
-        // Drop any existing collection by the same name, so that the
-        // collection is empty.
-        db_conn.mongo_conn.collection(&col_name).drop(None).ok();
+        let db_conn = get_dbconn(&db_name);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -662,11 +646,11 @@ mod tests {
                 port: 27017,
                 db_name,
             },
-            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
+            &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 User::ChangeField(username, [String], u -> [u.username, u.username + "_alias"])
-                "#
-            .to_string(),
+                "#,
+            "test_migration",
         );
         // Pull out one of the resulting docs, using the ids we got when we
         // inserted the originals.
@@ -693,11 +677,7 @@ mod tests {
         let mcol_name = "Message".to_string();
         // Create a connection to the database
         let db_name = "stamp_messages_test".to_string();
-        let db_conn = DBConn::new("localhost", 27017, &db_name);
-        // Drop any existing collection by the same name, so that the
-        // collection is empty.
-        db_conn.mongo_conn.collection(&col_name).drop(None).ok();
-        db_conn.mongo_conn.collection(&mcol_name).drop(None).ok();
+        let db_conn = get_dbconn(&db_name);
 
         // Two user objects, to be inserted into the database. Note
         // that these users have a "num_followers" field.
@@ -758,11 +738,11 @@ mod tests {
 
         migrate(
             DbConf { host: "localhost".to_string(), port: 27017, db_name},
-            read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
+            &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
                 Message::AddField(popular_sender,  Bool, m -> (if User::ById(m.from).num_followers < 20 then false else true))
-                "#
-            .to_string(),
+                "#,
+            "test_migration",
         );
 
         let m1_doc = db_conn

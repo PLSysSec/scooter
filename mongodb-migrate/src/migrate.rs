@@ -11,6 +11,7 @@ pub struct DbConf {
     pub port: u16,
     pub db_name: String,
 }
+const MIGRATION_HISTORY_COLL: &str = "migrations-run";
 /// Migrate a database, whose schema is outlined in a policy file,
 /// using migration commands specified in a migration file.
 ///
@@ -23,7 +24,7 @@ pub struct DbConf {
 ///
 /// * `migration_text` - The migration-lang source specifying the
 /// migration
-pub fn migrate(db_conf: DbConf, policy_text: String, migration_text: String) {
+pub fn migrate(db_conf: DbConf, policy_text: &str, migration_text: &str, migration_name: &str) -> Result<(), String> {
     // Parse the policy text into an ast
     let policy_ast = policy_lang::parse_policy(&policy_text).expect("Couldn't parse policy");
     // Parse the migration text into an ast
@@ -34,8 +35,22 @@ pub fn migrate(db_conf: DbConf, policy_text: String, migration_text: String) {
     // Use the type information to lower the policy into ir
     let policy_ir = policy_env.lower(&policy_ast);
     let migration_ir = policy_env.lower_migration(migration_ast);
-    // Run the migration
-    interpret_migration(db_conf, policy_env, migration_ir, policy_ir)
+    if migration_already_run(&db_conf, migration_name) {
+        Err("This migration has already been run!".to_string())
+    } else {
+        // Do this first in case it fails for some reason
+        mark_migration_run(&db_conf, migration_name);
+        // Run the migration
+        interpret_migration(db_conf, policy_env, migration_ir, policy_ir);
+        Ok(())
+    }
+}
+
+pub fn reset_migration_history(db_conf: &DbConf) {
+    let db_conn = Client::with_uri_str(&format!("mongodb://{}:{}", db_conf.host, db_conf.port))
+        .expect("Failed to initialize client.")
+        .database(&db_conf.db_name);
+    db_conn.collection(MIGRATION_HISTORY_COLL).drop(None).ok();
 }
 
 /// Interpret the commands in a migration file, using a given database
@@ -563,4 +578,27 @@ fn delete_doc(db_conn: &Database, coll: &Collection, id: ObjectId) {
         .collection(&coll.name.1)
         .delete_one(doc! {"_id": id}, None)
         .expect("Couldn't delete document");
+}
+
+fn migration_already_run(db_conf: &DbConf, migration_name: &str) -> bool {
+    // Create a connection to the database
+    let db_conn = Client::with_uri_str(&format!("mongodb://{}:{}", db_conf.host, db_conf.port))
+        .expect("Failed to initialize client.")
+        .database(&db_conf.db_name);
+    // Look for the migration object
+    db_conn
+        .collection(MIGRATION_HISTORY_COLL)
+        .find_one(Some(doc! {"name": migration_name}), None)
+        .expect("Couln't access the database")
+        .is_some()
+}
+
+fn mark_migration_run(db_conf: &DbConf, migration_name: &str) {
+    // Create a connection to the database
+    let db_conn = Client::with_uri_str(&format!("mongodb://{}:{}", db_conf.host, db_conf.port))
+        .expect("Failed to initialize client.")
+        .database(&db_conf.db_name);
+    db_conn.collection(MIGRATION_HISTORY_COLL)
+        .insert_one(doc! {"name": migration_name}, None)
+        .expect("Couldn't insert document");
 }
