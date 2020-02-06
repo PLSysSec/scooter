@@ -103,7 +103,7 @@ pub enum CompleteMigrationAction {
         param: Id<Def>,
         body: CompleteObjectCommand,
     },
-    LoosenPolicy {
+    LoosenFieldPolicy {
         new_field_policy: FieldPolicy,
     }
 }
@@ -623,9 +623,9 @@ impl Lowerer<'_> {
                 }
                 lowered_action
             }
-            ast::MigrationAction::LoosenPolicy {field, new_policy} => {
+            ast::MigrationAction::LoosenFieldPolicy {field, new_policy} => {
                 let field_id = self.ird.field(collection_id, &field).id;
-                CompleteMigrationAction::LoosenPolicy {
+                CompleteMigrationAction::LoosenFieldPolicy {
                     new_field_policy: FieldPolicy {
                         field_id,
                         read: self.lower_field_policy(collection_type.clone(),

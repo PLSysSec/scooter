@@ -244,7 +244,7 @@ fn interpret_action(
                 evaluator.pop_scope(&param);
             }
         }
-        CompleteMigrationAction::LoosenPolicy {new_field_policy: _} => ()
+        CompleteMigrationAction::LoosenFieldPolicy {new_field_policy: _} => ()
     }
 }
 

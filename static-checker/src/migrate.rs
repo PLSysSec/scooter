@@ -239,7 +239,7 @@ fn interpret_migration_on_policy(
                 CompleteMigrationAction::ForEach { param: _, body: _ } => {
                     panic!("We don't know how to process foreaches on policies yet")
                 }
-                CompleteMigrationAction::LoosenPolicy { new_field_policy } => {
+                CompleteMigrationAction::LoosenFieldPolicy { new_field_policy } => {
                     result_policy.remove_field_policy(new_field_policy.field_id);
                     result_policy.add_field_policy(
                         new_field_policy.field_id,
