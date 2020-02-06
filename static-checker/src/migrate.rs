@@ -649,4 +649,31 @@ mod test {
 ";
         assert_eq!(out_text, expected_result_text);
     }
+
+    #[test]
+    fn loosen_policy() {
+        let policy_text = r"User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: none,
+        write: none,
+    },
+}
+";
+        let migration_text = r#"User::LoosenFieldPolicy(username : String { read: public, write: public, },)"#;
+        let out_text = migrate_policy(policy_text, migration_text);
+        let expected_result_text = r"User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: public,
+    },
+}
+";
+        assert_eq!(expected_result_text, out_text);
+    }
 }
