@@ -147,4 +147,8 @@ pub enum MigrationAction {
         param: String,
         body: ObjectCommand,
     },
+    LoosenPolicy {
+        field: String,
+        new_policy: FieldPolicy,
+    },
 }

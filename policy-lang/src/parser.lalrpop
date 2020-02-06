@@ -135,6 +135,8 @@ MigrationAction: MigrationAction = {
         MigrationAction::RenameField{old_field:f_old, new_field: f_new},
     "ForEach" "(" <p:Ident> "->" <c:ObjectCommand> ")" =>
         MigrationAction::ForEach{param:p, body:c},
+    "LoosenPolicy" "(" <c:Ident> "," <fp:FieldPolicy> ")" =>
+        MigrationAction::LoosenPolicy{field:fp.0, new_policy:fp.1},
 }
 
 MigrationCommand: MigrationCommand = {
