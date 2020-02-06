@@ -149,6 +149,7 @@ pub enum MigrationAction {
     },
     LoosenFieldPolicy {
         field: String,
-        new_policy: FieldPolicy,
+        new_read: Policy,
+        new_write: Policy,
     },
 }

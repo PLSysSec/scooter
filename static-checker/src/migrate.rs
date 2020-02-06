@@ -662,7 +662,7 @@ mod test {
     },
 }
 ";
-        let migration_text = r#"User::LoosenFieldPolicy(username : String { read: public, write: public, },)"#;
+        let migration_text = r#"User::LoosenFieldPolicy(username, { read: public, write: public })"#;
         let out_text = migrate_policy(policy_text, migration_text);
         let expected_result_text = r"User {
     create: none,

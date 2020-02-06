@@ -623,15 +623,15 @@ impl Lowerer<'_> {
                 }
                 lowered_action
             }
-            ast::MigrationAction::LoosenFieldPolicy {field, new_policy} => {
+            ast::MigrationAction::LoosenFieldPolicy {field, new_read, new_write} => {
                 let field_id = self.ird.field(collection_id, &field).id;
                 CompleteMigrationAction::LoosenFieldPolicy {
                     new_field_policy: FieldPolicy {
                         field_id,
                         read: self.lower_field_policy(collection_type.clone(),
-                                                      &new_policy.read),
+                                                      &new_read),
                         edit: self.lower_field_policy(collection_type.clone(),
-                                                      &new_policy.write),
+                                                      &new_write),
                     }
                 }
 
