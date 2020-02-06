@@ -186,7 +186,7 @@ fn interpret_migration_on_policy(
     // Go over the migration commands (consuming them)
     for cmd in migration.0.into_iter() {
         match cmd {
-            CompleteMigrationCommand::CollAction { table: _, action } => match action {
+            CompleteMigrationCommand::CollAction { table: coll, action } => match action {
                 // For adding fields, just add new policies based on
                 // the initializer function
                 CompleteMigrationAction::AddField { field, ty: _, init } => result_policy
@@ -244,6 +244,11 @@ fn interpret_migration_on_policy(
                     result_policy.add_field_policy(
                         new_field_policy.field_id,
                         new_field_policy);
+                }
+                CompleteMigrationAction::LoosenCollectionPolicy { new_create, new_delete } => {
+                    result_policy.remove_collection_policy(coll);
+                    result_policy.add_collection_policy(coll,
+                                                        CollectionPolicy {create: new_create, delete: new_delete });
                 }
             },
             // For creating collections, just create a new create and
@@ -651,7 +656,7 @@ mod test {
     }
 
     #[test]
-    fn loosen_policy() {
+    fn loosen_field_policy() {
         let policy_text = r"User {
     create: none,
     delete: none,
@@ -671,6 +676,32 @@ mod test {
     username : String {
         read: public,
         write: public,
+    },
+}
+";
+        assert_eq!(expected_result_text, out_text);
+    }
+    #[test]
+    fn loosen_collection_policy() {
+        let policy_text = r"User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: none,
+        write: none,
+    },
+}
+";
+        let migration_text = r#"User::LoosenCollectionPolicy({ create: public, delete: public })"#;
+        let out_text = migrate_policy(policy_text, migration_text);
+        let expected_result_text = r"User {
+    create: public,
+    delete: public,
+
+    username : String {
+        read: none,
+        write: none,
     },
 }
 ";

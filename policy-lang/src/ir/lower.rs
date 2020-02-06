@@ -105,6 +105,10 @@ pub enum CompleteMigrationAction {
     },
     LoosenFieldPolicy {
         new_field_policy: FieldPolicy,
+    },
+    LoosenCollectionPolicy {
+        new_create: Policy,
+        new_delete: Policy,
     }
 }
 
@@ -635,6 +639,12 @@ impl Lowerer<'_> {
                     }
                 }
 
+            }
+            ast::MigrationAction::LoosenCollectionPolicy { new_create, new_delete } => {
+                CompleteMigrationAction::LoosenCollectionPolicy {
+                    new_create: self.lower_field_policy(collection_type.clone(), &new_create),
+                    new_delete: self.lower_field_policy(collection_type.clone(), &new_delete),
+                }
             }
         }
     }

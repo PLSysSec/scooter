@@ -152,4 +152,8 @@ pub enum MigrationAction {
         new_read: Policy,
         new_write: Policy,
     },
+    LoosenCollectionPolicy {
+        new_create: Policy,
+        new_delete: Policy,
+    }
 }

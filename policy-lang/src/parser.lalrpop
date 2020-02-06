@@ -137,6 +137,8 @@ MigrationAction: MigrationAction = {
         MigrationAction::ForEach{param:p, body:c},
     "LoosenFieldPolicy" "(" <f:Ident> "," "{" "read" ":" <r:Policy> "," "write" ":" <w:Policy> ","? "}" ")" =>
         MigrationAction::LoosenFieldPolicy{field:f, new_read:r, new_write:w},
+    "LoosenCollectionPolicy" "(" "{" "create" ":" <c:Policy> "," "delete" ":" <d:Policy> "}" ")" =>
+        MigrationAction::LoosenCollectionPolicy{new_create: c, new_delete: d},
 }
 
 MigrationCommand: MigrationCommand = {
