@@ -239,13 +239,13 @@ fn interpret_migration_on_policy(
                 CompleteMigrationAction::ForEach { param: _, body: _ } => {
                     panic!("We don't know how to process foreaches on policies yet")
                 }
-                CompleteMigrationAction::LoosenFieldPolicy { new_field_policy } => {
+                CompleteMigrationAction::ChangeFieldPolicy { new_field_policy } => {
                     result_policy.remove_field_policy(new_field_policy.field_id);
                     result_policy.add_field_policy(
                         new_field_policy.field_id,
                         new_field_policy);
                 }
-                CompleteMigrationAction::LoosenCollectionPolicy { new_create, new_delete } => {
+                CompleteMigrationAction::ChangeCollectionPolicy { new_create, new_delete } => {
                     result_policy.remove_collection_policy(coll);
                     result_policy.add_collection_policy(coll,
                                                         CollectionPolicy {create: new_create, delete: new_delete });
