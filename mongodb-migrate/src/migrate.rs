@@ -244,8 +244,11 @@ fn interpret_action(
                 evaluator.pop_scope(&param);
             }
         }
-        CompleteMigrationAction::ChangeFieldPolicy {new_field_policy: _} => (),
-        CompleteMigrationAction::ChangeCollectionPolicy {new_create: _, new_delete: _} => (),
+        // Policy manipulations are a no-op at the actual data level
+        CompleteMigrationAction::LoosenFieldPolicy {new_field_policy: _} => (),
+        CompleteMigrationAction::TightenFieldPolicy {new_field_policy: _} => (),
+        CompleteMigrationAction::LoosenCollectionPolicy {new_collection_policy: _} => (),
+        CompleteMigrationAction::TightenCollectionPolicy {new_collection_policy: _} => (),
     }
 }
 

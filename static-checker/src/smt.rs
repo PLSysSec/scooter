@@ -1,12 +1,15 @@
 use policy_lang::ast;
 use policy_lang::ir::*;
 
+use std::io::Write;
+use std::process::{Command, Stdio};
+
 pub fn gen_full(gp_before: &ast::GlobalPolicy, gp_after: &ast::GlobalPolicy) -> String {
     let mut ird = extract_types(&gp_before);
     let ir_1 = ird.lower(gp_before);
     let ir_2 = ird.lower(gp_after);
 
-    let mut out = gen_preamble(&ird);
+    let mut out = gen_preamble(&ird, false);
 
     for c in ird.collections() {
         out += &gen_echo(&c.name().1);
@@ -16,17 +19,86 @@ pub fn gen_full(gp_before: &ast::GlobalPolicy, gp_after: &ast::GlobalPolicy) -> 
             c.id,
             ir_1.collection_policy(c.id),
             &ir_2.collection_policy(c.id),
+            false,
         );
 
         for (fname, did) in c.fields() {
             if fname == "id" {
                 continue;
             }
-            out += &gen_field_checks(&ird, c.id, ir_1.field_policy(*did), ir_2.field_policy(*did));
+            out += &gen_field_checks(
+                &ird,
+                c.id,
+                ir_1.field_policy(*did),
+                ir_2.field_policy(*did),
+                false,
+            );
         }
     }
 
     out
+}
+
+pub fn check_field_refine(
+    ird: &IrData,
+    old_policy: &CompletePolicy,
+    coll_id: Id<Collection>,
+    new_field_policy: &FieldPolicy,
+) -> bool {
+    let mut constraints_string = gen_preamble(ird, true);
+    constraints_string += &gen_field_checks(
+        ird,
+        coll_id,
+        old_policy.field_policy(new_field_policy.field_id),
+        new_field_policy,
+        true,
+    );
+    check_unsat(constraints_string)
+}
+
+pub fn check_collection_refine(
+    ird: &IrData,
+    old_policy: &CompletePolicy,
+    coll_id: Id<Collection>,
+    new_collection_policy: &CollectionPolicy,
+) -> bool {
+    let mut constraints_string = gen_preamble(ird, true);
+    constraints_string += &gen_collection_checks(
+        ird,
+        coll_id,
+        old_policy.collection_policy(coll_id),
+        new_collection_policy,
+        true
+    );
+    check_unsat(constraints_string)
+}
+
+fn check_unsat(constraints_string: String) -> bool {
+    let mut z3_process = Command::new("z3")
+        .arg("-smt2")
+        .arg("-in")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn z3 process");
+    {
+        let stdin = z3_process.stdin.as_mut().expect("Failed to open stdin");
+        stdin
+            .write_all(constraints_string.as_bytes())
+            .expect("Failed to write to stdin");
+    }
+    let output = z3_process
+        .wait_with_output()
+        .expect("Failed to read stdout");
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    let checks: Vec<&str> = output_str.lines().collect();
+    assert_eq!(checks[0], "sat", "preamble failed to check");
+    for check_result in checks[1..].iter() {
+        if *check_result != "unsat" {
+            return false;
+        }
+    }
+    return true;
 }
 
 fn gen_collection_checks(
@@ -34,11 +106,16 @@ fn gen_collection_checks(
     cid: Id<Collection>,
     cp_1: &CollectionPolicy,
     cp_2: &CollectionPolicy,
+    quiet: bool,
 ) -> String {
     let mut out = String::new();
-    out += &gen_echo("create:");
+    if ! quiet {
+        out += &gen_echo("create:");
+    }
     out += &gen_policy_check(ird, cid, &cp_1.create, &cp_2.create);
-    out += &gen_echo("delete:");
+    if ! quiet {
+        out += &gen_echo("delete:");
+    }
     out += &gen_policy_check(ird, cid, &cp_1.delete, &cp_2.delete);
 
     out
@@ -49,14 +126,19 @@ fn gen_field_checks(
     cid: Id<Collection>,
     fp_1: &FieldPolicy,
     fp_2: &FieldPolicy,
+    quiet: bool,
 ) -> String {
     let mut out = String::new();
 
-    out += &gen_echo("");
-    out += &gen_echo(&ird[fp_1.field_id].name.1);
-    out += &gen_echo("read:");
+    if !quiet {
+        out += &gen_echo("");
+        out += &gen_echo(&ird[fp_1.field_id].name.1);
+        out += &gen_echo("read:");
+    }
     out += &gen_policy_check(ird, cid, &fp_1.read, &fp_2.read);
-    out += &gen_echo("edit:");
+    if !quiet {
+        out += &gen_echo("edit:");
+    }
     out += &gen_policy_check(ird, cid, &fp_1.edit, &fp_2.edit);
 
     out
@@ -174,7 +256,7 @@ fn gen_query_expr(ird: &IrData, eid: Id<Expr>) -> String {
     }
 }
 
-fn gen_preamble(ird: &IrData) -> String {
+fn gen_preamble(ird: &IrData, quiet: bool) -> String {
     let mut out = String::new();
 
     out += &format!(
@@ -186,10 +268,16 @@ fn gen_preamble(ird: &IrData) -> String {
         (declare-const public Principles)
         (assert (forall ((v Value)) (select public v)))
         (define-fun insert ((p Principles) (v Value)) Principles (store p v true))
-        (echo "Sanity check for preamble. Should be SAT")
-        (check-sat)
     "#
     );
+    if !quiet {
+        out += r#"
+        (echo "Sanity check for preamble. Should be SAT")
+    "#
+    }
+    out += r#"
+        (check-sat)
+    "#;
 
     for c in ird.collections() {
         let fs: String = c.fields().map(|(_, f)| gen_field(ird, *f)).collect();

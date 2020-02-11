@@ -103,12 +103,17 @@ pub enum CompleteMigrationAction {
         param: Id<Def>,
         body: CompleteObjectCommand,
     },
-    ChangeFieldPolicy {
+    LoosenFieldPolicy {
         new_field_policy: FieldPolicy,
     },
-    ChangeCollectionPolicy {
-        new_create: Policy,
-        new_delete: Policy,
+    TightenFieldPolicy {
+        new_field_policy: FieldPolicy,
+    },
+    LoosenCollectionPolicy {
+        new_collection_policy: CollectionPolicy,
+    },
+    TightenCollectionPolicy {
+        new_collection_policy: CollectionPolicy,
     },
 }
 
@@ -629,7 +634,7 @@ impl Lowerer<'_> {
             }
             ast::MigrationAction::LoosenFieldPolicy {field, new_read, new_write} => {
                 let field_id = self.ird.field(collection_id, &field).id;
-                CompleteMigrationAction::ChangeFieldPolicy {
+                CompleteMigrationAction::LoosenFieldPolicy {
                     new_field_policy: FieldPolicy {
                         field_id,
                         read: self.lower_field_policy(collection_type.clone(),
@@ -640,17 +645,33 @@ impl Lowerer<'_> {
                 }
 
             }
-            ast::MigrationAction::TightenFieldPolicy {field: _, new_read: _, new_write: _} => {
-                panic!("Can't validate that the tightened policy is stricter");
-            }
-            ast::MigrationAction::LoosenCollectionPolicy { new_create, new_delete } => {
-                CompleteMigrationAction::ChangeCollectionPolicy {
-                    new_create: self.lower_field_policy(collection_type.clone(), &new_create),
-                    new_delete: self.lower_field_policy(collection_type.clone(), &new_delete),
+            ast::MigrationAction::TightenFieldPolicy {field, new_read, new_write} => {
+                let field_id = self.ird.field(collection_id, &field).id;
+                CompleteMigrationAction::TightenFieldPolicy {
+                    new_field_policy: FieldPolicy {
+                        field_id,
+                        read: self.lower_field_policy(collection_type.clone(),
+                                                      &new_read),
+                        edit: self.lower_field_policy(collection_type.clone(),
+                                                      &new_write),
+                    }
                 }
             }
-            ast::MigrationAction::TightenCollectionPolicy { new_create: _, new_delete: _ } => {
-                panic!("Can't validate that the tightened collection policy is stricter");
+            ast::MigrationAction::LoosenCollectionPolicy { new_create, new_delete } => {
+                CompleteMigrationAction::LoosenCollectionPolicy {
+                    new_collection_policy: CollectionPolicy {
+                        create: self.lower_field_policy(collection_type.clone(), &new_create),
+                        delete: self.lower_field_policy(collection_type.clone(), &new_delete),
+                    }
+                }
+            }
+            ast::MigrationAction::TightenCollectionPolicy { new_create, new_delete } => {
+                CompleteMigrationAction::TightenCollectionPolicy {
+                    new_collection_policy: CollectionPolicy {
+                        create: self.lower_field_policy(collection_type.clone(), &new_create),
+                        delete: self.lower_field_policy(collection_type.clone(), &new_delete),
+                    }
+                }
             }
         }
     }

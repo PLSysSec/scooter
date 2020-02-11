@@ -1,5 +1,6 @@
 use policy_lang::ir::*;
 use policy_lang::{parse_migration, parse_policy};
+use crate::smt::{check_field_refine, check_collection_refine};
 
 use std::collections::HashMap;
 use std::fs::read_to_string;
@@ -186,7 +187,10 @@ fn interpret_migration_on_policy(
     // Go over the migration commands (consuming them)
     for cmd in migration.0.into_iter() {
         match cmd {
-            CompleteMigrationCommand::CollAction { table: coll, action } => match action {
+            CompleteMigrationCommand::CollAction {
+                table: coll,
+                action,
+            } => match action {
                 // For adding fields, just add new policies based on
                 // the initializer function
                 CompleteMigrationAction::AddField { field, ty: _, init } => result_policy
@@ -239,16 +243,31 @@ fn interpret_migration_on_policy(
                 CompleteMigrationAction::ForEach { param: _, body: _ } => {
                     panic!("We don't know how to process foreaches on policies yet")
                 }
-                CompleteMigrationAction::ChangeFieldPolicy { new_field_policy } => {
+                CompleteMigrationAction::LoosenFieldPolicy { new_field_policy } => {
                     result_policy.remove_field_policy(new_field_policy.field_id);
-                    result_policy.add_field_policy(
-                        new_field_policy.field_id,
-                        new_field_policy);
+                    result_policy.add_field_policy(new_field_policy.field_id, new_field_policy);
                 }
-                CompleteMigrationAction::ChangeCollectionPolicy { new_create, new_delete } => {
+                CompleteMigrationAction::TightenFieldPolicy {
+                    new_field_policy,
+                } => {
+                    assert!(check_field_refine(ird, &result_policy, coll, &new_field_policy),
+                            "Cannot determine that the new field policy is tighter than the old one");
+                    result_policy.remove_field_policy(new_field_policy.field_id);
+                    result_policy.add_field_policy(new_field_policy.field_id, new_field_policy);
+                }
+                CompleteMigrationAction::LoosenCollectionPolicy {
+                    new_collection_policy,
+                } => {
                     result_policy.remove_collection_policy(coll);
-                    result_policy.add_collection_policy(coll,
-                                                        CollectionPolicy {create: new_create, delete: new_delete });
+                    result_policy.add_collection_policy(coll, new_collection_policy);
+                }
+                CompleteMigrationAction::TightenCollectionPolicy {
+                    new_collection_policy,
+                } => {
+                    assert!(check_collection_refine(ird, &result_policy, coll, &new_collection_policy),
+                            "Cannot determine that the new collection policy is tighter than the old one");
+                    result_policy.remove_collection_policy(coll);
+                    result_policy.add_collection_policy(coll, new_collection_policy);
                 }
             },
             // For creating collections, just create a new create and
@@ -502,6 +521,15 @@ fn field_lookups_in_expr(ird: &IrData, e_id: Id<Expr>) -> Vec<Id<Def>> {
         .collect()
 }
 
+fn collection_policy_is_refinement(
+    ird: &IrData,
+    old_policy: &CompletePolicy,
+    coll_id: Id<Collection>,
+    new_coll_poicy: &CollectionPolicy,
+) -> bool {
+    return false
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -667,7 +695,8 @@ mod test {
     },
 }
 ";
-        let migration_text = r#"User::LoosenFieldPolicy(username, { read: public, write: public })"#;
+        let migration_text =
+            r#"User::LoosenFieldPolicy(username, { read: public, write: public })"#;
         let out_text = migrate_policy(policy_text, migration_text);
         let expected_result_text = r"User {
     create: none,
@@ -676,6 +705,95 @@ mod test {
     username : String {
         read: public,
         write: public,
+    },
+}
+";
+        assert_eq!(expected_result_text, out_text);
+    }
+    #[test]
+    fn simple_tighten_field_policy() {
+        let policy_text = r"User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: none,
+    },
+}
+";
+        let migration_text =
+            r#"User::TightenFieldPolicy(username, { read: none, write: none})"#;
+        let out_text = migrate_policy(policy_text, migration_text);
+        let expected_result_text = r"User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: none,
+        write: none,
+    },
+}
+";
+        assert_eq!(expected_result_text, out_text);
+    }
+    #[test]
+    fn tighten_field_policy() {
+        let policy_text = r"
+User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: none,
+    },
+}
+Message {
+    create: public,
+    delete: none,
+
+    to : Id(User) {
+        read: public,
+        write: none,
+    },
+    from : Id(User) {
+        read: public,
+        write: none,
+    },
+    contents : String {
+        read: m -> [m.to, m.from],
+        write: none,
+    },
+}
+";
+        let migration_text =
+            r#"Message::TightenFieldPolicy(contents, { read: m -> [m.from], write: none})"#;
+        let out_text = migrate_policy(policy_text, migration_text);
+        let expected_result_text = r"User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: none,
+    },
+}
+Message {
+    create: public,
+    delete: none,
+
+    to : Id(User) {
+        read: public,
+        write: none,
+    },
+    from : Id(User) {
+        read: public,
+        write: none,
+    },
+    contents : String {
+        read: m -> [m.from],
+        write: none,
     },
 }
 ";
@@ -697,6 +815,32 @@ mod test {
         let out_text = migrate_policy(policy_text, migration_text);
         let expected_result_text = r"User {
     create: public,
+    delete: public,
+
+    username : String {
+        read: none,
+        write: none,
+    },
+}
+";
+        assert_eq!(expected_result_text, out_text);
+    }
+    #[test]
+    fn simple_tighten_collection_policy() {
+        let policy_text = r"User {
+    create: public,
+    delete: public,
+
+    username : String {
+        read: none,
+        write: none,
+    },
+}
+";
+        let migration_text = r#"User::TightenCollectionPolicy({ create: none, delete: public })"#;
+        let out_text = migrate_policy(policy_text, migration_text);
+        let expected_result_text = r"User {
+    create: none,
     delete: public,
 
     username : String {
