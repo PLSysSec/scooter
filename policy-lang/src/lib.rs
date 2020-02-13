@@ -53,17 +53,14 @@ mod tests {
                     create: Policy::Public,
                     delete: Policy::None,
                     fields: {
-                        let mut h = HashMap::new();
-                        h.insert(
-                            "name".to_string(),
+                        vec![
+                            ("name".to_string(),
                             FieldPolicy {
                                 ty: FieldType::String,
                                 read: Policy::Public,
                                 write: Policy::None,
-                            },
-                        );
-                        h.insert(
-                            "pass_hash".to_string(),
+                            }),
+                            ("pass_hash".to_string(),
                             FieldPolicy {
                                 ty: FieldType::String,
                                 read: Policy::Func(Func {
@@ -80,9 +77,7 @@ mod tests {
                                         "id".to_string(),
                                     )),
                                 }),
-                            },
-                        );
-                        h
+                            })]
                     }
                 }]
             }

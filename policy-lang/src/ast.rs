@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -59,7 +58,7 @@ pub struct CollectionPolicy {
     pub name: String,
     pub create: Policy,
     pub delete: Policy,
-    pub fields: HashMap<String, FieldPolicy>,
+    pub fields: Vec<(String, FieldPolicy)>,
 }
 
 #[derive(Debug, PartialEq)]

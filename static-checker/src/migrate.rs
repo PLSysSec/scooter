@@ -521,15 +521,6 @@ fn field_lookups_in_expr(ird: &IrData, e_id: Id<Expr>) -> Vec<Id<Def>> {
         .collect()
 }
 
-fn collection_policy_is_refinement(
-    ird: &IrData,
-    old_policy: &CompletePolicy,
-    coll_id: Id<Collection>,
-    new_coll_poicy: &CollectionPolicy,
-) -> bool {
-    return false
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
