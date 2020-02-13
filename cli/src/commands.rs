@@ -18,6 +18,6 @@ pub fn run(migration_path: &str) {
 
 pub fn dry_run(migration_path: &str) {
     let proj = Project::find_from_cwd().unwrap();
-    let new_policy = proj.dry_run_migration(migration_path);
+    let new_policy = proj.dry_run_migration(migration_path).expect("Couldn't run the migration");
     println!("{}", new_policy);
 }

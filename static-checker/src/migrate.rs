@@ -1,6 +1,6 @@
+use crate::smt::{check_collection_refine, check_field_refine};
 use policy_lang::ir::*;
 use policy_lang::{parse_migration, parse_policy};
-use crate::smt::{check_field_refine, check_collection_refine};
 
 use std::collections::HashMap;
 use std::fs::read_to_string;
@@ -11,7 +11,7 @@ use std::path::Path;
 pub fn migrate_policy_from_files(
     policy_path: impl AsRef<Path>,
     migration_path: impl AsRef<Path>,
-) -> String {
+) -> Result<String, String> {
     migrate_policy(
         &read_to_string(policy_path).expect("Couldn't read policy file"),
         &read_to_string(migration_path).expect("Couldn't read migration file"),
@@ -21,15 +21,15 @@ pub fn migrate_policy_from_files(
 /// Take the text of a policy and a migration, and produce a new
 /// policy, that doesn't leak any information from the old policy, but
 /// is valid post-migration.
-pub fn migrate_policy(policy_text: &str, migration_text: &str) -> String {
+pub fn migrate_policy(policy_text: &str, migration_text: &str) -> Result<String, String> {
     let parsed_policy = parse_policy(policy_text).expect("Couldn't parse policy");
     let parsed_migration = parse_migration(migration_text).expect("Couldn't parse migration");
     let mut ird = extract_types(&parsed_policy);
     let lowered_policy = ird.lower(&parsed_policy);
     let lowered_migration = ird.lower_migration(parsed_migration);
     let resulting_policy =
-        interpret_migration_on_policy(&mut ird, lowered_policy, lowered_migration);
-    policy_to_string(&ird, resulting_policy)
+        interpret_migration_on_policy(&mut ird, lowered_policy, lowered_migration)?;
+    Ok(policy_to_string(&ird, resulting_policy))
 }
 
 fn policy_to_string(ird: &IrData, policy: CompletePolicy) -> String {
@@ -173,7 +173,7 @@ fn interpret_migration_on_policy(
     ird: &mut IrData,
     policy: CompletePolicy,
     migration: CompleteMigration,
-) -> CompletePolicy {
+) -> Result<CompletePolicy, String> {
     // The policy state we'll return
     let mut result_policy = policy.clone();
 
@@ -241,17 +241,16 @@ fn interpret_migration_on_policy(
                     renamed_fields.insert(old_field_id, new_field_id);
                 }
                 CompleteMigrationAction::ForEach { param: _, body: _ } => {
-                    panic!("We don't know how to process foreaches on policies yet")
+                    return Err("We don't know how to process foreaches on policies yet".to_string())
                 }
                 CompleteMigrationAction::LoosenFieldPolicy { new_field_policy } => {
                     result_policy.remove_field_policy(new_field_policy.field_id);
                     result_policy.add_field_policy(new_field_policy.field_id, new_field_policy);
                 }
-                CompleteMigrationAction::TightenFieldPolicy {
-                    new_field_policy,
-                } => {
-                    assert!(check_field_refine(ird, &result_policy, coll, &new_field_policy),
-                            "Cannot determine that the new field policy is tighter than the old one");
+                CompleteMigrationAction::TightenFieldPolicy { new_field_policy } => {
+                    if !check_field_refine(ird, &result_policy, coll, &new_field_policy) {
+                        return Err("Cannot determine that the new field policy is tighter than the old one".to_string());
+                    }
                     result_policy.remove_field_policy(new_field_policy.field_id);
                     result_policy.add_field_policy(new_field_policy.field_id, new_field_policy);
                 }
@@ -264,8 +263,9 @@ fn interpret_migration_on_policy(
                 CompleteMigrationAction::TightenCollectionPolicy {
                     new_collection_policy,
                 } => {
-                    assert!(check_collection_refine(ird, &result_policy, coll, &new_collection_policy),
-                            "Cannot determine that the new collection policy is tighter than the old one");
+                    if !check_collection_refine(ird, &result_policy, coll, &new_collection_policy) {
+                        return Err("Cannot determine that the new collection policy is tighter than the old one".to_string());
+                    }
                     result_policy.remove_collection_policy(coll);
                     result_policy.add_collection_policy(coll, new_collection_policy);
                 }
@@ -333,7 +333,7 @@ fn interpret_migration_on_policy(
         }
     }
 
-    result_policy
+    Ok(result_policy)
 }
 
 fn sub_expr(
@@ -537,7 +537,7 @@ mod test {
     },
 }
 ";
-        let out_text = migrate_policy(policy_text, "");
+        let out_text = migrate_policy(policy_text, "").unwrap();
         assert_eq!(policy_text, out_text);
     }
 
@@ -554,7 +554,7 @@ mod test {
 }
 ";
         let migration_text = r#"User::AddField(pass_hash, String, u -> "default_hash")"#;
-        let out_text = migrate_policy(policy_text, migration_text);
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
         let expected_result_text = r"User {
     create: none,
@@ -586,7 +586,7 @@ mod test {
 }
 ";
         let migration_text = r#"User::AddField(pass_hash, String, u -> u.username + "_hash")"#;
-        let out_text = migrate_policy(policy_text, migration_text);
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
         let expected_result_text = r"User {
     create: none,
@@ -623,7 +623,7 @@ mod test {
 }
 ";
         let migration_text = r#"User::RemoveField(owner)"#;
-        let out_text = migrate_policy(policy_text, migration_text);
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
         let expected_result_text = r"User {
     create: public,
@@ -655,7 +655,7 @@ mod test {
 }
 ";
         let migration_text = r#"User::RenameField(owner, manager)"#;
-        let out_text = migrate_policy(policy_text, migration_text);
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
         let expected_result_text = r"User {
     create: public,
@@ -688,7 +688,7 @@ mod test {
 ";
         let migration_text =
             r#"User::LoosenFieldPolicy(username, { read: public, write: public })"#;
-        let out_text = migrate_policy(policy_text, migration_text);
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"User {
     create: none,
     delete: none,
@@ -713,9 +713,8 @@ mod test {
     },
 }
 ";
-        let migration_text =
-            r#"User::TightenFieldPolicy(username, { read: none, write: none})"#;
-        let out_text = migrate_policy(policy_text, migration_text);
+        let migration_text = r#"User::TightenFieldPolicy(username, { read: none, write: none})"#;
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"User {
     create: none,
     delete: none,
@@ -760,7 +759,7 @@ Message {
 ";
         let migration_text =
             r#"Message::TightenFieldPolicy(contents, { read: m -> [m.from], write: none})"#;
-        let out_text = migrate_policy(policy_text, migration_text);
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"User {
     create: none,
     delete: none,
@@ -803,7 +802,7 @@ Message {
 }
 ";
         let migration_text = r#"User::LoosenCollectionPolicy({ create: public, delete: public })"#;
-        let out_text = migrate_policy(policy_text, migration_text);
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"User {
     create: public,
     delete: public,
@@ -829,7 +828,7 @@ Message {
 }
 ";
         let migration_text = r#"User::TightenCollectionPolicy({ create: none, delete: public })"#;
-        let out_text = migrate_policy(policy_text, migration_text);
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"User {
     create: none,
     delete: public,
