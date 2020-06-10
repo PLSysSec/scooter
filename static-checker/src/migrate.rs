@@ -12,9 +12,11 @@ pub fn migrate_policy_from_files(
     policy_path: impl AsRef<Path>,
     migration_path: impl AsRef<Path>,
 ) -> Result<String, String> {
+    let policy_path_path = policy_path.as_ref();
+    let migration_path_path = migration_path.as_ref();
     migrate_policy(
-        &read_to_string(policy_path).expect("Couldn't read policy file"),
-        &read_to_string(migration_path).expect("Couldn't read migration file"),
+        &read_to_string(policy_path_path.clone()).expect(&format!("Couldn't read policy file {}", policy_path_path.to_str().unwrap())),
+        &read_to_string(migration_path_path.clone()).expect(&format!("Couldn't read migration file {}", migration_path_path.to_str().unwrap())),
     )
 }
 
