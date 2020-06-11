@@ -7,7 +7,7 @@ User {
     },
 
     pass_hash : String {
-        read: r -> r.id,
-        write: r -> r.id,
+        read: r -> [r.id],
+        write: r -> [r.id],
     },
 }

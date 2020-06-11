@@ -611,7 +611,7 @@ mod test {
     fn remove_policy_field_dependency() {
         let policy_text = r"User {
     create: public,
-    delete: u -> u.owner,
+    delete: u -> [u.owner],
 
     owner : Id(User) {
         read: none,
@@ -620,7 +620,7 @@ mod test {
 
     username : String {
         read: public,
-        write: u -> u.owner,
+        write: u -> [u.owner],
     },
 }
 ";
@@ -643,7 +643,7 @@ mod test {
     fn rename_policy_field_dependency() {
         let policy_text = r"User {
     create: public,
-    delete: u -> u.owner,
+    delete: u -> [u.owner],
 
     owner : Id(User) {
         read: none,
@@ -652,7 +652,7 @@ mod test {
 
     username : String {
         read: public,
-        write: u -> u.owner,
+        write: u -> [u.owner],
     },
 }
 ";
@@ -661,11 +661,11 @@ mod test {
 
         let expected_result_text = r"User {
     create: public,
-    delete: u -> u.manager,
+    delete: u -> [u.manager],
 
     username : String {
         read: public,
-        write: u -> u.manager,
+        write: u -> [u.manager],
     },
     manager : Id(User) {
         read: none,

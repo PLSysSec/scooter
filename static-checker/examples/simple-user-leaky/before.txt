@@ -8,6 +8,6 @@ User {
 
     pass_hash : String {
         read: none,
-        write: r -> r.id,
+        write: r -> [r.id],
     },
 }

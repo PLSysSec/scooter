@@ -3,7 +3,7 @@ User {
     delete: none,
 
     trustworthyness : I64 {
-        read: m -> m.id,
+        read: m -> [m.id],
         write: none,
     },
 }
@@ -11,17 +11,17 @@ Message {
     create: public,
     delete: none,
     from : Id(User) {
-        read: m -> m.from + m.to,
+        read: m -> [m.from, m.to],
         write: none,
     },
 
     to : Id(User) {
-        read: m -> m.to + m.from,
+        read: m -> [m.to, m.from],
         write: m -> (if User::ById(m.to).trustworthyness > 20 then [m.to] else []),
     },
 
     text : String {
-        read: m -> (if true then m.from else m.to),
+        read: m -> [(if true then m.from else m.to)],
         write: m -> (if m.to != m.from then [] else [m.to]),
     },
 }
