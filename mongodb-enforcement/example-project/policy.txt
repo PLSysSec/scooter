@@ -7,8 +7,8 @@ User {
     },
 
     pass_hash : String {
-        read: r -> r.id,
-        write: r -> r.id,
+        read: r -> [r.id],
+        write: r -> [r.id],
     },
 
     num_followers : I64 {
@@ -16,26 +16,26 @@ User {
         write: none,
     },
     trustworthyness : I64 {
-        read: m -> m.id,
+        read: m -> [m.id],
         write: none,
     },
 }
 
 Message {
-    create: m -> m.from,
+    create: m -> [m.from],
     delete: none,
     from : Id(User) {
-        read: m -> m.from + m.to,
+        read: m -> [m.from, m.to],
         write: m -> (if User::ById(m.from).trustworthyness > 10 then [m.from] else []),
     },
 
     to : Id(User) {
-        read: m -> m.to + m.from,
+        read: m -> [m.to, m.from],
         write: none,
     },
 
     text : String {
-        read: m -> m.from,
+        read: m -> [m.from],
         write: none,
     },
 }

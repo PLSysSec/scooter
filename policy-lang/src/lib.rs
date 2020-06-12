@@ -4,7 +4,7 @@ pub mod ir;
 use lalrpop_util::lalrpop_mod;
 use std::error::Error;
 
-#[allow(dead_code)]
+#[allow(dead_code, unused_parens)]
 lalrpop_mod!(parser);
 
 pub type GlobalPolicyParseTree = ast::GlobalPolicy;

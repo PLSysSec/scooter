@@ -130,19 +130,11 @@ where
 pub trait ToRecordIdVec {
     fn to_record_id_vec(&self) -> Vec<RecordId>;
 }
-impl<T> ToRecordIdVec for Option<TypedRecordId<T>>
+
+impl<T> ToRecordIdVec for Vec<Option<TypedRecordId<T>>>
 where T: DBCollection {
     fn to_record_id_vec(&self) -> Vec<RecordId> {
-        vec![self.clone().unwrap().into()]
-    }
-}
-
-impl<T> ToRecordIdVec for TypedRecordId<T>
-where
-    T: DBCollection,
-{
-    fn to_record_id_vec(&self) -> Vec<RecordId> {
-        vec![self.clone().into()]
+        self.iter().map(|id| id.clone().unwrap().into()).collect()
     }
 }
 

@@ -193,7 +193,6 @@ pub fn is_subtype(t1: &Type, t2: &Type) -> bool {
                 Type::Id(_) => true,
                 _ => false,
             },
-            Type::Id(_) => true,
             _ => false,
         },
         _ => false,

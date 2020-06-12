@@ -1,18 +1,18 @@
 Message {
-    create: m -> m.from,
+    create: m -> [m.from],
     delete: none,
     from : Id(User) {
-        read: m -> m.from + m.to,
+        read: m -> [m.from, m.to],
         write: none,
     },
 
     to : Id(User) {
-        read: m -> m.to + m.from,
+        read: m -> [m.to, m.from],
         write: none,
     },
 
     text : String {
-        read: m -> m.from,
+        read: m -> [m.from],
         write: none,
     },
 }
@@ -25,8 +25,8 @@ User {
     },
 
     pass_hash : String {
-        read: r -> r.id,
-        write: r -> r.id,
+        read: r -> [r.id],
+        write: r -> [r.id],
     },
 
     num_followers : I64 {

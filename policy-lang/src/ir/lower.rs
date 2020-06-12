@@ -270,49 +270,6 @@ impl Lowerer<'_> {
                             panic!(format!("Cannot append List({}) to List({}).", *t1, *t2))
                         }
                     }
-                    (Type::List(t1), Type::Id(coll)) => {
-                        let converted = self.ird.exprs.alloc_with_id(|id| Expr {
-                            id,
-                            kind: ExprKind::List(vec![lowered2]),
-                        });
-                        match *t1 {
-                            Type::Id(coll2) if coll2 == coll => {
-                                ExprKind::AppendL(Type::Id(coll), lowered1, converted)
-                            }
-                            _ => {
-                                panic!(format!("Cannot add an Id of {:?} to a List({})", coll, t1))
-                            }
-                        }
-                    }
-                    (Type::Id(coll), Type::List(t2)) => {
-                        let converted = self.ird.exprs.alloc_with_id(|id| Expr {
-                            id,
-                            kind: ExprKind::List(vec![lowered1]),
-                        });
-                        match *t2 {
-                            Type::Id(coll2) if coll2 == coll => {
-                                ExprKind::AppendL(Type::Id(coll), converted, lowered2)
-                            }
-                            _ => {
-                                panic!(format!("Cannot add an Id of {:?} to a List({})", coll, t2))
-                            }
-                        }
-                    }
-                    (Type::Id(coll1), Type::Id(coll2)) => {
-                        let converted1 = self.ird.exprs.alloc_with_id(|id| Expr {
-                            id,
-                            kind: ExprKind::List(vec![lowered1]),
-                        });
-                        let converted2 = self.ird.exprs.alloc_with_id(|id| Expr {
-                            id,
-                            kind: ExprKind::List(vec![lowered2]),
-                        });
-                        if coll1 == coll2 {
-                            ExprKind::AppendL(Type::Id(coll1), converted1, converted2)
-                        } else {
-                            panic!("Cannot OR Id of {:?} with Id of {:?}", coll1, coll2)
-                        }
-                    }
                     (Type::Prim(Prim::I64), Type::Prim(Prim::I64)) => {
                         ExprKind::AddI(lowered1, lowered2)
                     }
