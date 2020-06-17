@@ -22,7 +22,6 @@ pub fn parse_migration<'a>(input: &'a str) -> Result<ast::Migration, Box<dyn Err
 mod tests {
     use super::*;
     use ast::*;
-    use std::collections::HashMap;
 
     #[test]
     fn simple_policy() {
@@ -54,30 +53,35 @@ mod tests {
                     delete: Policy::None,
                     fields: {
                         vec![
-                            ("name".to_string(),
-                            FieldPolicy {
-                                ty: FieldType::String,
-                                read: Policy::Public,
-                                write: Policy::None,
-                            }),
-                            ("pass_hash".to_string(),
-                            FieldPolicy {
-                                ty: FieldType::String,
-                                read: Policy::Func(Func {
-                                    param: "u".to_string(),
-                                    expr: Box::new(QueryExpr::FieldAccess(
-                                        Box::new(QueryExpr::Var("u".to_string())),
-                                        "id".to_string(),
-                                    )),
-                                }),
-                                write: Policy::Func(Func {
-                                    param: "u".to_string(),
-                                    expr: Box::new(QueryExpr::FieldAccess(
-                                        Box::new(QueryExpr::Var("u".to_string())),
-                                        "id".to_string(),
-                                    )),
-                                }),
-                            })]
+                            (
+                                "name".to_string(),
+                                FieldPolicy {
+                                    ty: FieldType::String,
+                                    read: Policy::Public,
+                                    write: Policy::None,
+                                },
+                            ),
+                            (
+                                "pass_hash".to_string(),
+                                FieldPolicy {
+                                    ty: FieldType::String,
+                                    read: Policy::Func(Func {
+                                        param: "u".to_string(),
+                                        expr: Box::new(QueryExpr::FieldAccess(
+                                            Box::new(QueryExpr::Var("u".to_string())),
+                                            "id".to_string(),
+                                        )),
+                                    }),
+                                    write: Policy::Func(Func {
+                                        param: "u".to_string(),
+                                        expr: Box::new(QueryExpr::FieldAccess(
+                                            Box::new(QueryExpr::Var("u".to_string())),
+                                            "id".to_string(),
+                                        )),
+                                    }),
+                                },
+                            ),
+                        ]
                     }
                 }]
             }
