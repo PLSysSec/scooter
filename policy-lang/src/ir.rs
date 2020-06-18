@@ -5,6 +5,7 @@ use std::{hash::Hash, marker::PhantomData};
 pub mod expr;
 pub mod policy;
 pub mod schema;
+pub mod migration;
 
 
 /// Idents represent any identifier across the policy languages.

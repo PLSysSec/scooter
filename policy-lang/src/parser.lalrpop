@@ -56,6 +56,7 @@ Func: Func = {
         expr: e
     }
 }
+
 FieldInitializer: (String, Box<QueryExpr>) = {
     <i:Ident> ":" <q:QueryExpr> => (i, q)
 }
@@ -68,12 +69,6 @@ List: Vec<Box<QueryExpr>> = {
 }
 ConditionalExpr: Box<QueryExpr> = {
     "(" "if" <cond:QueryExpr> "then" <e1:QueryExpr> "else" <e2:QueryExpr> ")" => Box::new(QueryExpr::If(cond, e1, e2)),
-}
-FieldTypeDeclaration: (String, FieldType) = {
-    <i:Ident> ":" <t:FieldType> => (i, t)
-}
-ObjectType: Vec<(String, FieldType)> = {
-    "{" <fs:Comma<FieldTypeDeclaration>> "}" => fs
 }
 Comma<T>: Vec<T> = { // (1)
     <v:(<T> ",")*> <e:T?> => match e { // (2)
@@ -137,36 +132,37 @@ pub Migration: Migration = {
 MigrationAction: MigrationAction = {
     "RemoveField" "(" <c:Ident> ")" =>
         MigrationAction::RemoveField{field:c},
-    "AddField" "(" <c:Ident> "," <ty:FieldType> "," <vf:Func> ")" =>
-        MigrationAction::AddField{field:c, ty:ty, init:vf},
-    "ChangeField" "(" <c:Ident> "," <ty:FieldType> "," <vf:Func> ")" =>
-        MigrationAction::ChangeField{field:c, new_ty:ty, new_init:vf},
+    "AddField" "(" <c:Ident> "," <ty:FieldType> "," <f:Func> ")" =>
+        MigrationAction::AddField{field:c, ty:ty, init:f},
+    "ChangeField" "(" <c:Ident> "," <ty:FieldType> ")" =>
+        MigrationAction::ChangeField{field:c, new_ty:ty },
     "RenameField" "(" <f_old:Ident> "," <f_new:Ident> ")" =>
         MigrationAction::RenameField{old_field:f_old, new_field: f_new},
-    "ForEach" "(" <p:Ident> "->" <c:ObjectCommand> ")" =>
-        MigrationAction::ForEach{param:p, body:c},
-    "LoosenFieldPolicy" "(" <f:Ident> "," "{" "read" ":" <r:Policy> "," "write" ":" <w:Policy> ","? "}" ")" =>
-        MigrationAction::LoosenFieldPolicy{field:f, new_read:r, new_write:w},
-    "TightenFieldPolicy" "(" <f:Ident> "," "{" "read" ":" <r:Policy> "," "write" ":" <w:Policy> ","? "}" ")" =>
-        MigrationAction::TightenFieldPolicy{field:f, new_read:r, new_write:w},
-    "LoosenCollectionPolicy" "(" "{" "create" ":" <c:Policy> "," "delete" ":" <d:Policy> "}" ")" =>
-        MigrationAction::LoosenCollectionPolicy{new_create: c, new_delete: d},
-    "TightenCollectionPolicy" "(" "{" "create" ":" <c:Policy> "," "delete" ":" <d:Policy> "}" ")" =>
-        MigrationAction::TightenCollectionPolicy{new_create: c, new_delete: d},
+    "LoosenFieldPolicy" "(" <f:Ident> "," <k:Ident> "," <p:Policy>")" =>
+        MigrationAction::LoosenFieldPolicy{field:f, kind: k, pol: p},
+    "TightenFieldPolicy" "(" <f:Ident> "," <k:Ident> "," <p:Policy>")" =>
+        MigrationAction::TightenFieldPolicy{field:f, kind: k, pol: p},
+    "LoosenCollectionPolicy" "(" <k:Ident> "," <p:Policy> ")" =>
+        MigrationAction::LoosenCollectionPolicy{kind: k, pol: p},
+    "TightenCollectionPolicy" "(" <k:Ident> "," <p:Policy> ")" =>
+        MigrationAction::TightenCollectionPolicy{kind: k, pol: p},
 }
 
 MigrationCommand: MigrationCommand = {
-    <t:Ident> "::" <m:MigrationAction> =>
-        MigrationCommand::CollAction{table: t, action: m},
-    "CreateCollection" "(" <i:Ident> "," <t:ObjectType> ")" =>
-        MigrationCommand::Create{table_name: i, layout: t},
+    <c:Ident> "::" <action: MigrationAction> =>
+        MigrationCommand::CollAction{table: c, action },
+    "CreateCollection" "{" <c:CollectionPolicy> "}" =>
+        MigrationCommand::Create{ collection: c },
     "DeleteCollection" "(" <i:Ident> ")" =>
         MigrationCommand::Delete{table_name: i},
+    ObjectCommand => MigrationCommand::ObjectCommand(<>)
 }
 
 ObjectCommand: ObjectCommand = {
-    <t:Ident> "::" "Create" "(" <e:QueryExpr> ")" =>
-        ObjectCommand::CreateObject{collection:t, value:e},
-    <t:Ident> "::" "Delete" "(" <e:QueryExpr> ")" =>
-        ObjectCommand::DeleteObject{collection:t, id_expr:e},
+    <c:Ident> "::" "ForEach" "(" <p:Ident> "->" <oc:ObjectCommand> ")" =>
+        ObjectCommand::ForEach{collection: c, param:p, body: Box::new(oc)},
+    <c:Ident> "::" "Create" "(" <e:QueryExpr> ")" =>
+        ObjectCommand::CreateObject{collection:c, value:e},
+    <c:Ident> "::" "Delete" "(" <e:QueryExpr> ")" =>
+        ObjectCommand::DeleteObject{collection:c, id_expr:e},
 }

@@ -22,15 +22,15 @@ struct DefMapNode {
 }
 
 impl DefMap {
-    fn empty() -> DefMap {
+    pub fn empty() -> DefMap {
         DefMap(None)
     }
 
-    fn extend(&self, var: String, typ: ExprType) -> DefMap {
+    pub fn extend(&self, var: &str, id: Ident<Var>, typ: ExprType) -> DefMap {
         DefMap(Some(Rc::new(DefMapNode {
             prev: self.clone(),
-            id: Ident::new(&var),
-            var,
+            id,
+            var: var.to_string(),
             typ,
         })))
     }
@@ -82,6 +82,27 @@ impl fmt::Display for ExprType {
             ExprType::Object(coll) => write!(f, "{:?}", coll),
             ExprType::ListUnknown => write!(f, "ListUnknown"),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct Func {
+    param: Ident<Var>,
+    param_type: ExprType,
+    body: Box<IRExpr>
+}
+
+pub fn extract_func(
+    schema: &Schema,
+    param_type: ExprType,
+    func: &ast::Func,
+) ->  Func {
+    let param_id = Ident::new(&func.param);
+    let def_map = DefMap::empty().extend(&func.param, param_id.clone(), param_type.clone());
+    Func {
+        param: param_id,
+        param_type,
+        body: extract_ir_expr(schema, def_map, &func.expr),
     }
 }
 
@@ -154,15 +175,6 @@ pub enum IRExpr {
     BoolConst(bool),
 }
 
-pub fn extract_policy_func(
-    schema: &Schema,
-    coll_ident: Ident<Collection>,
-    func: &ast::Func,
-) -> Policy {
-    let def_map = DefMap::empty().extend(func.param.clone(), ExprType::Object(coll_ident));
-    let (id, _) = def_map.lookup(&func.param).unwrap();
-    Policy::Func(id, *extract_ir_expr(schema, def_map, &func.expr))
-}
 
 pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) -> Box<IRExpr> {
     let ir_expr = match expr {

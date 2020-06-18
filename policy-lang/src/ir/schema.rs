@@ -2,7 +2,7 @@ use super::Ident;
 use crate::ast;
 use std::{collections::HashMap, ops::Index};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schema {
     collections: Vec<Collection>,
 }
@@ -136,5 +136,22 @@ impl ExtractionContext {
             FieldType::Id(ref name) => DBType::Id(self.coll_idents[name].clone()),
             FieldType::List(_) => unimplemented!("Lowering lists"),
         }
+    }
+}
+
+pub(crate) fn extract_type(schema: &Schema, ty: &ast::FieldType) -> DBType {
+    use ast::FieldType;
+
+    match ty {
+        FieldType::String => DBType::String,
+        FieldType::I64 => DBType::I64,
+        FieldType::F64 => DBType::F64,
+        FieldType::Bool => DBType::Bool,
+        FieldType::Id(ref name) => {
+            let coll = schema.find_collection(name).expect(&format!("Unable to find collection {} in Id({0})", name));
+
+            DBType::Id(coll.name.clone())
+        }
+        FieldType::List(_) => unimplemented!("Lowering lists"),
     }
 }

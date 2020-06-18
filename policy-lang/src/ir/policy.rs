@@ -1,5 +1,5 @@
 use super::{
-    expr::{extract_policy_func, IRExpr, Var},
+    expr::{extract_func, ExprType, Func},
     schema::{Collection, Field, Schema},
     Ident,
 };
@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use ast::Annotation;
 
 /// Describes the policy for access of a given schema
+#[derive(Debug)]
 pub struct SchemaPolicy {
     pub schema: Schema,
     pub collection_policies: HashMap<Ident<Collection>, CollectionPolicy>,
@@ -15,23 +16,27 @@ pub struct SchemaPolicy {
     pub principle: Ident<Collection>,
 }
 
+
+#[derive(Debug)]
 pub struct FieldPolicy {
     pub read: Policy,
     pub edit: Policy,
 }
 
+#[derive(Debug)]
 pub enum Policy {
     None,
     Anyone,
-    Func(Ident<Var>, IRExpr),
+    Func(Func),
 }
 
+#[derive(Debug)]
 pub struct CollectionPolicy {
     pub create: Policy,
     pub delete: Policy,
 }
 
-pub fn extract_policy(gp: &ast::GlobalPolicy) -> SchemaPolicy {
+pub fn extract_schema_policy(gp: &ast::GlobalPolicy) -> SchemaPolicy {
     let schema = super::schema::extract_schema(gp);
     ExtractionContext::new(schema).extract_schema_policy(gp)
 }
@@ -84,28 +89,33 @@ impl ExtractionContext {
     }
 
     fn extract_coll_policy(&self, cp: &ast::CollectionPolicy) -> CollectionPolicy {
+        let coll = self.schema.find_collection(&cp.name).unwrap();
+
         CollectionPolicy {
-            create: self.extract_policy(&cp.name, &cp.create),
-            delete: self.extract_policy(&cp.name, &cp.delete),
+            create: extract_policy(&self.schema, coll.name.clone(), &cp.create),
+            delete: extract_policy(&self.schema, coll.name.clone(), &cp.delete),
         }
     }
 
     fn extract_field_policy(&self, coll_name: &str, fp: &ast::FieldPolicy) -> FieldPolicy {
+        let coll = self.schema.find_collection(coll_name).unwrap();
+
         FieldPolicy {
             // TODO: Bring AST names inline
-            edit: self.extract_policy(&coll_name, &fp.write),
-            read: self.extract_policy(&coll_name, &fp.read),
+            edit: extract_policy(&self.schema, coll.name.clone(), &fp.write),
+            read: extract_policy(&self.schema, coll.name.clone(), &fp.read),
         }
     }
+}
 
-    fn extract_policy(&self, coll_name: &str, p: &ast::Policy) -> Policy {
-        match p {
-            ast::Policy::Public => Policy::Anyone,
-            ast::Policy::None => Policy::None,
-            ast::Policy::Func(f) => {
-                let coll = self.schema.find_collection(coll_name).unwrap();
-                extract_policy_func(&self.schema, coll.name.clone(), f)
-            }
+/// Extracs a policy for the specified collection. The collection ident is used
+/// to set the expected type of the policy function (if present)
+pub fn extract_policy(schema: &Schema, coll: Ident<Collection>, p: &ast::Policy) -> Policy {
+    match p {
+        ast::Policy::Public => Policy::Anyone,
+        ast::Policy::None => Policy::None,
+        ast::Policy::Func(e) => {
+            Policy::Func(extract_func(schema, ExprType::id(coll), e))
         }
     }
 }

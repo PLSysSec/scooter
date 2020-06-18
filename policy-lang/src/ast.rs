@@ -109,16 +109,21 @@ pub enum MigrationCommand {
         action: MigrationAction,
     },
     Create {
-        table_name: String,
-        layout: Vec<(String, FieldType)>,
+        collection: CollectionPolicy,
     },
     Delete {
         table_name: String,
     },
+    ObjectCommand(ObjectCommand),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectCommand {
+    ForEach {
+        collection: String,
+        param: String,
+        body: Box<ObjectCommand>,
+    },
     CreateObject {
         collection: String,
         value: Box<QueryExpr>,
@@ -142,32 +147,27 @@ pub enum MigrationAction {
     ChangeField {
         field: String,
         new_ty: FieldType,
-        new_init: Func,
     },
     RenameField {
         old_field: String,
         new_field: String,
     },
-    ForEach {
-        param: String,
-        body: ObjectCommand,
-    },
     LoosenFieldPolicy {
         field: String,
-        new_read: Policy,
-        new_write: Policy,
+        kind: String,
+        pol: Policy
     },
     TightenFieldPolicy {
         field: String,
-        new_read: Policy,
-        new_write: Policy,
+        kind: String,
+        pol: Policy
     },
     LoosenCollectionPolicy {
-        new_create: Policy,
-        new_delete: Policy,
+        kind: String,
+        pol: Policy
     },
     TightenCollectionPolicy {
-        new_create: Policy,
-        new_delete: Policy,
+        kind: String,
+        pol: Policy
     },
 }
