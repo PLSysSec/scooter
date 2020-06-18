@@ -27,6 +27,7 @@ mod tests {
     fn simple_policy() {
         let p = parse_policy(
             r#"
+            @principle
             User {
                 create: public,
                 delete: none,
@@ -36,8 +37,8 @@ mod tests {
                 },
 
                 pass_hash : String {
-                    read: u -> u.id,
-                    write: u -> u.id,
+                    read: u -> [u.id],
+                    write: u -> [u.id],
                 },
             }
         "#,
@@ -51,6 +52,7 @@ mod tests {
                     name: "User".to_string(),
                     create: Policy::Public,
                     delete: Policy::None,
+                    annotations: vec![Annotation::Principle],
                     fields: {
                         vec![
                             (
@@ -67,17 +69,21 @@ mod tests {
                                     ty: FieldType::String,
                                     read: Policy::Func(Func {
                                         param: "u".to_string(),
-                                        expr: Box::new(QueryExpr::FieldAccess(
-                                            Box::new(QueryExpr::Var("u".to_string())),
-                                            "id".to_string(),
-                                        )),
+                                        expr: Box::new(QueryExpr::List(vec![
+                                                Box::new(QueryExpr::FieldAccess(
+                                                    Box::new(QueryExpr::Var("u".to_string())),
+                                                    "id".to_string(),
+                                                ))
+                                        ])),
                                     }),
                                     write: Policy::Func(Func {
                                         param: "u".to_string(),
-                                        expr: Box::new(QueryExpr::FieldAccess(
-                                            Box::new(QueryExpr::Var("u".to_string())),
-                                            "id".to_string(),
-                                        )),
+                                        expr: Box::new(QueryExpr::List(vec![
+                                                Box::new(QueryExpr::FieldAccess(
+                                                    Box::new(QueryExpr::Var("u".to_string())),
+                                                    "id".to_string(),
+                                                ))
+                                        ])),
                                     }),
                                 },
                             ),

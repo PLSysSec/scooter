@@ -59,6 +59,12 @@ pub struct CollectionPolicy {
     pub create: Policy,
     pub delete: Policy,
     pub fields: Vec<(String, FieldPolicy)>,
+    pub annotations: Vec<Annotation>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Annotation {
+    Principle
 }
 
 #[derive(Debug, PartialEq)]

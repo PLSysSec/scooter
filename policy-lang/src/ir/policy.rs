@@ -5,12 +5,14 @@ use super::{
 };
 use crate::ast;
 use std::collections::HashMap;
+use ast::Annotation;
 
 /// Describes the policy for access of a given schema
 pub struct SchemaPolicy {
     pub schema: Schema,
     pub collection_policies: HashMap<Ident<Collection>, CollectionPolicy>,
     pub field_policies: HashMap<Ident<Field>, FieldPolicy>,
+    pub principle: Ident<Collection>,
 }
 
 pub struct FieldPolicy {
@@ -35,7 +37,7 @@ pub fn extract_policy(gp: &ast::GlobalPolicy) -> SchemaPolicy {
 }
 
 struct ExtractionContext {
-    schema: Schema,
+    schema: Schema
 }
 
 impl ExtractionContext {
@@ -48,9 +50,22 @@ impl ExtractionContext {
     fn extract_schema_policy(self, gp: &ast::GlobalPolicy) -> SchemaPolicy {
         let mut collection_policies = HashMap::new();
         let mut field_policies = HashMap::new();
+        let mut principle = None;
         for cp in gp.collections.iter() {
             let coll = self.schema.find_collection(&cp.name).unwrap();
             let coll_id = coll.name.clone();
+            
+            // Extract any annotations
+            match cp.annotations.as_slice() {
+                [Annotation::Principle] => {
+                    if let Some(old) = principle.replace(coll_id.clone()) {
+                        panic!("Multiple collections cannot be marked as principles: {}, {}", &old.orig_name, &coll_id.orig_name)
+                    }
+                },
+                [] => {},
+                _ => panic!("Error on {}. Only a single annotation (`@principle`) is allowed.", &cp.name),
+            };
+
             collection_policies.insert(coll_id, self.extract_coll_policy(cp));
 
             for (fname, fp) in cp.fields.iter() {
@@ -63,6 +78,7 @@ impl ExtractionContext {
         SchemaPolicy {
             collection_policies,
             field_policies,
+            principle: principle.expect("No `@principle` found in policy."),
             schema: self.schema,
         }
     }

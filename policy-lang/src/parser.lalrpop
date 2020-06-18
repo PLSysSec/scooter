@@ -7,12 +7,22 @@ pub GlobalPolicy: GlobalPolicy = {
 }
 
 CollectionPolicy: CollectionPolicy = {
+    <a:Annotation> <cp: CollectionPolicy> => {
+        let mut cp = cp;
+        cp.annotations.push(a);
+        cp
+    },
     <i:Ident> "{" "create" ":" <cp:Policy> "," "delete" ":" <dp:Policy> "," <fp:FieldPolicy*> "}"  => CollectionPolicy {
         name: i,
         create: cp,
         delete: dp,
-        fields: fp.into_iter().collect()
+        fields: fp.into_iter().collect(),
+        annotations: vec![],
     }
+}
+
+Annotation: Annotation = {
+    "@principle" => Annotation::Principle,
 }
 
 FieldPolicy: (String, FieldPolicy) = {
