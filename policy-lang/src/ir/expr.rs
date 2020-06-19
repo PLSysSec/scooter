@@ -177,7 +177,7 @@ pub enum IRExpr {
     /// A list expression
     List(ExprType, Vec<Box<IRExpr>>),
     /// Conditional expression
-    If(Box<IRExpr>, Box<IRExpr>, Box<IRExpr>),
+    If(ExprType, Box<IRExpr>, Box<IRExpr>, Box<IRExpr>),
     /// Constant primitive values
     IntConst(i64),
     FloatConst(f64),
@@ -357,7 +357,13 @@ pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) 
             let cond = coerce(&ExprType::bool(), cond);
             let (then, els) = align_types(then, els);
 
-            IRExpr::If(cond, then, els)
+            let typ = if is_subtype(&then.type_of(), &els.type_of()) {
+                then.type_of()
+            } else {
+                els.type_of()
+            };
+
+            IRExpr::If(typ, cond, then, els)
         }
         ast::QueryExpr::FieldAccess(obj_expr, elem) => {
             let obj_expr = extract_ir_expr(schema, def_map, obj_expr);
@@ -528,20 +534,14 @@ impl IRExpr {
             | IRExpr::IsLessI(..) => ExprType::DBType(DBType::Bool),
 
             IRExpr::Path(typ, ..) => ExprType::DBType(typ.clone()),
-            IRExpr::Var(typ, ..) => typ.clone(),
             IRExpr::Object(coll, ..) | IRExpr::LookupById(coll, ..) => {
                 ExprType::Object(coll.clone())
             }
 
-            IRExpr::AppendL(typ, ..) => typ.clone(),
-            IRExpr::List(typ, ..) => typ.clone(),
-            IRExpr::If(_cond, left, right) => {
-                if is_subtype(&left.type_of(), &right.type_of()) {
-                    left.type_of()
-                } else {
-                    right.type_of()
-                }
-            }
+            IRExpr::Var(typ, ..)
+            | IRExpr::AppendL(typ, ..) 
+            | IRExpr::List(typ, ..)
+            | IRExpr::If(typ, ..) => typ.clone()
         }
     }
 }

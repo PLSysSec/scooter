@@ -1,7 +1,7 @@
 use super::{
     expr::{extract_func, extract_ir_expr, DefMap, ExprType, Func, IRExpr, Var},
     policy::{
-        extract_partial_schema_policy, extract_policy, extract_schema_policy, Policy, SchemaPolicy,
+        extract_partial_schema_policy, extract_policy, Policy, SchemaPolicy,
     },
     schema::{extract_type, Collection, DBType, Field, Schema},
     Ident,
@@ -102,7 +102,7 @@ pub enum DataCommand {
 /// This is a useful primitive for any analysis being done on migrations
 /// and it's important that everyone agrees on what those effects are,
 /// so the logic is centralized here.
-fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
+pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
     let mut output = schema.clone();
     match mc {
         MigrationCommand::RemoveField { coll, field } => {
@@ -170,7 +170,7 @@ fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
 }
 
 /// Converts an ast to the lowered representation where Idents and Types (among other things) are resolved.
-fn extract_migration_command(
+pub fn extract_migration_command(
     policy: &SchemaPolicy,
     cmd: ast::MigrationCommand,
 ) -> MigrationCommand {
