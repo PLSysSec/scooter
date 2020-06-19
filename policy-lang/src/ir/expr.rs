@@ -88,9 +88,9 @@ impl fmt::Display for ExprType {
 
 #[derive(Debug)]
 pub struct Func {
-    param: Ident<Var>,
-    param_type: ExprType,
-    body: Box<IRExpr>,
+    pub param: Ident<Var>,
+    pub param_type: ExprType,
+    pub body: Box<IRExpr>,
 }
 
 pub fn extract_func(
