@@ -1,24 +1,18 @@
 use super::{
     expr::{extract_func, extract_ir_expr, DefMap, ExprType, Func, IRExpr, Var},
-    policy::{extract_policy, extract_schema_policy, Policy, SchemaPolicy},
+    policy::{extract_policy, extract_schema_policy, Policy, SchemaPolicy, extract_partial_schema_policy},
     schema::{extract_type, Collection, DBType, Field, Schema},
     Ident,
 };
 use crate::ast;
 
-/// MigrationScript captures each step of a migration.
-/// Because a `MigrationCommand` can both:
+/// Because a `MigrationCommand` can:
 ///     - contain an expression
 ///     - modify the schema
-/// Each step of the migration must be paired with the schema
-/// available at that point in time.
-///
-/// This means that lowering a sequence of migration commands,
-/// requires interpreting the affects of the migration on the schema.
-pub struct MigrationScript {
-    pub commands: Vec<(Schema, MigrationCommand)>,
-    pub final_schema: Schema,
-}
+///     - modify the policy
+///     - reference the policy
+/// Each command can only be lowered after the effects of the command on both
+/// the schema and the policy have been determined.
 
 #[derive(Debug)]
 pub enum MigrationCommand {
@@ -102,23 +96,6 @@ pub enum DataCommand {
     },
 }
 
-pub fn extract_migration_script(schema: &Schema, migration: ast::Migration) -> MigrationScript {
-    let mut curr_schema = schema.clone();
-    let mut commands = vec![];
-    for mc in migration.0.into_iter() {
-        let lowered = extract_migration_command(&curr_schema, mc);
-        let new_schema = interpret_command(&curr_schema, &lowered);
-
-        commands.push((curr_schema, lowered));
-        curr_schema = new_schema;
-    }
-
-    MigrationScript {
-        commands,
-        final_schema: curr_schema,
-    }
-}
-
 /// Interprets the affect of a migration command on a schema
 /// This is a useful primitive for any analysis being done on migrations
 /// and it's important that everyone agrees on what those effects are,
@@ -130,7 +107,7 @@ fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
             output[coll].fields = output[coll]
                 .fields
                 .iter()
-                .filter(|(_, f)| f.name != *field)
+                .filter(|f| f.name != *field)
                 .cloned()
                 .collect();
             output
@@ -138,13 +115,12 @@ fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
         MigrationCommand::AddField {
             coll, field, ty, ..
         } => {
-            output[coll].fields.push((
-                field.orig_name.clone(),
+            output[coll].fields.push(
                 Field {
                     name: field.clone(),
                     typ: ty.clone(),
                 },
-            ));
+            );
             output
         }
         MigrationCommand::ChangeField {
@@ -155,9 +131,9 @@ fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
             let old_field = output[coll]
                 .fields
                 .iter_mut()
-                .find(|(_, f)| f.name != *field)
+                .find(|f| f.name != *field)
                 .unwrap();
-            old_field.1.typ = new_ty.clone();
+            old_field.typ = new_ty.clone();
             output
         }
         MigrationCommand::RenameField {
@@ -168,10 +144,9 @@ fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
             let old_field = output[coll]
                 .fields
                 .iter_mut()
-                .find(|(_, f)| f.name != *field)
+                .find(|f| f.name != *field)
                 .unwrap();
-            old_field.0 = new_name.orig_name.clone();
-            old_field.1.name = new_name.clone();
+            old_field.name = new_name.clone();
             output
         }
         MigrationCommand::Create { pol } => {
@@ -195,10 +170,10 @@ fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
 }
 
 /// Converts an ast to the lowered representation where Idents and Types (among other things) are resolved.
-fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> MigrationCommand {
+fn extract_migration_command(policy: &SchemaPolicy, cmd: ast::MigrationCommand) -> MigrationCommand {
     match cmd {
         ast::MigrationCommand::CollAction { table, action } => {
-            let coll = schema.find_collection(&table).expect(&format!(
+            let coll = policy.schema.find_collection(&table).expect(&format!(
                 "Unable to delete collection `{}` because it does not exist.",
                 &table
             ));
@@ -217,9 +192,9 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                 }
                 ast::MigrationAction::AddField { field, ty, init } => {
                     let field = Ident::new(field);
-                    let ty = extract_type(schema, &ty);
+                    let ty = extract_type(&policy.schema, &ty);
                     let init = extract_func(
-                        schema,
+                        &policy.schema,
                         ExprType::Object(coll.name.clone()),
                         &ExprType::DBType(ty.clone()),
                         &init,
@@ -237,7 +212,7 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                         "Unable to change field {}::{} because it does not exist",
                         &table, &field
                     ));
-                    let new_ty = extract_type(schema, &new_ty);
+                    let new_ty = extract_type(&policy.schema, &new_ty);
 
                     MigrationCommand::ChangeField {
                         coll: coll.name.clone(),
@@ -265,7 +240,7 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                         &table, &field
                     ));
                     let kind = extract_field_policy_kind(&kind);
-                    let pol = extract_policy(schema, coll.name.clone(), &pol);
+                    let pol = extract_policy(&policy.schema, &policy.principle, &coll.name, &pol);
 
                     MigrationCommand::LoosenFieldPolicy {
                         coll: coll.name.clone(),
@@ -280,7 +255,7 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                         &table, &field
                     ));
                     let kind = extract_field_policy_kind(&kind);
-                    let pol = extract_policy(schema, coll.name.clone(), &pol);
+                    let pol = extract_policy(&policy.schema, &policy.principle, &coll.name, &pol);
 
                     MigrationCommand::LoosenFieldPolicy {
                         coll: coll.name.clone(),
@@ -291,7 +266,7 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                 }
                 ast::MigrationAction::LoosenCollectionPolicy { kind, pol } => {
                     let kind = extract_coll_policy_kind(&kind);
-                    let pol = extract_policy(schema, coll.name.clone(), &pol);
+                    let pol = extract_policy(&policy.schema, &policy.principle.clone(), &coll.name, &pol);
 
                     MigrationCommand::LoosenCollectionPolicy {
                         coll: coll.name.clone(),
@@ -301,7 +276,7 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                 }
                 ast::MigrationAction::TightenCollectionPolicy { kind, pol } => {
                     let kind = extract_coll_policy_kind(&kind);
-                    let pol = extract_policy(schema, coll.name.clone(), &pol);
+                    let pol = extract_policy(&policy.schema, &policy.principle, &coll.name, &pol);
 
                     MigrationCommand::TightenCollectionPolicy {
                         coll: coll.name.clone(),
@@ -312,14 +287,14 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
             }
         }
         ast::MigrationCommand::Create { collection } => {
-            let pol = extract_schema_policy(&ast::GlobalPolicy {
+            let pol = extract_partial_schema_policy(policy.principle.clone(), &ast::GlobalPolicy {
                 collections: vec![collection],
             });
 
             MigrationCommand::Create { pol }
         }
         ast::MigrationCommand::Delete { table_name } => {
-            let coll = schema.find_collection(&table_name).expect(&format!(
+            let coll = policy.schema.find_collection(&table_name).expect(&format!(
                 "Unable to delete collection `{}` because it does not exist.",
                 table_name
             ));
@@ -330,7 +305,7 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
         }
 
         ast::MigrationCommand::ObjectCommand(oc) => {
-            MigrationCommand::DataCommand(extract_data_command(schema, DefMap::empty(), oc))
+            MigrationCommand::DataCommand(extract_data_command(&policy.schema, DefMap::empty(), oc))
         }
     }
 }

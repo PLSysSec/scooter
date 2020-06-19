@@ -1,16 +1,22 @@
 use super::Ident;
 use crate::ast;
 use std::{
-    collections::HashMap,
+    collections::{HashSet, HashMap},
     ops::{Index, IndexMut},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schema {
-    pub(crate) collections: Vec<Collection>,
+    pub collections: Vec<Collection>,
 }
 
 impl Schema {
+    pub fn empty() -> Self {
+        Self {
+            collections: vec![]
+        }
+    }
+
     pub fn find_collection(&self, name: &str) -> Option<&Collection> {
         self.collections.iter().find(|c| c.name.eq_str(name))
     }
@@ -45,7 +51,7 @@ impl Index<&Ident<Field>> for Schema {
     type Output = Field;
     fn index(&self, ident: &Ident<Field>) -> &Self::Output {
         for c in self.collections.iter() {
-            for (_, f) in c.fields.iter() {
+            for f in c.fields.iter() {
                 if f.name == *ident {
                     return f;
                 }
@@ -59,15 +65,15 @@ impl Index<&Ident<Field>> for Schema {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Collection {
     pub name: Ident<Self>,
-    pub(crate) fields: Vec<(String, Field)>,
+    pub(crate) fields: Vec<Field>,
 }
 
 impl Collection {
-    pub fn fields(&self) -> impl Iterator<Item = &(String, Field)> {
+    pub fn fields(&self) -> impl Iterator<Item = &Field> {
         self.fields.iter()
     }
     pub fn find_field(&self, fname: &str) -> Option<&Field> {
-        self.fields.iter().find(|(n, _)| n == fname).map(|(_, f)| f)
+        self.fields.iter().find(|f| f.name.eq_str(fname))
     }
 }
 
@@ -123,13 +129,27 @@ impl ExtractionContext {
     }
 
     fn extract_collection(&self, cp: &ast::CollectionPolicy) -> Collection {
+        let mut field_names = HashSet::new();
+
+        // Automatically create the id field
+        let mut fields = vec![Field {
+            name: Ident::new("id"),
+            typ: DBType::Id(self.coll_idents[&cp.name].clone()),
+        }];
+        field_names.insert("id".to_string());
+
+        // Insert all the fields defined in the file
+        for (fname, fp) in cp.fields.iter() {
+            if field_names.contains(fname) {
+                panic!("Duplicate field name {} found in collection {}", fname, cp.name)
+            }
+            fields.push(self.extract_field(fname, fp));
+            field_names.insert(fname.to_string());
+        }
+
         Collection {
             name: self.coll_idents[&cp.name].clone(),
-            fields: cp
-                .fields
-                .iter()
-                .map(|(fname, fp)| (fname.clone(), self.extract_field(fname, fp)))
-                .collect(),
+            fields: fields,
         }
     }
 

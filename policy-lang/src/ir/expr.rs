@@ -71,14 +71,14 @@ impl fmt::Display for ExprType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ExprType::DBType(it) => match it {
-                DBType::Id(ident) => write!(f, "Id{:?}", ident),
+                DBType::Id(ident) => write!(f, "Id({})", ident.orig_name),
                 DBType::String => write!(f, "String"),
                 DBType::I64 => write!(f, "I64"),
                 DBType::F64 => write!(f, "F64"),
                 DBType::Bool => write!(f, "Bool"),
             },
             ExprType::List(ty) => write!(f, "List({})", ty),
-            ExprType::Object(coll) => write!(f, "{:?}", coll),
+            ExprType::Object(coll) => write!(f, "{}", coll.orig_name),
             ExprType::ListUnknown => write!(f, "ListUnknown"),
         }
     }
@@ -104,7 +104,7 @@ pub fn extract_func(
     if body.type_of() != *exp_ret_type {
         panic!(
             "Expected function return type: `{}`. Found: `{}`",
-            &param_type, exp_ret_type
+            exp_ret_type, body.type_of(),
         )
     }
 
@@ -129,7 +129,7 @@ pub enum IRExpr {
     /// String append
     AppendS(Box<IRExpr>, Box<IRExpr>),
     /// List append. The type denotes the unified type from the operation
-    AppendL(Box<IRExpr>, Box<IRExpr>),
+    AppendL(ExprType, Box<IRExpr>, Box<IRExpr>),
     /// Adding integers
     AddI(Box<IRExpr>, Box<IRExpr>),
     /// Adding floats
@@ -194,7 +194,14 @@ pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) 
             match left.type_of() {
                 ExprType::DBType(DBType::I64) => IRExpr::AddI(left, right),
                 ExprType::DBType(DBType::F64) => IRExpr::AddF(left, right),
-                ExprType::List(_) => IRExpr::AppendL(left, right),
+                ExprType::ListUnknown | ExprType::List(_) => {
+                    let typ = if is_subtype(&left.type_of(), &right.type_of()) {
+                        left.type_of()
+                    } else {
+                        right.type_of()
+                    };
+                    IRExpr::AppendL(typ, left, right)
+                }
                 ExprType::DBType(DBType::String) => IRExpr::AppendS(left, right),
                 _ => panic!(
                     "`+` operation not defined for types: {} + {}",
@@ -212,7 +219,7 @@ pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) 
                 ExprType::DBType(DBType::I64) => IRExpr::SubI(left, right),
                 ExprType::DBType(DBType::F64) => IRExpr::SubF(left, right),
                 _ => panic!(
-                    "`+` operation not defined for types: {} + {}",
+                    "`-` operation not defined for types: {} + {}",
                     left.type_of(),
                     right.type_of()
                 ),
@@ -229,7 +236,7 @@ pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) 
                     IRExpr::IsEq(typ, left, right)
                 }
                 _ => panic!(
-                    "`+` operation not defined for types: {} + {}",
+                    "`==` operation not defined for types: {} + {}",
                     left.type_of(),
                     right.type_of()
                 ),
@@ -242,11 +249,11 @@ pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) 
 
             let typ = left.type_of();
             match &typ {
-                ExprType::DBType(DBType::I64) | ExprType::DBType(DBType::F64) => {
+                ExprType::DBType(DBType::I64) | ExprType::DBType(DBType::F64) | ExprType::DBType(DBType::Id(_)) => {
                     IRExpr::Not(Box::new(IRExpr::IsEq(typ, left, right)))
                 }
                 _ => panic!(
-                    "`+` operation not defined for types: {} + {}",
+                    "`!=` operation not defined for types: {} + {}",
                     left.type_of(),
                     right.type_of()
                 ),
@@ -396,7 +403,7 @@ pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) 
 
             // If there's no template we have to verify that all the fields are present
             if template.is_none() {
-                for (_, field) in coll.fields() {
+                for field in coll.fields() {
                     // Id's should come from the DB
                     if field.is_id() {
                         continue;
@@ -447,7 +454,7 @@ pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) 
                     .map(|expr| coerce(&most_specific_type, expr))
                     .collect();
 
-                IRExpr::List(most_specific_type.clone(), lowered_elems)
+                IRExpr::List(ExprType::list(most_specific_type.clone()), lowered_elems)
             }
         }
     };
@@ -479,7 +486,7 @@ fn coerce(typ: &ExprType, expr: Box<IRExpr>) -> Box<IRExpr> {
 /// Handles coercions favoring Int->Float conversion and List<Unknown> -> List<Foo>
 fn align_types(left: Box<IRExpr>, right: Box<IRExpr>) -> (Box<IRExpr>, Box<IRExpr>) {
     // They already match
-    if left.type_of() == right.type_of() {
+    if is_subtype(&left.type_of(), &right.type_of()) || is_subtype(&right.type_of(), &left.type_of()) {
         return (left, right);
     }
 
@@ -521,9 +528,15 @@ impl IRExpr {
                 ExprType::Object(coll.clone())
             }
 
-            IRExpr::AppendL(l, ..) => l.type_of(),
+            IRExpr::AppendL(typ, ..) => typ.clone(),
             IRExpr::List(typ, ..) => typ.clone(),
-            IRExpr::If(_cond, left, ..) => left.type_of().clone(),
+            IRExpr::If(_cond, left, right) => {
+                if is_subtype(&left.type_of(), &right.type_of()) {
+                    left.type_of()
+                } else {
+                    right.type_of()
+                }
+            }
         }
     }
 }
