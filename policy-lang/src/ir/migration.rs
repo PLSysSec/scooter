@@ -3,7 +3,7 @@ use super::{
     policy::{
         extract_partial_schema_policy, extract_policy, Policy, SchemaPolicy,
     },
-    schema::{extract_type, Collection, DBType, Field, Schema},
+    schema::{extract_type, Collection, Field, Schema},
     Ident,
 };
 use crate::ast;
@@ -25,13 +25,13 @@ pub enum MigrationCommand {
     AddField {
         coll: Ident<Collection>,
         field: Ident<Field>,
-        ty: DBType,
+        ty: ExprType,
         init: Func,
     },
     ChangeField {
         coll: Ident<Collection>,
         field: Ident<Field>,
-        new_ty: DBType,
+        new_ty: ExprType,
     },
     RenameField {
         coll: Ident<Collection>,
@@ -199,7 +199,7 @@ pub fn extract_migration_command(
                     let init = extract_func(
                         &policy.schema,
                         ExprType::Object(coll.name.clone()),
-                        &ExprType::DBType(ty.clone()),
+                        &ty,
                         &init,
                     );
 

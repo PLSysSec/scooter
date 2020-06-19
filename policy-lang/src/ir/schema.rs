@@ -1,4 +1,4 @@
-use super::Ident;
+use super::{expr::ExprType, Ident};
 use crate::ast;
 use std::{
     collections::{HashMap, HashSet},
@@ -80,7 +80,7 @@ impl Collection {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Field {
     pub name: Ident<Self>,
-    pub typ: DBType,
+    pub typ: ExprType,
 }
 
 impl Field {
@@ -89,14 +89,6 @@ impl Field {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DBType {
-    Id(Ident<Collection>),
-    String,
-    I64,
-    F64,
-    Bool,
-}
 
 pub fn extract_schema(gp: &ast::GlobalPolicy) -> Schema {
     ExtractionContext::new(gp).extract_schema(gp)
@@ -134,7 +126,7 @@ impl ExtractionContext {
         // Automatically create the id field
         let mut fields = vec![Field {
             name: Ident::new("id"),
-            typ: DBType::Id(self.coll_idents[&cp.name].clone()),
+            typ: ExprType::Id(self.coll_idents[&cp.name].clone()),
         }];
         field_names.insert("id".to_string());
 
@@ -163,34 +155,40 @@ impl ExtractionContext {
         }
     }
 
-    fn extract_type(&self, ty: &ast::FieldType) -> DBType {
+    fn extract_type(&self, ty: &ast::FieldType) -> ExprType {
         use ast::FieldType;
 
         match ty {
-            FieldType::String => DBType::String,
-            FieldType::I64 => DBType::I64,
-            FieldType::F64 => DBType::F64,
-            FieldType::Bool => DBType::Bool,
-            FieldType::Id(ref name) => DBType::Id(self.coll_idents[name].clone()),
-            FieldType::List(_) => unimplemented!("Lowering lists"),
+            FieldType::String => ExprType::String,
+            FieldType::I64 => ExprType::I64,
+            FieldType::F64 => ExprType::F64,
+            FieldType::Bool => ExprType::Bool,
+            FieldType::Id(ref name) => ExprType::Id(self.coll_idents[name].clone()),
+            FieldType::List(ty) => {
+                if let FieldType::List(_)  = **ty {
+                    panic!("Schemas may not contain nested lists")
+                };
+
+                ExprType::List(Box::new(self.extract_type(ty)))
+            }
         }
     }
 }
 
-pub(crate) fn extract_type(schema: &Schema, ty: &ast::FieldType) -> DBType {
+pub(crate) fn extract_type(schema: &Schema, ty: &ast::FieldType) -> ExprType {
     use ast::FieldType;
 
     match ty {
-        FieldType::String => DBType::String,
-        FieldType::I64 => DBType::I64,
-        FieldType::F64 => DBType::F64,
-        FieldType::Bool => DBType::Bool,
+        FieldType::String => ExprType::String,
+        FieldType::I64 => ExprType::I64,
+        FieldType::F64 => ExprType::F64,
+        FieldType::Bool => ExprType::Bool,
         FieldType::Id(ref name) => {
             let coll = schema
                 .find_collection(name)
                 .expect(&format!("Unable to find collection {} in Id({0})", name));
 
-            DBType::Id(coll.name.clone())
+            ExprType::Id(coll.name.clone())
         }
         FieldType::List(_) => unimplemented!("Lowering lists"),
     }
