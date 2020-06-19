@@ -104,7 +104,8 @@ pub fn extract_func(
     if body.type_of() != *exp_ret_type {
         panic!(
             "Expected function return type: `{}`. Found: `{}`",
-            exp_ret_type, body.type_of(),
+            exp_ret_type,
+            body.type_of(),
         )
     }
 
@@ -151,8 +152,8 @@ pub enum IRExpr {
     /// syntax, but are inserted by the typechecker.
     IntToFloat(Box<IRExpr>),
 
-    /// Field lookup on an object. The collection id is inserted by
-    /// the typechecker.
+    /// Field lookup on an object. The DBType is inserted by the
+    /// typechecker for convenience
     Path(DBType, Box<IRExpr>, Ident<Field>),
 
     /// A variable
@@ -249,7 +250,9 @@ pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) 
 
             let typ = left.type_of();
             match &typ {
-                ExprType::DBType(DBType::I64) | ExprType::DBType(DBType::F64) | ExprType::DBType(DBType::Id(_)) => {
+                ExprType::DBType(DBType::I64)
+                | ExprType::DBType(DBType::F64)
+                | ExprType::DBType(DBType::Id(_)) => {
                     IRExpr::Not(Box::new(IRExpr::IsEq(typ, left, right)))
                 }
                 _ => panic!(
@@ -486,7 +489,9 @@ fn coerce(typ: &ExprType, expr: Box<IRExpr>) -> Box<IRExpr> {
 /// Handles coercions favoring Int->Float conversion and List<Unknown> -> List<Foo>
 fn align_types(left: Box<IRExpr>, right: Box<IRExpr>) -> (Box<IRExpr>, Box<IRExpr>) {
     // They already match
-    if is_subtype(&left.type_of(), &right.type_of()) || is_subtype(&right.type_of(), &left.type_of()) {
+    if is_subtype(&left.type_of(), &right.type_of())
+        || is_subtype(&right.type_of(), &left.type_of())
+    {
         return (left, right);
     }
 

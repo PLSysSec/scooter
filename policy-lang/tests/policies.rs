@@ -1,4 +1,7 @@
-use policy_lang::{self, ir::policy::{extract_schema_policy, SchemaPolicy}, };
+use policy_lang::{
+    self,
+    ir::policy::{extract_schema_policy, SchemaPolicy},
+};
 
 fn test_policy(pol: &str) -> SchemaPolicy {
     let pol = policy_lang::parse_policy(pol).unwrap();
@@ -7,7 +10,8 @@ fn test_policy(pol: &str) -> SchemaPolicy {
 
 #[test]
 fn simple_valid() {
-    let policy = test_policy(r#"
+    let policy = test_policy(
+        r#"
         @principle
         User {
             create: public,
@@ -18,7 +22,8 @@ fn simple_valid() {
                 write: none, 
             },
         }
-    "#);
+    "#,
+    );
 
     assert_eq!(policy.schema.collections[0].name.orig_name, "User");
     assert_eq!(policy.principle.orig_name, "User");
@@ -27,7 +32,8 @@ fn simple_valid() {
 #[test]
 #[should_panic(expected = "No `@principle` found in policy.")]
 fn missing_principle() {
-    test_policy(r#"
+    test_policy(
+        r#"
         User {
             create: public,
             delete: none,
@@ -37,12 +43,14 @@ fn missing_principle() {
                 write: none, 
             },
         }
-    "#);
+    "#,
+    );
 }
 
 #[test]
 fn big() {
-    test_policy(r#"
+    test_policy(
+        r#"
     @principle
     User {
         create: public,
@@ -70,5 +78,6 @@ fn big() {
             read: m -> [(if true then m.from else m.to)],
             write: m -> (if m.to != m.from then [] else [m.to]),
         },
-    }"#);
+    }"#,
+    );
 }

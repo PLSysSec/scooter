@@ -1,6 +1,8 @@
 use super::{
     expr::{extract_func, extract_ir_expr, DefMap, ExprType, Func, IRExpr, Var},
-    policy::{extract_policy, extract_schema_policy, Policy, SchemaPolicy, extract_partial_schema_policy},
+    policy::{
+        extract_partial_schema_policy, extract_policy, extract_schema_policy, Policy, SchemaPolicy,
+    },
     schema::{extract_type, Collection, DBType, Field, Schema},
     Ident,
 };
@@ -115,12 +117,10 @@ fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
         MigrationCommand::AddField {
             coll, field, ty, ..
         } => {
-            output[coll].fields.push(
-                Field {
-                    name: field.clone(),
-                    typ: ty.clone(),
-                },
-            );
+            output[coll].fields.push(Field {
+                name: field.clone(),
+                typ: ty.clone(),
+            });
             output
         }
         MigrationCommand::ChangeField {
@@ -170,7 +170,10 @@ fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
 }
 
 /// Converts an ast to the lowered representation where Idents and Types (among other things) are resolved.
-fn extract_migration_command(policy: &SchemaPolicy, cmd: ast::MigrationCommand) -> MigrationCommand {
+fn extract_migration_command(
+    policy: &SchemaPolicy,
+    cmd: ast::MigrationCommand,
+) -> MigrationCommand {
     match cmd {
         ast::MigrationCommand::CollAction { table, action } => {
             let coll = policy.schema.find_collection(&table).expect(&format!(
@@ -266,7 +269,8 @@ fn extract_migration_command(policy: &SchemaPolicy, cmd: ast::MigrationCommand) 
                 }
                 ast::MigrationAction::LoosenCollectionPolicy { kind, pol } => {
                     let kind = extract_coll_policy_kind(&kind);
-                    let pol = extract_policy(&policy.schema, &policy.principle.clone(), &coll.name, &pol);
+                    let pol =
+                        extract_policy(&policy.schema, &policy.principle.clone(), &coll.name, &pol);
 
                     MigrationCommand::LoosenCollectionPolicy {
                         coll: coll.name.clone(),
@@ -287,9 +291,12 @@ fn extract_migration_command(policy: &SchemaPolicy, cmd: ast::MigrationCommand) 
             }
         }
         ast::MigrationCommand::Create { collection } => {
-            let pol = extract_partial_schema_policy(policy.principle.clone(), &ast::GlobalPolicy {
-                collections: vec![collection],
-            });
+            let pol = extract_partial_schema_policy(
+                policy.principle.clone(),
+                &ast::GlobalPolicy {
+                    collections: vec![collection],
+                },
+            );
 
             MigrationCommand::Create { pol }
         }

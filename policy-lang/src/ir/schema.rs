@@ -1,7 +1,7 @@
 use super::Ident;
 use crate::ast;
 use std::{
-    collections::{HashSet, HashMap},
+    collections::{HashMap, HashSet},
     ops::{Index, IndexMut},
 };
 
@@ -13,7 +13,7 @@ pub struct Schema {
 impl Schema {
     pub fn empty() -> Self {
         Self {
-            collections: vec![]
+            collections: vec![],
         }
     }
 
@@ -141,7 +141,10 @@ impl ExtractionContext {
         // Insert all the fields defined in the file
         for (fname, fp) in cp.fields.iter() {
             if field_names.contains(fname) {
-                panic!("Duplicate field name {} found in collection {}", fname, cp.name)
+                panic!(
+                    "Duplicate field name {} found in collection {}",
+                    fname, cp.name
+                )
             }
             fields.push(self.extract_field(fname, fp));
             field_names.insert(fname.to_string());
