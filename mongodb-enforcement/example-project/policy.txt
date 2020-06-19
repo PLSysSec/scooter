@@ -1,3 +1,4 @@
+@principle
 User {
     create: public,
     delete: none,
