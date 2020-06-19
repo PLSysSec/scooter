@@ -3,10 +3,9 @@ pub use id_arena::Id;
 use std::{hash::Hash, marker::PhantomData};
 
 pub mod expr;
+pub mod migration;
 pub mod policy;
 pub mod schema;
-pub mod migration;
-
 
 /// Idents represent any identifier across the policy languages.
 /// This includes variables, collections, field names, etc.

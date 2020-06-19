@@ -1,10 +1,13 @@
 use super::Ident;
 use crate::ast;
-use std::{collections::HashMap, ops::Index};
+use std::{
+    collections::HashMap,
+    ops::{Index, IndexMut},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schema {
-    collections: Vec<Collection>,
+    pub(crate) collections: Vec<Collection>,
 }
 
 impl Schema {
@@ -13,12 +16,12 @@ impl Schema {
     }
 }
 
-impl Index<Ident<Collection>> for Schema {
+impl Index<&Ident<Collection>> for Schema {
     type Output = Collection;
-    fn index(&self, ident: Ident<Collection>) -> &Self::Output {
+    fn index(&self, ident: &Ident<Collection>) -> &Self::Output {
         self.collections
             .iter()
-            .find(|c| c.name == ident)
+            .find(|c| c.name == *ident)
             .expect(&format!(
                 "Internal error: ident {:?} not found in schema",
                 ident
@@ -26,12 +29,24 @@ impl Index<Ident<Collection>> for Schema {
     }
 }
 
-impl Index<Ident<Field>> for Schema {
+impl IndexMut<&Ident<Collection>> for Schema {
+    fn index_mut(&mut self, ident: &Ident<Collection>) -> &mut Self::Output {
+        self.collections
+            .iter_mut()
+            .find(|c| c.name == *ident)
+            .expect(&format!(
+                "Internal error: ident {:?} not found in schema",
+                ident
+            ))
+    }
+}
+
+impl Index<&Ident<Field>> for Schema {
     type Output = Field;
-    fn index(&self, ident: Ident<Field>) -> &Self::Output {
+    fn index(&self, ident: &Ident<Field>) -> &Self::Output {
         for c in self.collections.iter() {
             for (_, f) in c.fields.iter() {
-                if f.name == ident {
+                if f.name == *ident {
                     return f;
                 }
             }
@@ -44,7 +59,7 @@ impl Index<Ident<Field>> for Schema {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Collection {
     pub name: Ident<Self>,
-    fields: Vec<(String, Field)>,
+    pub(crate) fields: Vec<(String, Field)>,
 }
 
 impl Collection {
@@ -148,7 +163,9 @@ pub(crate) fn extract_type(schema: &Schema, ty: &ast::FieldType) -> DBType {
         FieldType::F64 => DBType::F64,
         FieldType::Bool => DBType::Bool,
         FieldType::Id(ref name) => {
-            let coll = schema.find_collection(name).expect(&format!("Unable to find collection {} in Id({0})", name));
+            let coll = schema
+                .find_collection(name)
+                .expect(&format!("Unable to find collection {} in Id({0})", name));
 
             DBType::Id(coll.name.clone())
         }

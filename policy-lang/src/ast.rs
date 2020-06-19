@@ -64,7 +64,7 @@ pub struct CollectionPolicy {
 
 #[derive(Debug, PartialEq)]
 pub enum Annotation {
-    Principle
+    Principle,
 }
 
 #[derive(Debug, PartialEq)]
@@ -155,19 +155,19 @@ pub enum MigrationAction {
     LoosenFieldPolicy {
         field: String,
         kind: String,
-        pol: Policy
+        pol: Policy,
     },
     TightenFieldPolicy {
         field: String,
         kind: String,
-        pol: Policy
+        pol: Policy,
     },
     LoosenCollectionPolicy {
         kind: String,
-        pol: Policy
+        pol: Policy,
     },
     TightenCollectionPolicy {
         kind: String,
-        pol: Policy
+        pol: Policy,
     },
 }

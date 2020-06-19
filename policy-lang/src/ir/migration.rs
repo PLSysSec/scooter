@@ -1,5 +1,9 @@
-
-use super::{Ident, schema::{Collection, Schema, Field, DBType, extract_type}, expr::{Var, IRExpr, ExprType, extract_func, Func, DefMap, extract_ir_expr}, policy::{SchemaPolicy, CollectionPolicy, Policy, extract_policy, extract_schema_policy}};
+use super::{
+    expr::{extract_func, extract_ir_expr, DefMap, ExprType, Func, IRExpr, Var},
+    policy::{extract_policy, extract_schema_policy, Policy, SchemaPolicy},
+    schema::{extract_type, Collection, DBType, Field, Schema},
+    Ident,
+};
 use crate::ast;
 
 /// MigrationScript captures each step of a migration.
@@ -12,8 +16,8 @@ use crate::ast;
 /// This means that lowering a sequence of migration commands,
 /// requires interpreting the affects of the migration on the schema.
 pub struct MigrationScript {
-    commands: Vec<(Schema, MigrationCommand)>,
-    final_schema: Schema,
+    pub commands: Vec<(Schema, MigrationCommand)>,
+    pub final_schema: Schema,
 }
 
 #[derive(Debug)]
@@ -53,12 +57,12 @@ pub enum MigrationCommand {
     LoosenCollectionPolicy {
         coll: Ident<Collection>,
         kind: CollectionPolicyKind,
-        new_policy: Policy, 
+        new_policy: Policy,
     },
     TightenCollectionPolicy {
         coll: Ident<Collection>,
         kind: CollectionPolicyKind,
-        new_policy: Policy, 
+        new_policy: Policy,
     },
     DataCommand(DataCommand),
     Create {
@@ -104,29 +108,107 @@ pub fn extract_migration_script(schema: &Schema, migration: ast::Migration) -> M
     for mc in migration.0.into_iter() {
         let lowered = extract_migration_command(&curr_schema, mc);
         let new_schema = interpret_command(&curr_schema, &lowered);
-        
+
         commands.push((curr_schema, lowered));
         curr_schema = new_schema;
     }
 
     MigrationScript {
         commands,
-        final_schema: curr_schema
+        final_schema: curr_schema,
     }
 }
 
-fn interpret_command(curr_schema: &Schema, lowered: &MigrationCommand) -> Schema {
-    todo!()
+/// Interprets the affect of a migration command on a schema
+/// This is a useful primitive for any analysis being done on migrations
+/// and it's important that everyone agrees on what those effects are,
+/// so the logic is centralized here.
+fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
+    let mut output = schema.clone();
+    match mc {
+        MigrationCommand::RemoveField { coll, field } => {
+            output[coll].fields = output[coll]
+                .fields
+                .iter()
+                .filter(|(_, f)| f.name != *field)
+                .cloned()
+                .collect();
+            output
+        }
+        MigrationCommand::AddField {
+            coll, field, ty, ..
+        } => {
+            output[coll].fields.push((
+                field.orig_name.clone(),
+                Field {
+                    name: field.clone(),
+                    typ: ty.clone(),
+                },
+            ));
+            output
+        }
+        MigrationCommand::ChangeField {
+            coll,
+            field,
+            new_ty,
+        } => {
+            let old_field = output[coll]
+                .fields
+                .iter_mut()
+                .find(|(_, f)| f.name != *field)
+                .unwrap();
+            old_field.1.typ = new_ty.clone();
+            output
+        }
+        MigrationCommand::RenameField {
+            coll,
+            field,
+            new_name,
+        } => {
+            let old_field = output[coll]
+                .fields
+                .iter_mut()
+                .find(|(_, f)| f.name != *field)
+                .unwrap();
+            old_field.0 = new_name.orig_name.clone();
+            old_field.1.name = new_name.clone();
+            output
+        }
+        MigrationCommand::Create { pol } => {
+            output.collections.push(pol.schema.collections[0].clone());
+            output
+        }
+        MigrationCommand::Delete { name } => {
+            output.collections = output
+                .collections
+                .into_iter()
+                .filter(|c| c.name == *name)
+                .collect();
+            output
+        }
+        MigrationCommand::LoosenFieldPolicy { .. }
+        | MigrationCommand::TightenFieldPolicy { .. }
+        | MigrationCommand::LoosenCollectionPolicy { .. }
+        | MigrationCommand::TightenCollectionPolicy { .. }
+        | MigrationCommand::DataCommand(_) => output,
+    }
 }
 
+/// Converts an ast to the lowered representation where Idents and Types (among other things) are resolved.
 fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> MigrationCommand {
     match cmd {
         ast::MigrationCommand::CollAction { table, action } => {
-            let coll= schema.find_collection(&table).expect(&format!("Unable to delete collection `{}` because it does not exist.", &table));
+            let coll = schema.find_collection(&table).expect(&format!(
+                "Unable to delete collection `{}` because it does not exist.",
+                &table
+            ));
 
             match action {
                 ast::MigrationAction::RemoveField { field } => {
-                    let field = coll.find_field(&field).expect(&format!("Unable to delete field {}::{} because it does not exist", &table, &field));
+                    let field = coll.find_field(&field).expect(&format!(
+                        "Unable to delete field {}::{} because it does not exist",
+                        &table, &field
+                    ));
 
                     MigrationCommand::RemoveField {
                         coll: coll.name.clone(),
@@ -136,7 +218,12 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                 ast::MigrationAction::AddField { field, ty, init } => {
                     let field = Ident::new(field);
                     let ty = extract_type(schema, &ty);
-                    let init = extract_func(schema, ExprType::DBType(ty.clone()), &init);
+                    let init = extract_func(
+                        schema,
+                        ExprType::Object(coll.name.clone()),
+                        &ExprType::DBType(ty.clone()),
+                        &init,
+                    );
 
                     MigrationCommand::AddField {
                         coll: coll.name.clone(),
@@ -145,8 +232,11 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                         init,
                     }
                 }
-                ast::MigrationAction::ChangeField { field, new_ty} => {
-                    let field = coll.find_field(&field).expect(&format!("Unable to change field {}::{} because it does not exist", &table, &field));
+                ast::MigrationAction::ChangeField { field, new_ty } => {
+                    let field = coll.find_field(&field).expect(&format!(
+                        "Unable to change field {}::{} because it does not exist",
+                        &table, &field
+                    ));
                     let new_ty = extract_type(schema, &new_ty);
 
                     MigrationCommand::ChangeField {
@@ -154,18 +244,26 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                         field: field.name.clone(),
                         new_ty,
                     }
-                    
                 }
-                ast::MigrationAction::RenameField { old_field, new_field } => {
-                    let field = coll.find_field(&old_field).expect(&format!("Unable to rename field {}::{} because it does not exist", &table, &new_field));
+                ast::MigrationAction::RenameField {
+                    old_field,
+                    new_field,
+                } => {
+                    let field = coll.find_field(&old_field).expect(&format!(
+                        "Unable to rename field {}::{} because it does not exist",
+                        &table, &new_field
+                    ));
                     MigrationCommand::RenameField {
                         coll: coll.name.clone(),
-                        field: field.name.clone(), 
+                        field: field.name.clone(),
                         new_name: Ident::new(new_field),
                     }
                 }
-                ast::MigrationAction::LoosenFieldPolicy { field, kind, pol} => {
-                    let field = coll.find_field(&field).expect(&format!("Unable to loosen field policy {}::{} because it does not exist", &table, &field));
+                ast::MigrationAction::LoosenFieldPolicy { field, kind, pol } => {
+                    let field = coll.find_field(&field).expect(&format!(
+                        "Unable to loosen field policy {}::{} because it does not exist",
+                        &table, &field
+                    ));
                     let kind = extract_field_policy_kind(&kind);
                     let pol = extract_policy(schema, coll.name.clone(), &pol);
 
@@ -176,8 +274,11 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                         new_policy: pol,
                     }
                 }
-                ast::MigrationAction::TightenFieldPolicy { field, kind, pol} => {
-                    let field = coll.find_field(&field).expect(&format!("Unable to loosen field policy {}::{} because it does not exist", &table, &field));
+                ast::MigrationAction::TightenFieldPolicy { field, kind, pol } => {
+                    let field = coll.find_field(&field).expect(&format!(
+                        "Unable to loosen field policy {}::{} because it does not exist",
+                        &table, &field
+                    ));
                     let kind = extract_field_policy_kind(&kind);
                     let pol = extract_policy(schema, coll.name.clone(), &pol);
 
@@ -188,7 +289,7 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                         new_policy: pol,
                     }
                 }
-                ast::MigrationAction::LoosenCollectionPolicy { kind, pol} => {
+                ast::MigrationAction::LoosenCollectionPolicy { kind, pol } => {
                     let kind = extract_coll_policy_kind(&kind);
                     let pol = extract_policy(schema, coll.name.clone(), &pol);
 
@@ -198,7 +299,7 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                         new_policy: pol,
                     }
                 }
-                ast::MigrationAction::TightenCollectionPolicy { kind, pol} => {
+                ast::MigrationAction::TightenCollectionPolicy { kind, pol } => {
                     let kind = extract_coll_policy_kind(&kind);
                     let pol = extract_policy(schema, coll.name.clone(), &pol);
 
@@ -209,21 +310,24 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
                     }
                 }
             }
-        },
+        }
         ast::MigrationCommand::Create { collection } => {
             let pol = extract_schema_policy(&ast::GlobalPolicy {
                 collections: vec![collection],
             });
 
             MigrationCommand::Create { pol }
-        },
+        }
         ast::MigrationCommand::Delete { table_name } => {
-            let coll= schema.find_collection(&table_name).expect(&format!("Unable to delete collection `{}` because it does not exist.", table_name));
+            let coll = schema.find_collection(&table_name).expect(&format!(
+                "Unable to delete collection `{}` because it does not exist.",
+                table_name
+            ));
 
             MigrationCommand::Delete {
                 name: coll.name.clone(),
             }
-        },
+        }
 
         ast::MigrationCommand::ObjectCommand(oc) => {
             MigrationCommand::DataCommand(extract_data_command(schema, DefMap::empty(), oc))
@@ -233,38 +337,66 @@ fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> Mig
 
 fn extract_data_command(schema: &Schema, def_map: DefMap, oc: ast::ObjectCommand) -> DataCommand {
     match oc {
-        ast::ObjectCommand::ForEach { collection, param, body } => {
-            let coll= schema.find_collection(&collection).expect(&format!("Unable to loop over collection `{}` because it does not exist.", &collection));
+        ast::ObjectCommand::ForEach {
+            collection,
+            param,
+            body,
+        } => {
+            let coll = schema.find_collection(&collection).expect(&format!(
+                "Unable to loop over collection `{}` because it does not exist.",
+                &collection
+            ));
             let param_id = Ident::new(&param);
             let ty = ExprType::id(coll.name.clone());
             DataCommand::ForEach {
                 coll: coll.name.clone(),
                 param: param_id.clone(),
-                body: Box::new(extract_data_command(schema, def_map.extend(&param, param_id, ty), *body))
+                body: Box::new(extract_data_command(
+                    schema,
+                    def_map.extend(&param, param_id, ty),
+                    *body,
+                )),
             }
         }
         ast::ObjectCommand::CreateObject { collection, value } => {
-            let coll= schema.find_collection(&collection).expect(&format!("Unable to create `{}` because it does not exist.", &collection));
+            let coll = schema.find_collection(&collection).expect(&format!(
+                "Unable to create `{}` because it does not exist.",
+                &collection
+            ));
             let value = extract_ir_expr(schema, def_map.clone(), &value);
             if value.type_of() != ExprType::Object(coll.name.clone()) {
-                panic!("Attempting to create an object for {} but found type {:?}", &coll.name.orig_name, value.type_of());
+                panic!(
+                    "Attempting to create an object for {} but found type {:?}",
+                    &coll.name.orig_name,
+                    value.type_of()
+                );
             }
 
             DataCommand::CreateObject {
                 collection: coll.name.clone(),
-                value: *value
+                value: *value,
             }
         }
-        ast::ObjectCommand::DeleteObject { collection, id_expr } => {
-            let coll= schema.find_collection(&collection).expect(&format!("Unable to create `{}` because it does not exist.", &collection));
+        ast::ObjectCommand::DeleteObject {
+            collection,
+            id_expr,
+        } => {
+            let coll = schema.find_collection(&collection).expect(&format!(
+                "Unable to create `{}` because it does not exist.",
+                &collection
+            ));
             let value = extract_ir_expr(schema, def_map.clone(), &id_expr);
             if value.type_of() != ExprType::id(coll.name.clone()) {
-                panic!("Attempting to delete an object for {} but found type {:?}", &coll.name.orig_name, value.type_of());
+                panic!(
+                    "Attempting to delete an object for {} but found type {:?}",
+                    &coll.name.orig_name,
+                    value.type_of()
+                );
             }
 
             DataCommand::DeleteObject {
                 collection: coll.name.clone(),
-                id_expr: *value
+                id_expr: *value,
             }
         }
     }
@@ -274,7 +406,7 @@ fn extract_coll_policy_kind(kind: &str) -> CollectionPolicyKind {
     match kind {
         "create" => CollectionPolicyKind::Create,
         "delete" => CollectionPolicyKind::Delete,
-        _ => panic!("`{}` is not a valid permission on collections.", kind)
+        _ => panic!("`{}` is not a valid permission on collections.", kind),
     }
 }
 
@@ -282,6 +414,6 @@ fn extract_field_policy_kind(kind: &str) -> FieldPolicyKind {
     match kind {
         "edit" => FieldPolicyKind::Edit,
         "read" => FieldPolicyKind::Read,
-        _ => panic!("`{}` is not a valid permission on fields.", kind)
+        _ => panic!("`{}` is not a valid permission on fields.", kind),
     }
 }

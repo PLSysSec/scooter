@@ -1,5 +1,4 @@
 use super::{
-    policy::Policy,
     schema::{Collection, DBType, Field, Schema},
     Ident,
 };
@@ -89,20 +88,30 @@ impl fmt::Display for ExprType {
 pub struct Func {
     param: Ident<Var>,
     param_type: ExprType,
-    body: Box<IRExpr>
+    body: Box<IRExpr>,
 }
 
 pub fn extract_func(
     schema: &Schema,
     param_type: ExprType,
+    exp_ret_type: &ExprType,
     func: &ast::Func,
-) ->  Func {
+) -> Func {
     let param_id = Ident::new(&func.param);
     let def_map = DefMap::empty().extend(&func.param, param_id.clone(), param_type.clone());
+    let body = extract_ir_expr(schema, def_map, &func.expr);
+
+    if body.type_of() != *exp_ret_type {
+        panic!(
+            "Expected function return type: `{}`. Found: `{}`",
+            &param_type, exp_ret_type
+        )
+    }
+
     Func {
         param: param_id,
         param_type,
-        body: extract_ir_expr(schema, def_map, &func.expr),
+        body,
     }
 }
 
@@ -174,7 +183,6 @@ pub enum IRExpr {
     StringConst(String),
     BoolConst(bool),
 }
-
 
 pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) -> Box<IRExpr> {
     let ir_expr = match expr {
@@ -346,7 +354,7 @@ pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) 
 
             let coll = match obj_expr.type_of() {
                 // Unwrap is safe unless we screwed up lowering
-                ExprType::Object(coll) => &schema[coll],
+                ExprType::Object(ref coll) => &schema[coll],
                 typ @ _ => panic!(
                     "Field access (`.`) operator requires an Object. Found: {}",
                     typ

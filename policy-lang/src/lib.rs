@@ -69,21 +69,21 @@ mod tests {
                                     ty: FieldType::String,
                                     read: Policy::Func(Func {
                                         param: "u".to_string(),
-                                        expr: Box::new(QueryExpr::List(vec![
-                                                Box::new(QueryExpr::FieldAccess(
-                                                    Box::new(QueryExpr::Var("u".to_string())),
-                                                    "id".to_string(),
-                                                ))
-                                        ])),
+                                        expr: Box::new(QueryExpr::List(vec![Box::new(
+                                            QueryExpr::FieldAccess(
+                                                Box::new(QueryExpr::Var("u".to_string())),
+                                                "id".to_string(),
+                                            ),
+                                        )])),
                                     }),
                                     write: Policy::Func(Func {
                                         param: "u".to_string(),
-                                        expr: Box::new(QueryExpr::List(vec![
-                                                Box::new(QueryExpr::FieldAccess(
-                                                    Box::new(QueryExpr::Var("u".to_string())),
-                                                    "id".to_string(),
-                                                ))
-                                        ])),
+                                        expr: Box::new(QueryExpr::List(vec![Box::new(
+                                            QueryExpr::FieldAccess(
+                                                Box::new(QueryExpr::Var("u".to_string())),
+                                                "id".to_string(),
+                                            ),
+                                        )])),
                                     }),
                                 },
                             ),
