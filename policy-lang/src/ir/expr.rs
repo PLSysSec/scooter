@@ -176,6 +176,8 @@ pub enum IRExpr {
 
     /// Look up an id in a collection
     LookupById(Ident<Collection>, Box<IRExpr>),
+    /// Look up an object in a collection by some template
+    Find(Ident<Collection>, Vec<(Ident<Field>, Box<IRExpr>)>),
     /// A list expression
     List(ExprType, Vec<Box<IRExpr>>),
     /// Conditional expression
@@ -434,6 +436,27 @@ pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) 
 
             IRExpr::Object(coll.name.clone(), ir_fields, template)
         }
+        ast::QueryExpr::Find(coll_name, fields) => {
+            let coll = schema.find_collection(coll_name).expect(&format!(
+                "Unable to lookup by id because collection `{}` does not exist",
+                coll_name
+            ));
+            // All the present fields, lowered.
+            let mut ir_fields = vec![];
+            for (fname, fexpr) in fields.iter() {
+                let field = coll.find_field(fname).expect(&format!(
+                    "Unable to find field {} on collection {}",
+                    fname, &coll.name.orig_name
+                ));
+                let fexpr = coerce(
+                    &field.typ,
+                    extract_ir_expr(schema, def_map.clone(), fexpr),
+                );
+
+                ir_fields.push((field.name.clone(), fexpr));
+            }
+            IRExpr::Find(coll.name.clone(), ir_fields)
+        }
         ast::QueryExpr::LookupById(coll_name, id_expr) => {
             let coll = schema.find_collection(coll_name).expect(&format!(
                 "Unable to lookup by id because collection `{}` does not exist",
@@ -536,12 +559,12 @@ impl IRExpr {
             | IRExpr::IsLessI(..) => ExprType::Bool,
 
             IRExpr::Path(typ, ..) => typ.clone(),
-            IRExpr::Object(coll, ..) | IRExpr::LookupById(coll, ..) => {
+            IRExpr::Object(coll, ..) | IRExpr::LookupById(coll, ..) | IRExpr::Find(coll, ..) => {
                 ExprType::Object(coll.clone())
             }
 
             IRExpr::Var(typ, ..)
-            | IRExpr::AppendL(typ, ..) 
+            | IRExpr::AppendL(typ, ..)
             | IRExpr::List(typ, ..)
             | IRExpr::If(typ, ..) => typ.clone()
         }

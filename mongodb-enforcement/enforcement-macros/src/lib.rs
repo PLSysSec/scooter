@@ -161,10 +161,10 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             quote! {
                 #input_vis struct #builder_ident {
                     #(#builder_fields),*,
-                    id: #enforcement_crate_name::TypedRecordId<#ident>
+                    id: Option<#enforcement_crate_name::TypedRecordId<#ident>>
                 }
                 impl #builder_ident {
-                    pub fn new(object_id: TypedRecordId<#ident>) -> #builder_ident{
+                    pub fn new(object_id: Option<TypedRecordId<#ident>>) -> #builder_ident{
                         #builder_ident { #(#field_inits),*, id: object_id }
                     }
                     #(#field_adders)*
@@ -181,14 +181,13 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             #[derive(Debug)]
             #input_vis struct #partial_ident {
                 #(#optioned_fields),*,
-                pub id: #enforcement_crate_name::TypedRecordId<#ident>
+                pub id: Option<#enforcement_crate_name::TypedRecordId<#ident>>
             }
             impl #ident {
                 pub fn fully_resolve(&self, conn: &AuthConn) -> #partial_ident {
                     #partial_ident {
                         #(#field_builders),*,
                         id: self.id.clone()
-                            .expect("Can't resolve an object without an id!")
                     }
                 }
             }
@@ -260,14 +259,14 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     use mongodb::Database;
                     for item in items.iter() {
                         let get_doc = doc! {
-                            "_id": RecordId::from(item.id.clone())
+                            "_id": RecordId::from(item.id.clone().expect("Can't save items without ids!"))
                         };
                         let full_item = #ident::from_document(
                             connection
                                 .conn()
                                 .mongo_conn
                                 .collection(#ident_string)
-                                .find_one(Some(doc! {"_id": RecordId::from(item.id.clone()) }),
+                                .find_one(Some(doc! {"_id": RecordId::from(item.id.clone().unwrap()) }),
                                           None)
                                 .unwrap()
                                 .expect("Tried to modify an object not from the database!"));
@@ -275,7 +274,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                     for item in items.into_iter() {
                         let get_doc = doc! {
-                            "_id": RecordId::from(item.id.clone())
+                            "_id": RecordId::from(item.id.clone().unwrap())
                         };
                         let mut set_doc = bson::Document::new();
                         #(#field_set_partial_arms)*
@@ -287,6 +286,35 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                             .unwrap();
                     }
                     true
+                }
+            }
+        };
+        let find_full_by_template_impl = {
+            let field_set_partial_arms = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                let field_str = field_ident.to_string();
+                quote! {
+                    if let Some(v) = &template.#field_ident {
+                        doc.insert(#field_str, v.clone());
+                    }
+                }
+            });
+            quote! {
+                fn find_full_by_template(connection: &AuthConn, template: Self::Partial) -> Option<Vec<Self>> {
+                    use mongodb::Database;
+                    let mut doc = bson::Document::new();
+                    #(#field_set_partial_arms)*
+                    match connection.conn().mongo_conn
+                        .collection(#ident_string)
+                        .find(Some(doc), None)
+                    {
+                        Result::Ok(doc) => Some(
+                            doc
+                               .filter_map(Result::ok)
+                                .map(|obj| #ident::from_document(obj))
+                                .collect()),
+                        _ => None,
+                    }
                 }
             }
         };
@@ -379,6 +407,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
                 #save_all_impl
+                #find_full_by_template_impl
             }
         }
     };

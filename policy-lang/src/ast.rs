@@ -19,6 +19,7 @@ pub enum QueryExpr {
     Object(ObjectLiteral),
 
     LookupById(String, Box<QueryExpr>),
+    Find(String, Vec<(String, Box<QueryExpr>)>),
 
     List(Vec<Box<QueryExpr>>),
     If(Box<QueryExpr>, Box<QueryExpr>, Box<QueryExpr>),

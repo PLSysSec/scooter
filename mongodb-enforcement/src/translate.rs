@@ -179,6 +179,17 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             "{}.lookup(conn).expect(\"Couldn't find user\")",
             translate_queryexpr(schema, id_expr)
         ),
+        IRExpr::Find(coll_ident, fields) => {
+            let mut out = format!(
+                "{}::find_full_by_template(conn, Build{}::new(None)",
+                coll_ident.orig_name, coll_ident.orig_name,
+            );
+            for (field, val_expr) in fields.into_iter() {
+                out += &format!(".{}({})", field.orig_name, translate_queryexpr(schema, val_expr));
+            }
+            out += ".finalize()";
+            out
+        }
         IRExpr::List(_ty, exprs) => {
             let mut out = "vec![".to_string();
             for expr in exprs.into_iter() {

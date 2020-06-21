@@ -83,7 +83,9 @@ Comma<T>: Vec<T> = { // (1)
 
 CollectionExpr: Box<QueryExpr> = {
     <col: Ident> "::" "ById" "(" <idexpr: QueryExpr> ")" =>
-    Box::new(QueryExpr::LookupById(col, idexpr))
+    Box::new(QueryExpr::LookupById(col, idexpr)),
+    <col: Ident> "::" "Find" "(" "{" <fs:Comma<FieldInitializer>> "}" ")" =>
+    Box::new(QueryExpr::Find(col, fs))
 }
 
 QueryExpr: Box<QueryExpr> = {
