@@ -7,27 +7,27 @@ use crate::ast;
 use std::collections::HashMap;
 
 /// Describes the policy for access of a given schema
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SchemaPolicy {
     pub schema: Schema,
     pub collection_policies: HashMap<Ident<Collection>, CollectionPolicy>,
     pub field_policies: HashMap<Ident<Field>, FieldPolicy>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FieldPolicy {
     pub read: Policy,
     pub edit: Policy,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Policy {
     None,
     Anyone,
     Func(Func),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CollectionPolicy {
     pub create: Policy,
     pub delete: Policy,

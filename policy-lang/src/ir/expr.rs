@@ -86,7 +86,7 @@ impl fmt::Display for ExprType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Func {
     pub param: Ident<Var>,
     pub param_type: ExprType,
