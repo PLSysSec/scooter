@@ -18,14 +18,16 @@ impl SchemaPolicy {
     pub fn add_field_policy(&mut self, field_id: Ident<Field>, field_policy: FieldPolicy) {
         self.field_policies.insert(field_id, field_policy);
     }
-    pub fn remove_field_policy(&mut self, field_id: Ident<Field>) {
-        self.field_policies.remove(&field_id);
+    pub fn remove_field_policy(&mut self, field_id: Ident<Field>) -> FieldPolicy {
+        self.field_policies.remove(&field_id).expect(
+            &format!("Couldn't remove policy for {} because it doesn't exist", field_id.orig_name))
     }
     pub fn add_collection_policy(&mut self, coll_id: Ident<Collection>, coll_policy: CollectionPolicy) {
         self.collection_policies.insert(coll_id, coll_policy);
     }
-    pub fn remove_collection_policy(&mut self, coll_id: Ident<Collection>) {
-        self.collection_policies.remove(&coll_id);
+    pub fn remove_collection_policy(&mut self, coll_id: Ident<Collection>) -> CollectionPolicy {
+        self.collection_policies.remove(&coll_id).expect(
+            &format!("Couldn't remove policy for {} because it doesn't exist", coll_id.orig_name))
     }
 }
 
