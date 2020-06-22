@@ -8,15 +8,10 @@ use std::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schema {
     pub collections: Vec<Collection>,
+    pub principle: Ident<Collection>,
 }
 
 impl Schema {
-    pub fn empty() -> Self {
-        Self {
-            collections: vec![],
-        }
-    }
-
     pub fn find_collection(&self, name: &str) -> Option<&Collection> {
         self.collections.iter().find(|c| c.name.eq_str(name))
     }
@@ -110,13 +105,39 @@ impl ExtractionContext {
         Self { coll_idents }
     }
 
+    fn find_principle(gp: &ast::GlobalPolicy) -> String {
+        let mut principle = None;
+        for cp in gp.collections.iter() {
+            match cp.annotations.as_slice() {
+                [ast::Annotation::Principle] => {
+                    if let Some(old) = principle.replace(cp.name.clone()) {
+                        panic!(
+                            "Multiple collections cannot be marked as principles: {}, {}",
+                            old, cp.name
+                        )
+                    }
+                }
+                [] => {}
+                _ => panic!(
+                    "Error on {}. Only a single annotation (`@principle`) is allowed.",
+                    &cp.name
+                ),
+            }
+        };
+        principle.expect("No `@principle` found in policy.")
+    }
+
     fn extract_schema(&mut self, gp: &ast::GlobalPolicy) -> Schema {
+        let colls : Vec<_> = gp
+            .collections
+            .iter()
+            .map(|cp| self.extract_collection(cp))
+            .collect();
+        let principle_name = Self::find_principle(gp);
+        let principle_id = colls.iter().find(|coll| coll.name.orig_name == principle_name).unwrap().name.clone();
         Schema {
-            collections: gp
-                .collections
-                .iter()
-                .map(|cp| self.extract_collection(cp))
-                .collect(),
+            collections: colls,
+            principle: principle_id,
         }
     }
 

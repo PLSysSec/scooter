@@ -4,7 +4,6 @@ use super::{
     Ident,
 };
 use crate::ast;
-use ast::Annotation;
 use std::collections::HashMap;
 
 /// Describes the policy for access of a given schema
@@ -13,7 +12,6 @@ pub struct SchemaPolicy {
     pub schema: Schema,
     pub collection_policies: HashMap<Ident<Collection>, CollectionPolicy>,
     pub field_policies: HashMap<Ident<Field>, FieldPolicy>,
-    pub principle: Ident<Collection>,
 }
 
 #[derive(Debug)]
@@ -41,20 +39,17 @@ pub fn extract_schema_policy(gp: &ast::GlobalPolicy) -> SchemaPolicy {
 }
 
 pub fn extract_partial_schema_policy(
-    principle: Ident<Collection>,
     gp: &ast::GlobalPolicy,
 ) -> SchemaPolicy {
     let schema = super::schema::extract_schema(gp);
     ExtractionContext {
         schema,
-        principle: Some(principle),
     }
     .extract_schema_policy(gp)
 }
 
 struct ExtractionContext {
     pub(crate) schema: Schema,
-    pub(crate) principle: Option<Ident<Collection>>,
 }
 
 impl ExtractionContext {
@@ -63,15 +58,12 @@ impl ExtractionContext {
     fn new(schema: Schema) -> Self {
         Self {
             schema,
-            principle: None,
         }
     }
 
-    fn extract_schema_policy(mut self, gp: &ast::GlobalPolicy) -> SchemaPolicy {
+    fn extract_schema_policy(self, gp: &ast::GlobalPolicy) -> SchemaPolicy {
         let mut collection_policies = HashMap::new();
         let mut field_policies = HashMap::new();
-
-        self.find_principle(gp);
 
         for cp in gp.collections.iter() {
             let coll = self.schema.find_collection(&cp.name).unwrap();
@@ -89,35 +81,7 @@ impl ExtractionContext {
         SchemaPolicy {
             collection_policies,
             field_policies,
-            principle: self.principle.unwrap(),
             schema: self.schema,
-        }
-    }
-
-    fn find_principle(&mut self, gp: &ast::GlobalPolicy) {
-        for cp in gp.collections.iter() {
-            let coll = self.schema.find_collection(&cp.name).unwrap();
-            let coll_id = coll.name.clone();
-
-            // Extract any annotations
-            match cp.annotations.as_slice() {
-                [Annotation::Principle] => {
-                    if let Some(old) = self.principle.replace(coll_id.clone()) {
-                        panic!(
-                            "Multiple collections cannot be marked as principles: {}, {}",
-                            &old.orig_name, &coll_id.orig_name
-                        )
-                    }
-                }
-                [] => {}
-                _ => panic!(
-                    "Error on {}. Only a single annotation (`@principle`) is allowed.",
-                    &cp.name
-                ),
-            };
-        }
-        if self.principle.is_none() {
-            panic!("No `@principle` found in policy.")
         }
     }
 
@@ -127,13 +91,11 @@ impl ExtractionContext {
         CollectionPolicy {
             create: extract_policy(
                 &self.schema,
-                self.principle.as_ref().unwrap(),
                 &coll.name,
                 &cp.create,
             ),
             delete: extract_policy(
                 &self.schema,
-                self.principle.as_ref().unwrap(),
                 &coll.name,
                 &cp.delete,
             ),
@@ -147,13 +109,11 @@ impl ExtractionContext {
             // TODO: Bring AST names inline
             edit: extract_policy(
                 &self.schema,
-                self.principle.as_ref().unwrap(),
                 &coll.name,
                 &fp.write,
             ),
             read: extract_policy(
                 &self.schema,
-                self.principle.as_ref().unwrap(),
                 &coll.name,
                 &fp.read,
             ),
@@ -165,7 +125,6 @@ impl ExtractionContext {
 /// to set the expected type of the policy function (if present)
 pub fn extract_policy(
     schema: &Schema,
-    principle: &Ident<Collection>,
     coll: &Ident<Collection>,
     p: &ast::Policy,
 ) -> Policy {
@@ -175,7 +134,7 @@ pub fn extract_policy(
         ast::Policy::Func(e) => Policy::Func(extract_func(
             schema,
             ExprType::Object(coll.clone()),
-            &ExprType::list(ExprType::id(principle.clone())),
+            &ExprType::list(ExprType::id(schema.principle.clone())),
             e,
         )),
     }

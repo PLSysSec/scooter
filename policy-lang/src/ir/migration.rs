@@ -243,7 +243,7 @@ pub fn extract_migration_command(
                         &table, &field
                     ));
                     let kind = extract_field_policy_kind(&kind);
-                    let pol = extract_policy(&policy.schema, &policy.principle, &coll.name, &pol);
+                    let pol = extract_policy(&policy.schema, &coll.name, &pol);
 
                     MigrationCommand::LoosenFieldPolicy {
                         coll: coll.name.clone(),
@@ -258,7 +258,7 @@ pub fn extract_migration_command(
                         &table, &field
                     ));
                     let kind = extract_field_policy_kind(&kind);
-                    let pol = extract_policy(&policy.schema, &policy.principle, &coll.name, &pol);
+                    let pol = extract_policy(&policy.schema, &coll.name, &pol);
 
                     MigrationCommand::LoosenFieldPolicy {
                         coll: coll.name.clone(),
@@ -270,7 +270,7 @@ pub fn extract_migration_command(
                 ast::MigrationAction::LoosenCollectionPolicy { kind, pol } => {
                     let kind = extract_coll_policy_kind(&kind);
                     let pol =
-                        extract_policy(&policy.schema, &policy.principle.clone(), &coll.name, &pol);
+                        extract_policy(&policy.schema, &coll.name, &pol);
 
                     MigrationCommand::LoosenCollectionPolicy {
                         coll: coll.name.clone(),
@@ -280,7 +280,7 @@ pub fn extract_migration_command(
                 }
                 ast::MigrationAction::TightenCollectionPolicy { kind, pol } => {
                     let kind = extract_coll_policy_kind(&kind);
-                    let pol = extract_policy(&policy.schema, &policy.principle, &coll.name, &pol);
+                    let pol = extract_policy(&policy.schema, &coll.name, &pol);
 
                     MigrationCommand::TightenCollectionPolicy {
                         coll: coll.name.clone(),
@@ -292,7 +292,6 @@ pub fn extract_migration_command(
         }
         ast::MigrationCommand::Create { collection } => {
             let pol = extract_partial_schema_policy(
-                policy.principle.clone(),
                 &ast::GlobalPolicy {
                     collections: vec![collection],
                 },
