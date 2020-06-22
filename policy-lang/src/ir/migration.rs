@@ -97,6 +97,23 @@ pub enum DataCommand {
     },
 }
 
+/// Converts a migration ast into a list of lowered "steps"
+pub fn extract_migration_steps(
+    initial_schema: &Schema,
+    migration: ast::Migration,
+) -> Vec<(Schema, MigrationCommand)> {
+    let mut cur_schema = initial_schema.clone();
+    let mut result = Vec::new();
+    for migration_command in migration.0.into_iter() {
+        let lowered_cmd = extract_migration_command(&cur_schema, migration_command);
+        let new_schema = interpret_command(&cur_schema, &lowered_cmd);
+        result.push((cur_schema, lowered_cmd));
+        cur_schema = new_schema;
+    }
+    result
+}
+
+
 /// Interprets the affect of a migration command on a schema
 /// This is a useful primitive for any analysis being done on migrations
 /// and it's important that everyone agrees on what those effects are,
