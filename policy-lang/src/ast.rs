@@ -148,6 +148,7 @@ pub enum MigrationAction {
     ChangeField {
         field: String,
         new_ty: FieldType,
+        new_init: Func,
     },
     RenameField {
         old_field: String,

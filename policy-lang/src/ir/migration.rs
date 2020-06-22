@@ -32,6 +32,7 @@ pub enum MigrationCommand {
         coll: Ident<Collection>,
         field: Ident<Field>,
         new_ty: ExprType,
+        new_init: Func,
     },
     RenameField {
         coll: Ident<Collection>,
@@ -127,6 +128,7 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
             coll,
             field,
             new_ty,
+            new_init: _,
         } => {
             let old_field = output[coll]
                 .fields
@@ -210,17 +212,24 @@ pub fn extract_migration_command(
                         init,
                     }
                 }
-                ast::MigrationAction::ChangeField { field, new_ty } => {
+                ast::MigrationAction::ChangeField { field, new_ty, new_init } => {
                     let field = coll.find_field(&field).expect(&format!(
                         "Unable to change field {}::{} because it does not exist",
                         &table, &field
                     ));
                     let new_ty = extract_type(schema, &new_ty);
+                    let new_init = extract_func(
+                        schema,
+                        ExprType::Object(coll.name.clone()),
+                        &new_ty,
+                        &new_init,
+                    );
 
                     MigrationCommand::ChangeField {
                         coll: coll.name.clone(),
                         field: field.name.clone(),
                         new_ty,
+                        new_init,
                     }
                 }
                 ast::MigrationAction::RenameField {
