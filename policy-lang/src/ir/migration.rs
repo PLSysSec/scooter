@@ -1,8 +1,6 @@
 use super::{
     expr::{extract_func, extract_ir_expr, DefMap, ExprType, Func, IRExpr, Var},
-    policy::{
-        extract_partial_schema_policy, extract_policy, Policy, SchemaPolicy,
-    },
+    policy::{extract_partial_schema_policy, extract_policy, Policy, SchemaPolicy},
     schema::{extract_type, Collection, Field, Schema},
     Ident,
 };
