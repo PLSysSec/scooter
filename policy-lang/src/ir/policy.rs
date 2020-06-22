@@ -14,6 +14,21 @@ pub struct SchemaPolicy {
     pub field_policies: HashMap<Ident<Field>, FieldPolicy>,
 }
 
+impl SchemaPolicy {
+    pub fn add_field_policy(&mut self, field_id: Ident<Field>, field_policy: FieldPolicy) {
+        self.field_policies.insert(field_id, field_policy);
+    }
+    pub fn remove_field_policy(&mut self, field_id: Ident<Field>) {
+        self.field_policies.remove(&field_id);
+    }
+    pub fn add_collection_policy(&mut self, coll_id: Ident<Collection>, coll_policy: CollectionPolicy) {
+        self.collection_policies.insert(coll_id, coll_policy);
+    }
+    pub fn remove_collection_policy(&mut self, coll_id: Ident<Collection>) {
+        self.collection_policies.remove(&coll_id);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FieldPolicy {
     pub read: Policy,
