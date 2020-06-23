@@ -355,7 +355,7 @@ fn extract_data_command(schema: &Schema, def_map: DefMap, oc: ast::ObjectCommand
                 &collection
             ));
             let param_id = Ident::new(&param);
-            let ty = ExprType::id(coll.name.clone());
+            let ty = ExprType::Object(coll.name.clone());
             DataCommand::ForEach {
                 coll: coll.name.clone(),
                 param: param_id.clone(),
