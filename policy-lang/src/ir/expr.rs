@@ -695,11 +695,10 @@ impl IRExpr {
                                                        Box::new(o.as_ref().map(f)),
                                                        fld.clone())),
             IRExpr::Var(_ty, _name) => f(self.clone()),
-            IRExpr::Object(coll, fields, template) =>
+            IRExpr::Object(coll, fields) =>
                 f(IRExpr::Object(coll.clone(), fields.iter().map(
                     |(fld, val)|
-                    (fld.clone(), Box::new(val.map(f)))).collect(),
-                                 template.as_ref().map(|expr| Box::new(expr.map(f))))),
+                    (fld.clone(), Box::new(val.map(f)))).collect())),
             IRExpr::LookupById(coll, id_expr) =>
                 f(IRExpr::LookupById(coll.clone(), Box::new(id_expr.as_ref().map(f)))),
             IRExpr::Find(coll, query_fields) =>
