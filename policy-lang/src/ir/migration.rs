@@ -229,7 +229,11 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
                         pol,
                     }
                 }
-                ast::MigrationAction::ChangeField { field, new_ty, new_init } => {
+                ast::MigrationAction::ChangeField {
+                    field,
+                    new_ty,
+                    new_init,
+                } => {
                     let field = coll.find_field(&field).expect(&format!(
                         "Unable to change field {}::{} because it does not exist",
                         &table, &field
