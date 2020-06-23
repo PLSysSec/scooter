@@ -212,11 +212,16 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
         IRExpr::Object(col_id, fields, None) => {
             let mut out = format!("{}! {{", col_id.orig_name.to_ascii_lowercase()).to_string();
             for (field_id, field_expr) in fields.iter() {
-                out += &format!(
-                    "{}: {},",
-                    field_id.orig_name,
-                    translate_queryexpr(schema, field_expr)
-                );
+                match field_expr {
+                    Some(expr) =>
+                        out += &format!(
+                            "{}: {},",
+                            field_id.orig_name,
+                            translate_queryexpr(schema, expr)
+                        ),
+                    None => panic!("Invariant violated: fields cannot be none \
+                                    when template object is none in object literal")
+                };
             }
             out += "}";
             out
@@ -231,8 +236,9 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
                 let found_field = fields.iter().find(|(id, _expr)| *id == field.name);
                 out += &format!("{}: ", field.name.orig_name);
                 match found_field {
-                    Some((_id, expr)) => out += &format!("{},", translate_queryexpr(schema, expr)),
-                    None => out += &format!("template_obj_expr.{},", field.name.orig_name),
+                    Some((_id, Some(expr))) => out += &format!("{},", translate_queryexpr(schema, expr)),
+                    Some((_id, None)) => (),
+                    None => panic!("Couldn't find field {} in object initializer", field.name.orig_name),
                 }
             }
             out += "} }";
