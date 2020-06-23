@@ -34,7 +34,7 @@ pub fn is_as_strict(schema: &Schema, before: &Func, after: &Func) -> bool {
         .stdout(Stdio::piped())
         .spawn()
         .expect("Unable to spawn z3");
-    
+
     {
         let input = child.stdin.as_mut().expect("Failed to open stdin of z3 process");
         input.write_all(assertion.as_bytes()).expect("Error writing to z3 input");

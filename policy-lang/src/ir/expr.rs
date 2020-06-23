@@ -167,7 +167,7 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
         IRExpr::Var(ty, _) => {
             *ty = apply_ty(type_map, ty);
         }
-        IRExpr::Object(_, fields, template) => {
+        IRExpr::Object(_, fields, _template) => {
             for (_, field) in fields.iter_mut() {
                 if let Some(ref mut field) = field {
                     resolve_types(type_map, field);
