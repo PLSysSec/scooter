@@ -1,4 +1,12 @@
 use crate::smt::{check_collection_refine, check_field_refine};
+use policy_lang::ir::expr::{ExprType, Func, IRExpr};
+use policy_lang::ir::migration::{
+    extract_migration_steps, CollectionPolicyKind, DataCommand, FieldPolicyKind, MigrationCommand,
+};
+use policy_lang::ir::policy::{
+    extract_schema_policy, CollectionPolicy, FieldPolicy, Policy, SchemaPolicy,
+};
+use policy_lang::ir::schema::{Collection, Field, Schema};
 use policy_lang::ir::*;
 use policy_lang::{parse_migration, parse_policy};
 
@@ -15,8 +23,14 @@ pub fn migrate_policy_from_files(
     let policy_path_path = policy_path.as_ref();
     let migration_path_path = migration_path.as_ref();
     migrate_policy(
-        &read_to_string(policy_path_path.clone()).expect(&format!("Couldn't read policy file {}", policy_path_path.to_str().unwrap())),
-        &read_to_string(migration_path_path.clone()).expect(&format!("Couldn't read migration file {}", migration_path_path.to_str().unwrap())),
+        &read_to_string(policy_path_path.clone()).expect(&format!(
+            "Couldn't read policy file {}",
+            policy_path_path.to_str().unwrap()
+        )),
+        &read_to_string(migration_path_path.clone()).expect(&format!(
+            "Couldn't read migration file {}",
+            migration_path_path.to_str().unwrap()
+        )),
     )
 }
 
@@ -25,46 +39,46 @@ pub fn migrate_policy_from_files(
 /// is valid post-migration.
 pub fn migrate_policy(policy_text: &str, migration_text: &str) -> Result<String, String> {
     let parsed_policy = parse_policy(policy_text).expect("Couldn't parse policy");
+    let initial_schema_policy = extract_schema_policy(&parsed_policy);
     let parsed_migration = parse_migration(migration_text).expect("Couldn't parse migration");
-    let mut ird = extract_types(&parsed_policy);
-    let lowered_policy = ird.lower(&parsed_policy);
-    let lowered_migration = ird.lower_migration(parsed_migration);
-    let resulting_policy =
-        interpret_migration_on_policy(&mut ird, lowered_policy, lowered_migration)?;
-    Ok(policy_to_string(&ird, resulting_policy))
+    let migration_steps = extract_migration_steps(&initial_schema_policy.schema, parsed_migration);
+    let resulting_policy = interpret_migration_on_policy(initial_schema_policy, migration_steps)?;
+    Ok(policy_to_string(resulting_policy))
 }
 
-fn policy_to_string(ird: &IrData, policy: CompletePolicy) -> String {
+fn policy_to_string(policy: SchemaPolicy) -> String {
     let mut result = "".to_string();
-    for coll in ird.collections() {
-        result += &format!("{} {{\n", coll.name.1);
-        let col_policy = policy.collection_policy(coll.id);
+    for (coll_ident, coll_policy) in policy.collection_policies.iter() {
+        if policy.schema.principle == *coll_ident {
+            result += &format!("@principle\n")
+        }
+        result += &format!("{} {{\n", coll_ident.orig_name);
         result += &format!(
             "    create: {},\n",
-            policy_value_to_string(ird, col_policy.create.clone())
+            policy_value_to_string(coll_policy.create)
         );
         result += &format!(
             "    delete: {},\n",
-            policy_value_to_string(ird, col_policy.delete.clone())
+            policy_value_to_string(coll_policy.delete)
         );
         result += "\n";
-        for (field_name, field_id) in coll.fields() {
-            if field_name == "id" {
+        for field in policy.schema[coll_ident].fields() {
+            if field.name.orig_name == "id" {
                 continue;
             }
             result += &format!(
                 "    {} : {} {{\n",
-                field_name,
-                type_to_string(ird, ird.def_type(*field_id).clone())
+                field.name.orig_name,
+                type_to_string(field.typ)
             );
-            let field_policy = policy.field_policy(*field_id);
+            let field_policy = policy.field_policies[&field.name];
             result += &format!(
                 "        read: {},\n",
-                policy_value_to_string(ird, field_policy.read.clone())
+                policy_value_to_string(field_policy.read)
             );
             result += &format!(
                 "        write: {},\n",
-                policy_value_to_string(ird, field_policy.edit.clone())
+                policy_value_to_string(field_policy.edit)
             );
             result += "    },\n";
         }
@@ -73,264 +87,283 @@ fn policy_to_string(ird: &IrData, policy: CompletePolicy) -> String {
     result
 }
 
-fn policy_value_to_string(ird: &IrData, policy_value: Policy) -> String {
+fn policy_value_to_string(policy_value: Policy) -> String {
     match policy_value {
-        Policy::Public => "public".to_string(),
+        Policy::Anyone => "public".to_string(),
         Policy::None => "none".to_string(),
-        Policy::Func(l) => format!("{} -> {}", ird[l.param].name.1, expr_to_string(ird, l.body)),
+        Policy::Func(l) => format!("{} -> {}", l.param.orig_name, expr_to_string(l.body)),
     }
 }
 
-fn type_to_string(ird: &IrData, ty: Type) -> String {
+fn type_to_string(ty: ExprType) -> String {
     match ty {
-        Type::Prim(p) => format!("{}", p),
-        Type::Id(id) => format!("Id({})", ird[id].name.1),
-        Type::List(ty) => format!("[{}]", type_to_string(ird, *ty)),
-        Type::Collection(_id) => panic!("Can't have a colletion type in a policy!"),
-        Type::ListAny => panic!("Can't have a listany type in a policy!"),
-        Type::ListId => panic!("Can't have a listid type in a policy!"),
+        ExprType::Object(_id) => panic!("Can't have a colletion type in a policy!"),
+        _ => format!("{}", ty),
     }
 }
 
-fn expr_to_string(ird: &IrData, e_id: Id<Expr>) -> String {
-    let expr = &ird[e_id];
-    match &expr.kind {
-        ExprKind::AppendS(e1_id, e2_id)
-        | ExprKind::AppendL(_, e1_id, e2_id)
-        | ExprKind::AddI(e1_id, e2_id)
-        | ExprKind::AddF(e1_id, e2_id) => format!(
-            "({} + {})",
-            expr_to_string(ird, *e1_id),
-            expr_to_string(ird, *e2_id)
-        ),
+fn expr_to_string(expr: Box<IRExpr>) -> String {
+    match *expr {
+        IRExpr::AppendS(e1_id, e2_id)
+        | IRExpr::AppendL(_, e1_id, e2_id)
+        | IRExpr::AddI(e1_id, e2_id)
+        | IRExpr::AddF(e1_id, e2_id) => {
+            format!("({} + {})", expr_to_string(e1_id), expr_to_string(e2_id))
+        }
 
-        ExprKind::SubI(e1_id, e2_id) | ExprKind::SubF(e1_id, e2_id) => format!(
-            "({} - {})",
-            expr_to_string(ird, *e1_id),
-            expr_to_string(ird, *e2_id)
-        ),
-        ExprKind::IsEq(_, e1_id, e2_id) => format!(
-            "({} == {})",
-            expr_to_string(ird, *e1_id),
-            expr_to_string(ird, *e2_id)
-        ),
-        ExprKind::Not(e_id) => format!("!({})", expr_to_string(ird, *e_id)),
-        ExprKind::IsLessI(e1_id, e2_id) | ExprKind::IsLessF(e1_id, e2_id) => format!(
-            "({} < {})",
-            expr_to_string(ird, *e1_id),
-            expr_to_string(ird, *e2_id)
-        ),
+        IRExpr::SubI(e1_id, e2_id) | IRExpr::SubF(e1_id, e2_id) => {
+            format!("({} - {})", expr_to_string(e1_id), expr_to_string(e2_id))
+        }
+        IRExpr::IsEq(_, e1_id, e2_id) => {
+            format!("({} == {})", expr_to_string(e1_id), expr_to_string(e2_id))
+        }
+        IRExpr::Not(e_id) => format!("!({})", expr_to_string(e_id)),
+        IRExpr::IsLessI(e1_id, e2_id) | IRExpr::IsLessF(e1_id, e2_id) => {
+            format!("({} < {})", expr_to_string(e1_id), expr_to_string(e2_id))
+        }
         // These don't appear in concrete syntax, but will be inserted
         // where needed during lowering.
-        ExprKind::IntToFloat(e_id) => expr_to_string(ird, *e_id),
-        ExprKind::Path(_, e_id, f_id) => {
-            format!("{}.{}", expr_to_string(ird, *e_id), ird[*f_id].name.1)
-        }
-        ExprKind::Var(v_id) => ird[*v_id].name.1.clone(),
-        ExprKind::Object(coll, field_vals, template_obj) => {
+        IRExpr::IntToFloat(e_id) => expr_to_string(e_id),
+        IRExpr::Path(_, e_id, f_id) => format!("{}.{}", expr_to_string(e_id), f_id.orig_name),
+        IRExpr::Var(typ, v_id) => v_id.orig_name,
+        IRExpr::Object(coll, field_vals) => {
             let fields = field_vals
                 .iter()
-                .map(|(f_id, e_id)| {
-                    format!("{}: {},", ird[*f_id].name.1, expr_to_string(ird, *e_id))
-                })
+                .map(|(f_id, e_id)| format!("{}: {},", f_id.orig_name, expr_to_string(*e_id)))
                 .collect::<Vec<String>>()
                 .join("");
-            match template_obj {
-                Some(obj) => format!(
-                    "{} {{ {} ..{} }}",
-                    ird[*coll].name.1,
-                    fields,
-                    expr_to_string(ird, *obj)
-                ),
-                None => format!("{} {{ {} }}", ird[*coll].name.1, fields),
-            }
+            format!("{} {{ {} }}", coll.orig_name, fields)
         }
-        ExprKind::LookupById(coll, e_id) => format!(
-            "{}::ById({})",
-            ird[*coll].name.1,
-            expr_to_string(ird, *e_id)
-        ),
-        ExprKind::List(exprs) => format!(
+        IRExpr::LookupById(coll, e_id) => {
+            format!("{}::ById({})", coll.orig_name, expr_to_string(e_id))
+        }
+        IRExpr::List(_ty, exprs) => format!(
             "[{}]",
             exprs
                 .iter()
-                .map(|e_id| expr_to_string(ird, *e_id))
+                .map(|e_id| expr_to_string(*e_id))
                 .collect::<Vec<String>>()
                 .join(",")
         ),
-        ExprKind::If(_, cond, iftrue, iffalse) => format!(
+        IRExpr::If(_, cond, iftrue, iffalse) => format!(
             "(if {} then {} else {})",
-            expr_to_string(ird, *cond),
-            expr_to_string(ird, *iftrue),
-            expr_to_string(ird, *iffalse)
+            expr_to_string(cond),
+            expr_to_string(iftrue),
+            expr_to_string(iffalse)
         ),
-        ExprKind::IntConst(i) => format!("{}", i),
-        ExprKind::FloatConst(f) => format!("{}", f),
-        ExprKind::StringConst(s) => format!("\"{}\"", s),
-        ExprKind::BoolConst(b) => format!("{}", b),
+        IRExpr::IntConst(i) => format!("{}", i),
+        IRExpr::FloatConst(f) => format!("{}", f),
+        IRExpr::StringConst(s) => format!("\"{}\"", s),
+        IRExpr::BoolConst(b) => format!("{}", b),
     }
 }
 
 fn interpret_migration_on_policy(
-    ird: &mut IrData,
-    policy: CompletePolicy,
-    migration: CompleteMigration,
-) -> Result<CompletePolicy, String> {
+    initial_sp: SchemaPolicy,
+    migration_steps: Vec<(Schema, MigrationCommand)>,
+) -> Result<SchemaPolicy, String> {
     // The policy state we'll return
-    let mut result_policy = policy.clone();
+    let mut result_policy = initial_sp.clone();
 
     // Keep track of fields that are removed, for invalidating
     // functions that refer to them.
     let mut deleted_fields = Vec::new();
     // Keep track of fields that are renamed, for repairing
     // expressions that referenced the old name.
-    let mut renamed_fields: HashMap<Id<Def>, Id<Def>> = HashMap::new();
+    let mut renamed_fields: HashMap<Ident<Field>, Ident<Field>> = HashMap::new();
 
     // Go over the migration commands (consuming them)
-    for cmd in migration.0.into_iter() {
-        match cmd {
-            CompleteMigrationCommand::CollAction {
-                table: coll,
-                action,
-            } => match action {
-                // For adding fields, just add new policies based on
-                // the initializer function
-                CompleteMigrationAction::AddField { field, ty: _, init } => result_policy
-                    .add_field_policy(
-                        field,
-                        get_policy_from_initializer(ird, &policy, field, init),
-                    ),
-                // For removing fields, remove the policy data, and
-                // add it to a list of deleted fields for invalidating
-                // expressions later.
-                CompleteMigrationAction::RemoveField { field } => {
-                    result_policy.remove_field_policy(field);
-                    deleted_fields.push(field);
-                    if let Some((old_field, _new_field)) =
-                        renamed_fields.iter().find(|(_k, v)| **v == field)
-                    {
-                        let old_field_id = old_field.clone();
-                        deleted_fields.push(*old_field);
-                        renamed_fields.remove(&old_field_id);
-                    }
+    for cmd in migration_steps.into_iter() {
+        match cmd.1 {
+            // For adding fields, just add new policies based on
+            // the initializer function
+            MigrationCommand::AddField {
+                coll,
+                field,
+                ty: _,
+                init,
+                pol,
+            } => {
+                let inferred_policy = get_policy_from_initializer(&result_policy, field, init);
+                if !check_field_refine(&result_policy.schema, inferred_policy, pol) {
+                    return Err("Cannot determine that the given field policy \
+                                is tight enough for the values that flow into it."
+                        .to_string());
                 }
-                CompleteMigrationAction::ChangeField {
+                result_policy.add_field_policy(field, pol)
+            }
+            // For removing fields, remove the policy data, and
+            // add it to a list of deleted fields for invalidating
+            // expressions later.
+            MigrationCommand::RemoveField { coll, field } => {
+                result_policy.remove_field_policy(field);
+                deleted_fields.push(field);
+                if let Some((old_field, _new_field)) =
+                    renamed_fields.iter().find(|(_k, v)| **v == field)
+                {
+                    let old_field_id = old_field.clone();
+                    deleted_fields.push(*old_field);
+                    renamed_fields.remove(&old_field_id);
+                }
+            }
+            MigrationCommand::ChangeField {
+                coll,
+                field,
+                new_ty: _,
+                new_init,
+            } => {
+                result_policy.remove_field_policy(field);
+                result_policy.add_field_policy(
                     field,
-                    new_ty: _,
-                    new_init,
-                } => {
-                    result_policy.remove_field_policy(field);
-                    result_policy.add_field_policy(
-                        field,
-                        get_policy_from_initializer(ird, &policy, field, new_init),
-                    );
-                    // Anything that referred to it's old value as a
-                    // policy isn't going to work anymore.
-                    deleted_fields.push(field);
-                }
-                // Don't need to do anything here, because renamed
-                // fields keep their old ids.
-                CompleteMigrationAction::RenameField {
-                    old_field_id,
+                    get_policy_from_initializer(&result_policy, field, new_init),
+                );
+                // Anything that referred to it's old value as a
+                // policy isn't going to work anymore.
+                deleted_fields.push(field);
+            }
+            MigrationCommand::RenameField {
+                coll,
+                field: old_field_id,
+                new_name: new_field_id,
+            } => {
+                result_policy.add_field_policy(
                     new_field_id,
-                    old_name: _,
-                    new_name: _,
-                } => {
-                    result_policy.add_field_policy(
-                        new_field_id,
-                        result_policy.field_policy(old_field_id).clone(),
+                    result_policy.field_policies[&old_field_id].clone(),
+                );
+                renamed_fields.insert(old_field_id, new_field_id);
+            }
+            MigrationCommand::LoosenFieldPolicy {
+                coll: _,
+                field,
+                kind,
+                new_policy,
+            } => {
+                let old_policy = result_policy.remove_field_policy(field);
+                result_policy
+                    .add_field_policy(field, field_policy_lens_set(old_policy, kind, new_policy));
+            }
+            MigrationCommand::TightenFieldPolicy {
+                coll,
+                field,
+                kind,
+                new_policy,
+            } => {
+                let old_policy = result_policy.field_policies[&field];
+                let new_policy = field_policy_lens_set(old_policy, kind, new_policy);
+                if !check_field_refine(&result_policy.schema, old_policy, new_policy) {
+                    return Err(
+                        "Cannot determine that the new field policy is tighter than the old one"
+                            .to_string(),
                     );
-                    renamed_fields.insert(old_field_id, new_field_id);
                 }
-                CompleteMigrationAction::ForEach { param: _, body: _ } => {
-                    return Err("We don't know how to process foreaches on policies yet".to_string())
+                result_policy.remove_field_policy(field);
+                result_policy.add_field_policy(field, new_policy);
+            }
+            MigrationCommand::LoosenCollectionPolicy {
+                coll,
+                kind,
+                new_policy,
+            } => {
+                let old_policy = result_policy.remove_collection_policy(coll);
+                result_policy.add_collection_policy(
+                    coll,
+                    coll_policy_lens_set(old_policy, kind, new_policy),
+                );
+            }
+            MigrationCommand::TightenCollectionPolicy {
+                coll,
+                kind,
+                new_policy,
+            } => {
+                let old_policy = result_policy.collection_policies[&coll];
+                let new_policy = coll_policy_lens_set(old_policy, kind, new_policy);
+                if !check_collection_refine(&result_policy.schema, old_policy, new_policy) {
+                    return Err("Cannot determine that the new collection policy is tighter than the old one".to_string());
                 }
-                CompleteMigrationAction::LoosenFieldPolicy { new_field_policy } => {
-                    result_policy.remove_field_policy(new_field_policy.field_id);
-                    result_policy.add_field_policy(new_field_policy.field_id, new_field_policy);
-                }
-                CompleteMigrationAction::TightenFieldPolicy { new_field_policy } => {
-                    if !check_field_refine(ird, &result_policy, coll, &new_field_policy) {
-                        return Err("Cannot determine that the new field policy is tighter than the old one".to_string());
-                    }
-                    result_policy.remove_field_policy(new_field_policy.field_id);
-                    result_policy.add_field_policy(new_field_policy.field_id, new_field_policy);
-                }
-                CompleteMigrationAction::LoosenCollectionPolicy {
-                    new_collection_policy,
-                } => {
-                    result_policy.remove_collection_policy(coll);
-                    result_policy.add_collection_policy(coll, new_collection_policy);
-                }
-                CompleteMigrationAction::TightenCollectionPolicy {
-                    new_collection_policy,
-                } => {
-                    if !check_collection_refine(ird, &result_policy, coll, &new_collection_policy) {
-                        return Err("Cannot determine that the new collection policy is tighter than the old one".to_string());
-                    }
-                    result_policy.remove_collection_policy(coll);
-                    result_policy.add_collection_policy(coll, new_collection_policy);
-                }
-            },
+                result_policy.remove_collection_policy(coll);
+                result_policy.add_collection_policy(coll, new_policy);
+            }
+            MigrationCommand::DataCommand(DataCommand::ForEach { .. }) => {
+                return Err("We don't know how to process foreaches on policies yet".to_string())
+            }
+            MigrationCommand::DataCommand(DataCommand::CreateObject { .. }) => {
+                return Err(
+                    "We don't know how to process create objects on policies yet".to_string(),
+                )
+            }
+            MigrationCommand::DataCommand(DataCommand::DeleteObject { .. }) => {
+                return Err(
+                    "We don't know how to process delete objects on policies yet".to_string(),
+                )
+            }
             // For creating collections, just create a new create and
             // delete policies. Since being able to create and delete
             // from a collection can't leak any info, we can give it
             // public policies.
-            CompleteMigrationCommand::Create { table_id } => {
-                let public_pol = CollectionPolicy {
-                    create: Policy::Public,
-                    delete: Policy::Public,
-                };
-                result_policy.add_collection_policy(table_id, public_pol);
+            MigrationCommand::Create { pol } => {
+                assert!(pol.schema.collections.len() == 1);
+                assert!(pol.collection_policies.len() == 1);
+                let collection = pol.schema.collections[0];
+                let coll_pol = pol.collection_policies[&collection.name];
+                result_policy.add_collection_policy(collection.name, coll_pol);
+                for field in collection.fields() {
+                    let field_pol = pol.field_policies[&field.name];
+                    result_policy.add_field_policy(field.name, field_pol);
+                }
             }
             // For deleting collections, remove the policy data.
-            CompleteMigrationCommand::Delete { table_id } => {
-                result_policy.remove_collection_policy(table_id);
+            MigrationCommand::Delete { name } => {
+                result_policy.remove_collection_policy(name);
             }
         }
     }
 
-    remove_invalidated_policies(ird, deleted_fields, &mut result_policy);
+    remove_invalidated_policies(deleted_fields, &mut result_policy);
 
-    let coll_ids: Vec<Id<Collection>> = ird.collections().map(|coll| coll.id).collect();
+    let coll_names: Vec<Ident<Collection>> =
+        result_policy.schema.collections.iter().map(|coll| coll.name).collect();
 
-    for coll_id in coll_ids.into_iter() {
-        let coll_pol = result_policy.collection_policy_mut(coll_id);
-        if let Policy::Func(Lambda { param: p, body }) = coll_pol.create {
-            coll_pol.create = Policy::Func(Lambda {
+    for coll_name in coll_names.into_iter() {
+        let coll_pol = result_policy.collection_policies.get_mut(&coll_name).unwrap();
+        if let Policy::Func(Func { param: p, param_type: ty, body }) = coll_pol.create {
+            coll_pol.create = Policy::Func(Func {
                 param: p,
-                body: sub_expr(ird, body, &renamed_fields),
+                param_type: ty,
+                body: sub_expr(body, &renamed_fields),
             });
         }
-        if let Policy::Func(Lambda { param: p, body }) = coll_pol.delete {
-            coll_pol.delete = Policy::Func(Lambda {
+        if let Policy::Func(Func{ param: p, param_type: ty, body }) = coll_pol.delete {
+            coll_pol.delete = Policy::Func(Func{
                 param: p,
-                body: sub_expr(ird, body, &renamed_fields),
+                param_type: ty,
+                body: sub_expr(body, &renamed_fields),
             });
         }
     }
 
-    let field_ids: Vec<Id<Def>> = ird
-        .collections()
+    let field_names: Vec<Ident<Field>> =
+        result_policy.schema.collections.iter()
         .flat_map(|coll| {
             coll.fields()
-                .filter(|(name, _id)| *name != "id")
-                .map(|(_name, id)| *id)
+                .filter(|field| field.name.orig_name != "id")
+                .map(|field| field.name)
         })
         .collect();
 
-    for field_id in field_ids.into_iter() {
-        let field_pol = result_policy.field_policy_mut(field_id);
-        if let Policy::Func(Lambda { param: p, body }) = field_pol.read {
-            field_pol.read = Policy::Func(Lambda {
+    for field_name in field_names.into_iter() {
+        let field_pol = result_policy.field_policies.get_mut(&field_name).unwrap();
+        if let Policy::Func(Func { param: p, param_type: ty, body }) = field_pol.read {
+            field_pol.read = Policy::Func(Func {
                 param: p,
-                body: sub_expr(ird, body, &renamed_fields),
+                param_type: ty,
+                body: sub_expr(body, &renamed_fields),
             });
         }
-        if let Policy::Func(Lambda { param: p, body }) = field_pol.edit {
-            field_pol.edit = Policy::Func(Lambda {
+        if let Policy::Func(Func { param: p, param_type: ty, body }) = field_pol.edit {
+            field_pol.edit = Policy::Func(Func {
                 param: p,
-                body: sub_expr(ird, body, &renamed_fields),
+                param_type: ty,
+                body: sub_expr(body, &renamed_fields),
             });
         }
     }
@@ -338,38 +371,58 @@ fn interpret_migration_on_policy(
     Ok(result_policy)
 }
 
-fn sub_expr(
-    ird: &mut IrData,
-    body: Id<Expr>,
-    renamed_fields: &HashMap<Id<Def>, Id<Def>>,
-) -> Id<Expr> {
-    expr_map(
-        ird,
-        &|subexpr| match &subexpr.kind {
-            ExprKind::Path(coll, expr, def) => {
-                ExprKind::Path(*coll, *expr, *renamed_fields.get(&def).unwrap_or(&def))
-            }
-            _ => subexpr.kind.clone(),
+fn field_policy_lens_set(p: FieldPolicy, k: FieldPolicyKind, policy_val: Policy) -> FieldPolicy {
+    match k {
+        FieldPolicyKind::Read => FieldPolicy {
+            read: policy_val,
+            edit: p.edit,
         },
-        body,
-    )
+        FieldPolicyKind::Edit => FieldPolicy {
+            read: p.read,
+            edit: policy_val,
+        },
+    }
+}
+fn coll_policy_lens_set(
+    p: CollectionPolicy,
+    k: CollectionPolicyKind,
+    policy_val: Policy,
+) -> CollectionPolicy {
+    match k {
+        CollectionPolicyKind::Create => CollectionPolicy {
+            create: policy_val,
+            delete: p.delete,
+        },
+        CollectionPolicyKind::Delete => CollectionPolicy {
+            create: p.create,
+            delete: policy_val,
+        },
+    }
 }
 
-fn remove_invalidated_policies(
-    ird: &IrData,
-    deleted_fields: Vec<Id<Def>>,
-    result_policy: &mut CompletePolicy,
-) {
+fn sub_expr(
+    body: Box<IRExpr>,
+    renamed_fields: &HashMap<Ident<Field>, Ident<Field>>,
+) -> Box<IRExpr> {
+    Box::new(body.as_ref().map(&|subexpr|
+                      match subexpr {
+                          IRExpr::Path(coll, obj_expr, fld) =>
+                              IRExpr::Path(coll, obj_expr, *renamed_fields.get(&fld).unwrap_or(&fld)),
+                          _ => subexpr,
+                      }))
+}
+
+fn remove_invalidated_policies(deleted_fields: Vec<Ident<Field>>, result_policy: &mut SchemaPolicy) {
     let old_policy = result_policy.clone();
-    let coll_policies: Vec<(Id<Collection>, &CollectionPolicy)> = ird
-        .collections()
-        .map(|coll| (coll.id, old_policy.collection_policy(coll.id)))
+    let coll_policies: Vec<(Ident<Collection>, &CollectionPolicy)> =
+        result_policy.schema.collections.iter()
+        .map(|coll| (coll.name, &old_policy.collection_policies[&coll.name]))
         .collect();
 
     // Check if an expression contains any references to deleted
     // fields or collections
-    fn expr_still_valid(ird: &IrData, e_id: Id<Expr>, deleted_fields: &Vec<Id<Def>>) -> bool {
-        field_lookups_in_expr(ird, e_id)
+    fn expr_still_valid(expr: Box<IRExpr>, deleted_fields: &Vec<Ident<Field>>) -> bool {
+        field_lookups_in_expr(expr)
             .into_iter()
             .any(|field_id| deleted_fields.contains(&field_id))
     }
@@ -378,7 +431,7 @@ fn remove_invalidated_policies(
     // collections that no longer exist.
     let invalidated_create_policies = coll_policies.iter().filter(|(_coll_id, policy)| {
         if let Policy::Func(lam) = &policy.create {
-            expr_still_valid(ird, lam.body, &deleted_fields)
+            expr_still_valid(lam.body, &deleted_fields)
         } else {
             false
         }
@@ -386,7 +439,7 @@ fn remove_invalidated_policies(
     // Same for the delete policies
     let invalidated_delete_policies = coll_policies.iter().filter(|(_coll_id, policy)| {
         if let Policy::Func(lam) = &policy.delete {
-            expr_still_valid(ird, lam.body, &deleted_fields)
+            expr_still_valid(lam.body, &deleted_fields)
         } else {
             false
         }
@@ -418,20 +471,20 @@ fn remove_invalidated_policies(
         );
     }
 
-    let field_policies: Vec<(Id<Def>, &FieldPolicy)> = ird
-        .collections()
+    let field_policies: Vec<(Ident<Field>, &FieldPolicy)> =
+        result_policy.schema.collections.iter()
         .flat_map(|coll| {
             coll.fields()
-                .filter(|(field_name, _field_id)| *field_name != "id")
+                .filter(|field| field.name.orig_name != "id")
         })
-        .map(|(_field_name, field_id)| (*field_id, old_policy.field_policy(*field_id)))
+        .map(|field| (field.name, &old_policy.field_policies[&field.name]))
         .collect();
 
     // Get all `read` policies whose body refers to fields or
     // collections that no longer exist.
     let invalidated_read_policies = field_policies.iter().filter(|(_field_id, policy)| {
         if let Policy::Func(lam) = &policy.read {
-            expr_still_valid(ird, lam.body, &deleted_fields)
+            expr_still_valid(lam.body, &deleted_fields)
         } else {
             false
         }
@@ -440,7 +493,7 @@ fn remove_invalidated_policies(
     // Same for edit policies
     let invalidated_edit_policies = field_policies.iter().filter(|(_field_id, policy)| {
         if let Policy::Func(lam) = &policy.edit {
-            expr_still_valid(ird, lam.body, &deleted_fields)
+            expr_still_valid(lam.body, &deleted_fields)
         } else {
             false
         }
@@ -454,7 +507,6 @@ fn remove_invalidated_policies(
         result_policy.add_field_policy(
             *field_id,
             FieldPolicy {
-                field_id: *field_id,
                 read: Policy::None,
                 edit: old_policy.edit.clone(),
             },
@@ -468,7 +520,6 @@ fn remove_invalidated_policies(
         result_policy.add_field_policy(
             *field_id,
             FieldPolicy {
-                field_id: *field_id,
                 read: old_policy.read.clone(),
                 edit: Policy::None,
             },
@@ -477,28 +528,25 @@ fn remove_invalidated_policies(
 }
 
 fn get_policy_from_initializer(
-    ird: &IrData,
-    _old_policy: &CompletePolicy,
-    field_id: Id<Def>,
-    init: Lambda,
+    _old_policy: &SchemaPolicy,
+    field_id: Ident<Field>,
+    init: Func,
 ) -> FieldPolicy {
-    let sources = field_lookups_in_expr(ird, init.body);
+    let sources = field_lookups_in_expr(init.body);
     if sources.is_empty() {
         FieldPolicy {
-            field_id,
-            read: Policy::Public,
-            edit: Policy::Public,
+            read: Policy::Anyone,
+            edit: Policy::Anyone,
         }
     } else {
         FieldPolicy {
-            field_id,
             read: Policy::None,
             edit: Policy::None,
         }
     }
 }
 
-fn field_lookups_in_expr(ird: &IrData, e_id: Id<Expr>) -> Vec<Id<Def>> {
+fn field_lookups_in_expr(expr: Box<IRExpr>) -> Vec<Ident<Field>> {
     expr_to_all_subexprs(ird, e_id)
         .flat_map(|se_id| match &ird[*se_id].kind {
             ExprKind::Path(_, _, def) => vec![*def],
