@@ -3,7 +3,7 @@ use super::{
     Ident,
 };
 use crate::ast;
-use std::{fmt, rc::Rc};
+use std::{collections::HashMap, fmt, rc::Rc};
 
 /// A marker struct used to distinguise Ident<Var> from other idents.
 #[derive(Debug, Clone, Copy)]
@@ -53,8 +53,9 @@ pub enum ExprType {
     F64,
     Bool,
     List(Box<ExprType>),
-    ListUnknown,
     Object(Ident<Collection>),
+    /// Represents an unresolved type. These won't exist after lowering
+    Unknown(Ident<ExprType>),
 }
 
 impl ExprType {
@@ -69,6 +70,10 @@ impl ExprType {
     pub fn id(ident: Ident<Collection>) -> Self {
         Self::Id(ident)
     }
+
+    pub fn new_unknown() -> Self {
+        ExprType::Unknown(Ident::new("unknown"))
+    }
 }
 
 impl fmt::Display for ExprType {
@@ -81,7 +86,7 @@ impl fmt::Display for ExprType {
             ExprType::Bool => write!(f, "Bool"),
             ExprType::List(ty) => write!(f, "List({})", ty),
             ExprType::Object(coll) => write!(f, "{}", coll.orig_name),
-            ExprType::ListUnknown => write!(f, "ListUnknown"),
+            ExprType::Unknown(id) => write!(f, "{}_{}", &id.orig_name, id.index),
         }
     }
 }
@@ -101,7 +106,7 @@ pub fn extract_func(
 ) -> Func {
     let param_id = Ident::new(&func.param);
     let def_map = DefMap::empty().extend(&func.param, param_id.clone(), param_type.clone());
-    let body = extract_ir_expr(schema, def_map, &func.expr);
+    let body = extract_ir_expr(schema, def_map, &func.expr, Some(exp_ret_type.clone()));
 
     if body.type_of() != *exp_ret_type {
         panic!(
@@ -115,6 +120,88 @@ pub fn extract_func(
         param: param_id,
         param_type,
         body,
+    }
+}
+
+pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr, expected_ty: Option<ExprType>) -> Box<IRExpr> {
+    let mut ctx = LoweringContext {
+        type_map: Default::default(),
+    };
+    let mut expr = ctx.extract_ir_expr(schema, def_map, expr);
+
+    if let Some(ty) = expected_ty {
+        expr = ctx.coerce(&ty, expr);
+    }
+
+    resolve_types(&ctx.type_map, &mut expr);
+    expr
+}
+
+fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExpr) {
+    match expr {
+        IRExpr::AppendL(ref mut ty, l, r)
+        | IRExpr::IsEq(ref mut ty, l, r) => {
+            *ty = apply_ty(type_map, ty);
+            resolve_types(type_map, l);
+            resolve_types(type_map, r);
+        }
+        IRExpr::AppendS(l, r)
+        | IRExpr::IsLessI(l, r)
+        | IRExpr::IsLessF(l, r)
+        | IRExpr::AddI(l, r)
+        | IRExpr::AddF(l, r)
+        | IRExpr::SubI(l, r) 
+        | IRExpr::SubF(l, r) => {
+            resolve_types(type_map, l);
+            resolve_types(type_map, r);
+        }
+        IRExpr::Not(i)
+        | IRExpr::IntToFloat(i)
+        | IRExpr::LookupById(_, i)
+        // NOTE: The type inference algorithm does not handle field accesses currently
+        | IRExpr::Path(_, i, _) => {
+            resolve_types(type_map, i)
+        }
+
+        IRExpr::Var(ty, _) => {
+            *ty = apply_ty(type_map, ty);
+        }
+        IRExpr::Object(_, fields)
+        | IRExpr::Find(_, fields) => {
+            for (_, field) in fields.iter_mut() {
+                resolve_types(type_map, field);
+            }
+        }
+        IRExpr::List(ref mut ty, elems) => {
+            *ty = apply_ty(type_map, ty);
+            for elem in elems.iter_mut() {
+                resolve_types(type_map, elem)
+            }
+        }
+        IRExpr::If(ref mut ty, c, t, e) => {
+            *ty = apply_ty(type_map, ty);
+            resolve_types(type_map, c);
+            resolve_types(type_map, t);
+            resolve_types(type_map, e);
+        }
+
+        IRExpr::IntConst(_)
+        | IRExpr::FloatConst(_)
+        | IRExpr::StringConst(_)
+        | IRExpr::BoolConst(_) => {}
+    };
+}
+
+fn apply_ty(type_map: &HashMap<Ident<ExprType>, ExprType>, ty: &ExprType) -> ExprType {
+    match ty {
+        ExprType::Id(_)
+        | ExprType::String 
+        | ExprType::I64
+        | ExprType::F64 
+        | ExprType::Object(_)
+        | ExprType::Bool => ty.clone(),
+        ExprType::List(lty) => ExprType::list(apply_ty(type_map, lty)),
+        ExprType::Unknown(id) => apply_ty(type_map, &type_map[id])
     }
 }
 
@@ -154,7 +241,7 @@ pub enum IRExpr {
     /// syntax, but are inserted by the typechecker.
     IntToFloat(Box<IRExpr>),
 
-    /// Field lookup on an object. The DBType is inserted by the
+    /// Field lookup on an object.
     /// typechecker for convenience
     Path(ExprType, Box<IRExpr>, Ident<Field>),
 
@@ -168,11 +255,7 @@ pub enum IRExpr {
     /// list must contain all of the fields in the object; otherwise,
     /// missing fields take their values from the corresponding field
     /// on the template object.
-    Object(
-        Ident<Collection>,
-        Vec<(Ident<Field>, Box<IRExpr>)>,
-        Option<Box<IRExpr>>,
-    ),
+    Object(Ident<Collection>, Vec<(Ident<Field>, Box<IRExpr>)>),
 
     /// Look up an id in a collection
     LookupById(Ident<Collection>, Box<IRExpr>),
@@ -189,361 +272,376 @@ pub enum IRExpr {
     BoolConst(bool),
 }
 
-pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) -> Box<IRExpr> {
-    let ir_expr = match expr {
-        ast::QueryExpr::Plus(l, r) => {
-            let left = extract_ir_expr(schema, def_map.clone(), l);
-            let right = extract_ir_expr(schema, def_map.clone(), r);
-            let (left, right) = align_types(left, right);
+struct LoweringContext {
+    type_map: HashMap<Ident<ExprType>, ExprType>,
+}
 
-            match left.type_of() {
-                ExprType::I64 => IRExpr::AddI(left, right),
-                ExprType::F64 => IRExpr::AddF(left, right),
-                ExprType::ListUnknown | ExprType::List(_) => {
-                    let typ = if is_subtype(&left.type_of(), &right.type_of()) {
-                        left.type_of()
-                    } else {
+impl LoweringContext {
+    pub fn extract_ir_expr(&mut self, schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) -> Box<IRExpr> {
+        let ir_expr = match expr {
+            ast::QueryExpr::Plus(l, r) => {
+                let left = self.extract_ir_expr(schema, def_map.clone(), l);
+                let right = self.extract_ir_expr(schema, def_map.clone(), r);
+                let (left, right) = self.align_types(left, right);
+
+                match left.type_of() {
+                    ExprType::I64 => IRExpr::AddI(left, right),
+                    ExprType::F64 => IRExpr::AddF(left, right),
+                    ExprType::List(_) => {
+                        let typ = if self.is_subtype(&left.type_of(), &right.type_of()) {
+                            left.type_of()
+                        } else {
+                            right.type_of()
+                        };
+                        IRExpr::AppendL(typ, left, right)
+                    }
+                    ExprType::String => IRExpr::AppendS(left, right),
+                    _ => panic!(
+                        "`+` operation not defined for types: {} + {}",
+                        left.type_of(),
                         right.type_of()
-                    };
-                    IRExpr::AppendL(typ, left, right)
+                    ),
                 }
-                ExprType::String => IRExpr::AppendS(left, right),
-                _ => panic!(
-                    "`+` operation not defined for types: {} + {}",
-                    left.type_of(),
-                    right.type_of()
-                ),
             }
-        }
-        ast::QueryExpr::Minus(l, r) => {
-            let left = extract_ir_expr(schema, def_map.clone(), l);
-            let right = extract_ir_expr(schema, def_map.clone(), r);
-            let (left, right) = align_types(left, right);
+            ast::QueryExpr::Minus(l, r) => {
+                let left = self.extract_ir_expr(schema, def_map.clone(), l);
+                let right = self.extract_ir_expr(schema, def_map.clone(), r);
+                let (left, right) = self.align_types(left, right);
 
-            match left.type_of() {
-                ExprType::I64 => IRExpr::SubI(left, right),
-                ExprType::F64 => IRExpr::SubF(left, right),
-                _ => panic!(
-                    "`-` operation not defined for types: {} + {}",
-                    left.type_of(),
-                    right.type_of()
-                ),
-            }
-        }
-        ast::QueryExpr::IsEq(l, r) => {
-            let left = extract_ir_expr(schema, def_map.clone(), l);
-            let right = extract_ir_expr(schema, def_map.clone(), r);
-            let (left, right) = align_types(left, right);
-
-            let typ = left.type_of();
-            match &typ {
-                ExprType::I64 | ExprType::F64 => {
-                    IRExpr::IsEq(typ, left, right)
+                match left.type_of() {
+                    ExprType::I64 => IRExpr::SubI(left, right),
+                    ExprType::F64 => IRExpr::SubF(left, right),
+                    _ => panic!(
+                        "`-` operation not defined for types: {} + {}",
+                        left.type_of(),
+                        right.type_of()
+                    ),
                 }
-                _ => panic!(
-                    "`==` operation not defined for types: {} + {}",
-                    left.type_of(),
-                    right.type_of()
-                ),
             }
-        }
-        ast::QueryExpr::IsNeq(l, r) => {
-            let left = extract_ir_expr(schema, def_map.clone(), l);
-            let right = extract_ir_expr(schema, def_map.clone(), r);
-            let (left, right) = align_types(left, right);
+            ast::QueryExpr::IsEq(l, r) => {
+                let left = self.extract_ir_expr(schema, def_map.clone(), l);
+                let right = self.extract_ir_expr(schema, def_map.clone(), r);
+                let (left, right) = self.align_types(left, right);
 
-            let typ = left.type_of();
-            match &typ {
-                ExprType::I64
-                | ExprType::F64
-                | ExprType::Id(_) => {
-                    IRExpr::Not(Box::new(IRExpr::IsEq(typ, left, right)))
+                let typ = left.type_of();
+                match &typ {
+                    ExprType::I64 | ExprType::F64 => IRExpr::IsEq(typ, left, right),
+                    _ => panic!(
+                        "`==` operation not defined for types: {} + {}",
+                        left.type_of(),
+                        right.type_of()
+                    ),
                 }
-                _ => panic!(
-                    "`!=` operation not defined for types: {} + {}",
-                    left.type_of(),
-                    right.type_of()
-                ),
             }
-        }
-        ast::QueryExpr::Not(e) => {
-            let inner = extract_ir_expr(schema, def_map, e);
+            ast::QueryExpr::IsNeq(l, r) => {
+                let left = self.extract_ir_expr(schema, def_map.clone(), l);
+                let right = self.extract_ir_expr(schema, def_map.clone(), r);
+                let (left, right) = self.align_types(left, right);
 
-            match inner.type_of() {
-                ExprType::Bool => IRExpr::Not(inner),
-                _ => panic!("`not` operation not defined for type: {}", inner.type_of()),
-            }
-        }
-
-        ast::QueryExpr::IsLess(l, r) => {
-            let left = extract_ir_expr(schema, def_map.clone(), l);
-            let right = extract_ir_expr(schema, def_map.clone(), r);
-            let (left, right) = align_types(left, right);
-
-            match &left.type_of() {
-                ExprType::I64 => IRExpr::IsLessI(left, right),
-                ExprType::F64 => IRExpr::IsLessF(left, right),
-                _ => panic!(
-                    "`<` operation not defined for types: {} + {}",
-                    left.type_of(),
-                    right.type_of()
-                ),
-            }
-        }
-        ast::QueryExpr::IsLessOrEq(l, r) => {
-            let left = extract_ir_expr(schema, def_map.clone(), l);
-            let right = extract_ir_expr(schema, def_map.clone(), r);
-            let (left, right) = align_types(left, right);
-
-            match &left.type_of() {
-                ExprType::I64 => {
-                    IRExpr::Not(Box::new(IRExpr::IsLessI(right, left)))
+                let typ = left.type_of();
+                match &typ {
+                    ExprType::I64 | ExprType::F64 | ExprType::Id(_) => {
+                        IRExpr::Not(Box::new(IRExpr::IsEq(typ, left, right)))
+                    }
+                    _ => panic!(
+                        "`!=` operation not defined for types: {} + {}",
+                        left.type_of(),
+                        right.type_of()
+                    ),
                 }
-                ExprType::F64 => {
-                    IRExpr::Not(Box::new(IRExpr::IsLessF(right, left)))
-                }
-                _ => panic!(
-                    "`<=` operation not defined for types: {} + {}",
-                    left.type_of(),
-                    right.type_of()
-                ),
             }
-        }
-        ast::QueryExpr::IsGreater(l, r) => {
-            let left = extract_ir_expr(schema, def_map.clone(), l);
-            let right = extract_ir_expr(schema, def_map.clone(), r);
-            let (left, right) = align_types(left, right);
+            ast::QueryExpr::Not(e) => {
+                let inner = self.extract_ir_expr(schema, def_map, e);
 
-            match &left.type_of() {
-                ExprType::I64 => IRExpr::IsLessI(right, left),
-                ExprType::F64 => IRExpr::IsLessF(right, left),
-                _ => panic!(
-                    "`>` operation not defined for types: {} + {}",
-                    left.type_of(),
-                    right.type_of()
-                ),
-            }
-        }
-        ast::QueryExpr::IsGreaterOrEq(l, r) => {
-            let left = extract_ir_expr(schema, def_map.clone(), l);
-            let right = extract_ir_expr(schema, def_map.clone(), r);
-            let (left, right) = align_types(left, right);
-
-            match &left.type_of() {
-                ExprType::I64 => {
-                    IRExpr::Not(Box::new(IRExpr::IsLessI(left, right)))
+                match inner.type_of() {
+                    ExprType::Bool => IRExpr::Not(inner),
+                    _ => panic!("`not` operation not defined for type: {}", inner.type_of()),
                 }
-                ExprType::F64 => {
-                    IRExpr::Not(Box::new(IRExpr::IsLessF(left, right)))
-                }
-                _ => panic!(
-                    "`>=` operation not defined for types: {} + {}",
-                    left.type_of(),
-                    right.type_of()
-                ),
             }
-        }
-        ast::QueryExpr::Var(v) => {
-            let (ident, typ) = def_map
-                .lookup(v)
-                .expect(&format!("Use of undefined variable: {}", v));
-            IRExpr::Var(typ, ident)
-        }
-        ast::QueryExpr::IntConst(val) => IRExpr::IntConst(*val),
-        ast::QueryExpr::FloatConst(val) => IRExpr::FloatConst(*val),
-        ast::QueryExpr::StringConst(val) => IRExpr::StringConst(val.clone()),
-        ast::QueryExpr::BoolConst(val) => IRExpr::BoolConst(*val),
-        ast::QueryExpr::If(cond, then, els) => {
-            let cond = extract_ir_expr(schema, def_map.clone(), cond);
-            let then = extract_ir_expr(schema, def_map.clone(), then);
-            let els = extract_ir_expr(schema, def_map.clone(), els);
 
-            let cond = coerce(&ExprType::bool(), cond);
-            let (then, els) = align_types(then, els);
+            ast::QueryExpr::IsLess(l, r) => {
+                let left = self.extract_ir_expr(schema, def_map.clone(), l);
+                let right = self.extract_ir_expr(schema, def_map.clone(), r);
+                let (left, right) = self.align_types(left, right);
 
-            let typ = if is_subtype(&then.type_of(), &els.type_of()) {
-                then.type_of()
-            } else {
-                els.type_of()
-            };
+                match &left.type_of() {
+                    ExprType::I64 => IRExpr::IsLessI(left, right),
+                    ExprType::F64 => IRExpr::IsLessF(left, right),
+                    _ => panic!(
+                        "`<` operation not defined for types: {} + {}",
+                        left.type_of(),
+                        right.type_of()
+                    ),
+                }
+            }
+            ast::QueryExpr::IsLessOrEq(l, r) => {
+                let left = self.extract_ir_expr(schema, def_map.clone(), l);
+                let right = self.extract_ir_expr(schema, def_map.clone(), r);
+                let (left, right) = self.align_types(left, right);
 
-            IRExpr::If(typ, cond, then, els)
-        }
-        ast::QueryExpr::FieldAccess(obj_expr, elem) => {
-            let obj_expr = extract_ir_expr(schema, def_map, obj_expr);
+                match &left.type_of() {
+                    ExprType::I64 => IRExpr::Not(Box::new(IRExpr::IsLessI(right, left))),
+                    ExprType::F64 => IRExpr::Not(Box::new(IRExpr::IsLessF(right, left))),
+                    _ => panic!(
+                        "`<=` operation not defined for types: {} + {}",
+                        left.type_of(),
+                        right.type_of()
+                    ),
+                }
+            }
+            ast::QueryExpr::IsGreater(l, r) => {
+                let left = self.extract_ir_expr(schema, def_map.clone(), l);
+                let right = self.extract_ir_expr(schema, def_map.clone(), r);
+                let (left, right) = self.align_types(left, right);
 
-            let coll = match obj_expr.type_of() {
-                // Unwrap is safe unless we screwed up lowering
-                ExprType::Object(ref coll) => &schema[coll],
-                typ @ _ => panic!(
-                    "Field access (`.`) operator requires an Object. Found: {}",
-                    typ
-                ),
-            };
+                match &left.type_of() {
+                    ExprType::I64 => IRExpr::IsLessI(right, left),
+                    ExprType::F64 => IRExpr::IsLessF(right, left),
+                    _ => panic!(
+                        "`>` operation not defined for types: {} + {}",
+                        left.type_of(),
+                        right.type_of()
+                    ),
+                }
+            }
+            ast::QueryExpr::IsGreaterOrEq(l, r) => {
+                let left = self.extract_ir_expr(schema, def_map.clone(), l);
+                let right = self.extract_ir_expr(schema, def_map.clone(), r);
+                let (left, right) = self.align_types(left, right);
 
-            let field = coll.find_field(elem).expect(&format!(
-                "Field `{}` not found on collection `{}`",
-                elem, coll.name.orig_name
-            ));
+                match &left.type_of() {
+                    ExprType::I64 => IRExpr::Not(Box::new(IRExpr::IsLessI(left, right))),
+                    ExprType::F64 => IRExpr::Not(Box::new(IRExpr::IsLessF(left, right))),
+                    _ => panic!(
+                        "`>=` operation not defined for types: {} + {}",
+                        left.type_of(),
+                        right.type_of()
+                    ),
+                }
+            }
+            ast::QueryExpr::Var(v) => {
+                let (ident, typ) = def_map
+                    .lookup(v)
+                    .expect(&format!("Use of undefined variable: {}", v));
+                IRExpr::Var(typ, ident)
+            }
+            ast::QueryExpr::IntConst(val) => IRExpr::IntConst(*val),
+            ast::QueryExpr::FloatConst(val) => IRExpr::FloatConst(*val),
+            ast::QueryExpr::StringConst(val) => IRExpr::StringConst(val.clone()),
+            ast::QueryExpr::BoolConst(val) => IRExpr::BoolConst(*val),
+            ast::QueryExpr::If(cond, then, els) => {
+                let cond = self.extract_ir_expr(schema, def_map.clone(), cond);
+                let then = self.extract_ir_expr(schema, def_map.clone(), then);
+                let els = self.extract_ir_expr(schema, def_map.clone(), els);
 
-            IRExpr::Path(field.typ.clone(), obj_expr, field.name.clone())
-        }
-        ast::QueryExpr::Object(obj_lit) => {
-            let coll = schema.find_collection(&obj_lit.coll).expect(&format!(
-                "Unable to construct object literal because collection `{}` does not exist",
-                obj_lit.coll
-            ));
+                let cond = self.coerce(&ExprType::bool(), cond);
+                let (then, els) = self.align_types(then, els);
 
-            // All the present fields, lowered.
-            let mut ir_fields = vec![];
-            for (fname, fexpr) in obj_lit.fields.iter() {
-                let field = coll.find_field(fname).expect(&format!(
-                    "Unable to find field {} on collection {}",
-                    fname, &coll.name.orig_name
+                let typ = if self.is_subtype(&then.type_of(), &els.type_of()) {
+                    then.type_of()
+                } else {
+                    els.type_of()
+                };
+
+                IRExpr::If(typ, cond, then, els)
+            }
+            ast::QueryExpr::FieldAccess(obj_expr, elem) => {
+                let obj_expr = self.extract_ir_expr(schema, def_map, obj_expr);
+
+                let coll = match obj_expr.type_of() {
+                    // Unwrap is safe unless we screwed up lowering
+                    ExprType::Object(ref coll) => &schema[coll],
+                    typ @ _ => panic!(
+                        "Field access (`.`) operator requires an Object. Found: {}",
+                        typ
+                    ),
+                };
+
+                let field = coll.find_field(elem).expect(&format!(
+                    "Field `{}` not found on collection `{}`",
+                    elem, coll.name.orig_name
                 ));
-                let fexpr = coerce(
-                    &field.typ,
-                    extract_ir_expr(schema, def_map.clone(), fexpr),
-                );
 
-                ir_fields.push((field.name.clone(), fexpr));
+                IRExpr::Path(field.typ.clone(), obj_expr, field.name.clone())
             }
+            ast::QueryExpr::Object(obj_lit) => {
+                let coll = schema.find_collection(&obj_lit.coll).expect(&format!(
+                    "Unable to construct object literal because collection `{}` does not exist",
+                    obj_lit.coll
+                ));
 
-            let template = obj_lit.template_obj.as_ref().map(|texpr| {
-                let expr = extract_ir_expr(schema, def_map.clone(), texpr);
-                coerce(&ExprType::Object(coll.name.clone()), expr)
-            });
+                // All the present fields, lowered.
+                let mut ir_fields = vec![];
+                for (fname, fexpr) in obj_lit.fields.iter() {
+                    let field = coll.find_field(fname).expect(&format!(
+                        "Unable to find field {} on collection {}",
+                        fname, &coll.name.orig_name
+                    ));
 
-            // If there's no template we have to verify that all the fields are present
-            if template.is_none() {
-                for field in coll.fields() {
-                    // Id's should come from the DB
                     if field.is_id() {
-                        continue;
+                        panic!("id not allowed on object literals");
                     }
-                    if !ir_fields
-                        .iter()
-                        .find(|(ident, _)| *ident == field.name)
-                        .is_none()
-                    {
-                        panic!(
-                            "Object literal for type `{}` missing field `{}`",
-                            &coll.name.orig_name, &field.name.orig_name
-                        );
+                    let fexpr = self.extract_ir_expr(schema, def_map.clone(), fexpr);
+                    let fexpr =
+                       self.coerce(&field.typ, fexpr);
+
+                    ir_fields.push((field.name.clone(), fexpr));
+                }
+
+                let missing_fields: Vec<_> = coll
+                    .fields()
+                    .filter(|f| {
+                        ir_fields
+                            .iter()
+                            .find(|(ident, _)| *ident == f.name)
+                            .is_none()
+                    })
+                    .collect();
+
+                match obj_lit.template_obj {
+                    None => {
+                        // The 1 is id which should be missing
+                        if missing_fields.len() != 1 {
+                            panic!(
+                                "Object literal for type `{}` missing field(s) `{}`",
+                                &coll.name.orig_name,
+                                &missing_fields
+                                    .iter()
+                                    .map(|i| i.name.orig_name.clone())
+                                    .collect::<Vec<_>>()
+                                    .join(", "),
+                            );
+                        }
+                    }
+                    Some(ref texpr) => {
+                        let expr = self.extract_ir_expr(schema, def_map.clone(), texpr);
+                        let expr = self.coerce(&ExprType::Object(coll.name.clone()), expr);
+
+                        for field in missing_fields {
+                            ir_fields.push((
+                                field.name.clone(),
+                                Box::new(IRExpr::Path(
+                                    schema[&field.name].typ.clone(),
+                                    expr.clone(),
+                                    field.name.clone(),
+                                )),
+                            ));
+                        }
                     }
                 }
-            }
 
-            IRExpr::Object(coll.name.clone(), ir_fields, template)
-        }
-        ast::QueryExpr::Find(coll_name, fields) => {
-            let coll = schema.find_collection(coll_name).expect(&format!(
-                "Unable to lookup by id because collection `{}` does not exist",
-                coll_name
-            ));
-            // All the present fields, lowered.
-            let mut ir_fields = vec![];
-            for (fname, fexpr) in fields.iter() {
-                let field = coll.find_field(fname).expect(&format!(
-                    "Unable to find field {} on collection {}",
-                    fname, &coll.name.orig_name
+                IRExpr::Object(coll.name.clone(), ir_fields)
+            }
+            ast::QueryExpr::Find(coll_name, fields) => {
+                let coll = schema.find_collection(coll_name).expect(&format!(
+                    "Unable to lookup by id because collection `{}` does not exist",
+                    coll_name
                 ));
-                let fexpr = coerce(
-                    &field.typ,
-                    extract_ir_expr(schema, def_map.clone(), fexpr),
-                );
+                // All the present fields, lowered.
+                let mut ir_fields = vec![];
+                for (fname, fexpr) in fields.iter() {
+                    let field = coll.find_field(fname).expect(&format!(
+                        "Unable to find field {} on collection {}",
+                        fname, &coll.name.orig_name
+                    ));
+                    let fexpr = self.extract_ir_expr(schema, def_map.clone(), fexpr);
+                    let fexpr = self.coerce(&field.typ, fexpr);
 
-                ir_fields.push((field.name.clone(), fexpr));
-            }
-            IRExpr::Find(coll.name.clone(), ir_fields)
-        }
-        ast::QueryExpr::LookupById(coll_name, id_expr) => {
-            let coll = schema.find_collection(coll_name).expect(&format!(
-                "Unable to lookup by id because collection `{}` does not exist",
-                coll_name
-            ));
-            let id_expr = extract_ir_expr(schema, def_map, id_expr);
-            let id_expr = coerce(&ExprType::id(coll.name.clone()), id_expr);
-
-            IRExpr::LookupById(coll.name.clone(), id_expr)
-        }
-        ast::QueryExpr::List(elems) => {
-            if elems.len() == 0 {
-                IRExpr::List(ExprType::ListUnknown, vec![])
-            } else {
-                let lowered_elems: Vec<_> = elems
-                    .iter()
-                    .map(|expr| extract_ir_expr(schema, def_map.clone(), expr))
-                    .collect();
-                let mut most_specific_type = lowered_elems[0].type_of();
-
-                for expr in lowered_elems.iter() {
-                    if is_subtype(&expr.type_of(), &most_specific_type) {
-                        most_specific_type = expr.type_of();
-                    }
+                    ir_fields.push((field.name.clone(), fexpr));
                 }
-
-                let lowered_elems: Vec<_> = lowered_elems
-                    .into_iter()
-                    .map(|expr| coerce(&most_specific_type, expr))
-                    .collect();
-
-                IRExpr::List(ExprType::list(most_specific_type.clone()), lowered_elems)
+                IRExpr::Find(coll.name.clone(), ir_fields)
             }
+            ast::QueryExpr::LookupById(coll_name, id_expr) => {
+                let coll = schema.find_collection(coll_name).expect(&format!(
+                    "Unable to lookup by id because collection `{}` does not exist",
+                    coll_name
+                ));
+                let id_expr = self.extract_ir_expr(schema, def_map, id_expr);
+                let id_expr = self.coerce(&ExprType::id(coll.name.clone()), id_expr);
+
+                IRExpr::LookupById(coll.name.clone(), id_expr)
+            }
+            ast::QueryExpr::List(elems) => {
+                if elems.len() == 0 {
+                    IRExpr::List(ExprType::list(ExprType::new_unknown()), vec![])
+                } else {
+                    let lowered_elems: Vec<_> = elems
+                        .iter()
+                        .map(|expr| self.extract_ir_expr(schema, def_map.clone(), expr))
+                        .collect();
+                    let mut most_specific_type = lowered_elems[0].type_of();
+
+                    for expr in lowered_elems.iter() {
+                        if self.is_subtype(&expr.type_of(), &most_specific_type) {
+                            most_specific_type = expr.type_of();
+                        }
+                    }
+
+                    let lowered_elems: Vec<_> = lowered_elems
+                        .into_iter()
+                        .map(|expr| self.coerce(&most_specific_type, expr))
+                        .collect();
+
+                    IRExpr::List(ExprType::list(most_specific_type.clone()), lowered_elems)
+                }
+            }
+        };
+
+        return Box::new(ir_expr);
+    }
+
+    fn is_subtype(&mut self, typ1: &ExprType, typ2: &ExprType) -> bool {
+        match (typ1, typ2) {
+            (ExprType::List(inner1), ExprType::List(inner2)) => self.is_subtype(inner1, inner2),
+            (ExprType::Unknown(id), l)
+            | (l, ExprType::Unknown(id)) => {
+                if !self.type_map.contains_key(&id) {
+                    self.type_map.insert(id.clone(), l.clone());
+                    true
+                } else {
+                    self.is_subtype(l, &self.type_map[&id].clone())
+                }
+            }
+            _ => typ1 == typ2,
         }
-    };
-
-    return Box::new(ir_expr);
-}
-
-fn is_subtype(typ1: &ExprType, typ2: &ExprType) -> bool {
-    match (typ1, typ2) {
-        (ExprType::List(inner1), ExprType::List(inner2)) => is_subtype(inner1, inner2),
-        (ExprType::List(_), ExprType::ListUnknown) => true,
-        _ => typ1 == typ2,
     }
-}
 
-fn coerce(typ: &ExprType, expr: Box<IRExpr>) -> Box<IRExpr> {
-    let expr_typ = expr.type_of();
-    if expr_typ == *typ {
-        return expr;
-    }
-    match (typ, expr_typ) {
-        (ExprType::F64, ExprType::I64) => {
-            Box::new(IRExpr::IntToFloat(expr))
+    pub fn coerce(&mut self, typ: &ExprType, expr: Box<IRExpr>) -> Box<IRExpr> {
+        let expr_typ = expr.type_of();
+        if self.is_subtype(&expr_typ, typ) {
+            return expr;
         }
-        _ => panic!("Unable to coerce to type {}\n expr {:#?}", typ, expr),
-    }
-}
-
-/// Handles coercions favoring Int->Float conversion and List<Unknown> -> List<Foo>
-fn align_types(left: Box<IRExpr>, right: Box<IRExpr>) -> (Box<IRExpr>, Box<IRExpr>) {
-    // They already match
-    if is_subtype(&left.type_of(), &right.type_of())
-        || is_subtype(&right.type_of(), &left.type_of())
-    {
-        return (left, right);
-    }
-
-    let float = ExprType::F64;
-
-    match (left.type_of(), right.type_of()) {
-        // Upgrade the non-float expr to an expr
-        (ExprType::F64, ExprType::I64)
-        | (ExprType::I64, ExprType::F64) => {
-            (coerce(&float, left), coerce(&float, right))
+        match (typ, expr_typ) {
+            (ExprType::F64, ExprType::I64) => Box::new(IRExpr::IntToFloat(expr)),
+            _ => panic!("Unable to coerce to type {}\n expr {:#?}", typ, expr),
         }
-        (l_typ, r_typ) => panic!("Unable to reconcile types {}, {}", l_typ, r_typ),
+    }
+
+    /// Handles coercions favoring Int->Float conversion and List<Unknown> -> List<Foo>
+    fn align_types(&mut self, left: Box<IRExpr>, right: Box<IRExpr>) -> (Box<IRExpr>, Box<IRExpr>) {
+        // They already match
+        if self.is_subtype(&left.type_of(), &right.type_of())
+            || self.is_subtype(&right.type_of(), &left.type_of())
+        {
+            return (left, right);
+        }
+
+        let float = ExprType::F64;
+
+        match (left.type_of(), right.type_of()) {
+            // Upgrade the non-float expr to an expr
+            (ExprType::F64, ExprType::I64) | (ExprType::I64, ExprType::F64) => {
+                (self.coerce(&float, left), self.coerce(&float, right))
+            }
+            (l_typ, r_typ) => panic!("Unable to reconcile types {}, {}", l_typ, r_typ),
+        }
     }
 }
 
 impl IRExpr {
     pub fn type_of(&self) -> ExprType {
         match self {
-            IRExpr::AddI(..) | IRExpr::SubI(..) | IRExpr::IntConst(_) => {
-                ExprType::I64
-            }
+            IRExpr::AddI(..) | IRExpr::SubI(..) | IRExpr::IntConst(_) => ExprType::I64,
 
             IRExpr::IntToFloat(_) | IRExpr::FloatConst(_) | IRExpr::AddF(..) | IRExpr::SubF(..) => {
                 ExprType::F64
@@ -566,7 +664,60 @@ impl IRExpr {
             IRExpr::Var(typ, ..)
             | IRExpr::AppendL(typ, ..)
             | IRExpr::List(typ, ..)
-            | IRExpr::If(typ, ..) => typ.clone()
+            | IRExpr::If(typ, ..) => typ.clone(),
         }
     }
 }
+
+// fn eliminate_unknown_lists(expr: &IRExpr, exp_type: &ExprType) -> Box<IRExpr> {
+//     let typ = expr.type_of();
+//     let new = match expr {
+//         IRExpr::AppendS(l, r) => {
+//             IRExpr::AppendS(eliminate_unknown_lists(l, &typ), eliminate_unknown_lists(r, &typ))
+//         }
+//         IRExpr::AppendL(_, l, r) => {
+//             IRExpr::AppendL(exp_type.clone(), eliminate_unknown_lists(l, exp_type), eliminate_unknown_lists(r, exp_type))
+//         }
+//         IRExpr::AddI(l, r) =>
+//             IRExpr::AddI(eliminate_unknown_lists(l, &typ), eliminate_unknown_lists(r, &typ)),
+//         IRExpr::AddF(l, r) =>
+//             IRExpr::AddF(eliminate_unknown_lists(l, &typ), eliminate_unknown_lists(r, &typ)),
+//         IRExpr::SubI(l  , r) =>
+//             IRExpr::SubI(eliminate_unknown_lists(l, &typ), eliminate_unknown_lists(r, &typ)),
+//         IRExpr::SubF(l, r) =>
+//             IRExpr::SubF(eliminate_unknown_lists(l, &typ), eliminate_unknown_lists(r, &typ)),
+//         IRExpr::IsEq(eq_type, l, r) =>
+//             IRExpr::IsEq(eq_type.clone(), eliminate_unknown_lists(l, &eq_type), eliminate_unknown_lists(r, &eq_type)),
+//         IRExpr::Not(e) =>
+//             IRExpr::Not(eliminate_unknown_lists(e, &typ)),
+//         IRExpr::IsLessI(l, r) =>
+//             IRExpr::IsLessI(eliminate_unknown_lists(l, &ExprType::I64), eliminate_unknown_lists(r, &ExprType::I64)),
+//         IRExpr::IsLessF(l, r) =>
+//             IRExpr::IsLessF(eliminate_unknown_lists(l, &ExprType::F64), eliminate_unknown_lists(r, &ExprType::F64)),
+//         IRExpr::IntToFloat(e) =>
+//             IRExpr::Not(eliminate_unknown_lists(e, &typ)),
+//         IRExpr::Path(t, e, f) =>
+//             IRExpr::Path(t.clone(), eliminate_unknown_lists(e, &e.type_of()), f.clone()),
+//         IRExpr::If(typ, c, t, e) => {
+//             IRExpr::If(
+//                 typ.clone(),
+//                 eliminate_unknown_lists(c, &ExprType::Bool),
+//                 eliminate_unknown_lists(t, typ),
+//                 eliminate_unknown_lists(f, typ),
+//             )
+//         }
+//         IRExpr::Object(coll, fields, _) => {
+//             IRExpr::Object(t.clone(), eliminate_unknown_lists(e, &e.type_of()), f.clone()),
+//         }
+//         IRExpr::Find(_, e) => {}
+//         IRExpr::List(_, _) => {}
+//         IRExpr::IntConst(_)
+//         | IRExpr::FloatConst(_)
+//         | IRExpr::StringConst(_)
+//         | IRExpr::BoolConst(_)
+//         | IRExpr::LookupById(_, _)
+//         | IRExpr::Var(_, _) => {expr.clone()}
+//     };
+
+//     Box::new(new)
+// }

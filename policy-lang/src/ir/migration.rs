@@ -365,14 +365,7 @@ fn extract_data_command(schema: &Schema, def_map: DefMap, oc: ast::ObjectCommand
                 "Unable to create `{}` because it does not exist.",
                 &collection
             ));
-            let value = extract_ir_expr(schema, def_map.clone(), &value);
-            if value.type_of() != ExprType::Object(coll.name.clone()) {
-                panic!(
-                    "Attempting to create an object for {} but found type {:?}",
-                    &coll.name.orig_name,
-                    value.type_of()
-                );
-            }
+            let value = extract_ir_expr(schema, def_map.clone(), &value, Some(ExprType::Object(coll.name.clone())));
 
             DataCommand::CreateObject {
                 collection: coll.name.clone(),
@@ -387,14 +380,7 @@ fn extract_data_command(schema: &Schema, def_map: DefMap, oc: ast::ObjectCommand
                 "Unable to create `{}` because it does not exist.",
                 &collection
             ));
-            let value = extract_ir_expr(schema, def_map.clone(), &id_expr);
-            if value.type_of() != ExprType::id(coll.name.clone()) {
-                panic!(
-                    "Attempting to delete an object for {} but found type {:?}",
-                    &coll.name.orig_name,
-                    value.type_of()
-                );
-            }
+            let value = extract_ir_expr(schema, def_map.clone(), &id_expr, Some(ExprType::Id(coll.name.clone())));
 
             DataCommand::DeleteObject {
                 collection: coll.name.clone(),

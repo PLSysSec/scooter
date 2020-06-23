@@ -60,7 +60,7 @@ impl Index<&Ident<Field>> for Schema {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Collection {
     pub name: Ident<Self>,
-    pub(crate) fields: Vec<Field>,
+    pub fields: Vec<Field>,
 }
 
 impl Collection {

@@ -50,7 +50,7 @@ Policy: Policy = {
     Func => Policy::Func(<>)
 }
 
-Func: Func = {
+pub Func: Func = {
     <i:Ident> "->" <e:QueryExpr> => Func {
         param: i,
         expr: e

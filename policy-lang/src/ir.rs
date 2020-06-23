@@ -19,7 +19,7 @@ pub struct Ident<T> {
 }
 
 impl<T> Ident<T> {
-    fn new(s: impl ToString) -> Self {
+    pub fn new(s: impl ToString) -> Self {
         static mut IDENT_CT: u32 = 0;
         let index = unsafe {
             IDENT_CT += 1;
@@ -28,6 +28,14 @@ impl<T> Ident<T> {
         Ident {
             index,
             orig_name: s.to_string(),
+            pd: PhantomData::default(),
+        }
+    }
+
+    pub fn coerce<U>(&self) -> Ident<U> {
+        Ident::<U> {
+            index: self.index,
+            orig_name: self.orig_name.clone(),
             pd: PhantomData::default(),
         }
     }

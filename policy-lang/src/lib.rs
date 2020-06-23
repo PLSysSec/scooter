@@ -18,6 +18,13 @@ pub fn parse_migration<'a>(input: &'a str) -> Result<ast::Migration, Box<dyn Err
         .parse(input)
         .map_err::<Box<dyn Error>, _>(|e| Box::new(e))
 }
+
+pub fn parse_func<'a>(input: &'a str) -> Result<ast::Func, Box<dyn Error + 'a>> {
+    parser::FuncParser::new()
+        .parse(input)
+        .map_err::<Box<dyn Error>, _>(|e| Box::new(e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
