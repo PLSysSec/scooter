@@ -16,6 +16,7 @@ Message {
         write: none,
     },
 }
+@principle
 User {
     create: public,
     delete: none,
