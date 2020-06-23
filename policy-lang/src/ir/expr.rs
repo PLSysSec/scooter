@@ -150,7 +150,7 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
         | IRExpr::IsLessF(l, r)
         | IRExpr::AddI(l, r)
         | IRExpr::AddF(l, r)
-        | IRExpr::SubI(l, r) 
+        | IRExpr::SubI(l, r)
         | IRExpr::SubF(l, r) => {
             resolve_types(type_map, l);
             resolve_types(type_map, r);
@@ -195,9 +195,9 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
 fn apply_ty(type_map: &HashMap<Ident<ExprType>, ExprType>, ty: &ExprType) -> ExprType {
     match ty {
         ExprType::Id(_)
-        | ExprType::String 
+        | ExprType::String
         | ExprType::I64
-        | ExprType::F64 
+        | ExprType::F64
         | ExprType::Object(_)
         | ExprType::Bool => ty.clone(),
         ExprType::List(lty) => ExprType::list(apply_ty(type_map, lty)),
