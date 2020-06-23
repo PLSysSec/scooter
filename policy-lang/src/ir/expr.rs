@@ -166,8 +166,14 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
         IRExpr::Var(ty, _) => {
             *ty = apply_ty(type_map, ty);
         }
-        IRExpr::Object(_, fields)
-        | IRExpr::Find(_, fields) => {
+        IRExpr::Object(_, fields, template) => {
+            for (_, field) in fields.iter_mut() {
+                if let Some(ref mut field) = field {
+                    resolve_types(type_map, field);
+                }
+            }
+        }
+        IRExpr::Find(_, fields) => {
             for (_, field) in fields.iter_mut() {
                 resolve_types(type_map, field);
             }
@@ -255,7 +261,7 @@ pub enum IRExpr {
     /// list must contain all of the fields in the object; otherwise,
     /// missing fields take their values from the corresponding field
     /// on the template object.
-    Object(Ident<Collection>, Vec<(Ident<Field>, Box<IRExpr>)>),
+    Object(Ident<Collection>, Vec<(Ident<Field>, Option<Box<IRExpr>>)>, Option<Box<IRExpr>>),
 
     /// Look up an id in a collection
     LookupById(Ident<Collection>, Box<IRExpr>),
@@ -485,7 +491,7 @@ impl LoweringContext {
                     let fexpr =
                        self.coerce(&field.typ, fexpr);
 
-                    ir_fields.push((field.name.clone(), fexpr));
+                    ir_fields.push((field.name.clone(), Some(fexpr)));
                 }
 
                 let missing_fields: Vec<_> = coll
@@ -498,7 +504,7 @@ impl LoweringContext {
                     })
                     .collect();
 
-                match obj_lit.template_obj {
+                let texpr = match obj_lit.template_obj {
                     None => {
                         // The 1 is id which should be missing
                         if missing_fields.len() != 1 {
@@ -512,6 +518,7 @@ impl LoweringContext {
                                     .join(", "),
                             );
                         }
+                        None
                     }
                     Some(ref texpr) => {
                         let expr = self.extract_ir_expr(schema, def_map.clone(), texpr);
@@ -520,17 +527,15 @@ impl LoweringContext {
                         for field in missing_fields {
                             ir_fields.push((
                                 field.name.clone(),
-                                Box::new(IRExpr::Path(
-                                    schema[&field.name].typ.clone(),
-                                    expr.clone(),
-                                    field.name.clone(),
-                                )),
+                                None
                             ));
                         }
-                    }
-                }
 
-                IRExpr::Object(coll.name.clone(), ir_fields)
+                        Some(expr)
+                    }
+                };
+
+                IRExpr::Object(coll.name.clone(), ir_fields, texpr)
             }
             ast::QueryExpr::Find(coll_name, fields) => {
                 let coll = schema.find_collection(coll_name).expect(&format!(
@@ -695,10 +700,10 @@ impl IRExpr {
                                                        Box::new(o.as_ref().map(f)),
                                                        fld.clone())),
             IRExpr::Var(_ty, _name) => f(self.clone()),
-            IRExpr::Object(coll, fields) =>
+            IRExpr::Object(coll, fields, template) =>
                 f(IRExpr::Object(coll.clone(), fields.iter().map(
-                    |(fld, val)|
-                    (fld.clone(), Box::new(val.map(f)))).collect())),
+                    |(fld, opt_val)|
+                    (fld.clone(), opt_val.as_ref().map(|fe| Box::new(fe.map(f))))).collect(), template.as_ref().map(|te| Box::new(te.map(f))))),
             IRExpr::LookupById(coll, id_expr) =>
                 f(IRExpr::LookupById(coll.clone(), Box::new(id_expr.as_ref().map(f)))),
             IRExpr::Find(coll, query_fields) =>
@@ -718,56 +723,3 @@ impl IRExpr {
         }
     }
 }
-
-// fn eliminate_unknown_lists(expr: &IRExpr, exp_type: &ExprType) -> Box<IRExpr> {
-//     let typ = expr.type_of();
-//     let new = match expr {
-//         IRExpr::AppendS(l, r) => {
-//             IRExpr::AppendS(eliminate_unknown_lists(l, &typ), eliminate_unknown_lists(r, &typ))
-//         }
-//         IRExpr::AppendL(_, l, r) => {
-//             IRExpr::AppendL(exp_type.clone(), eliminate_unknown_lists(l, exp_type), eliminate_unknown_lists(r, exp_type))
-//         }
-//         IRExpr::AddI(l, r) =>
-//             IRExpr::AddI(eliminate_unknown_lists(l, &typ), eliminate_unknown_lists(r, &typ)),
-//         IRExpr::AddF(l, r) =>
-//             IRExpr::AddF(eliminate_unknown_lists(l, &typ), eliminate_unknown_lists(r, &typ)),
-//         IRExpr::SubI(l  , r) =>
-//             IRExpr::SubI(eliminate_unknown_lists(l, &typ), eliminate_unknown_lists(r, &typ)),
-//         IRExpr::SubF(l, r) =>
-//             IRExpr::SubF(eliminate_unknown_lists(l, &typ), eliminate_unknown_lists(r, &typ)),
-//         IRExpr::IsEq(eq_type, l, r) =>
-//             IRExpr::IsEq(eq_type.clone(), eliminate_unknown_lists(l, &eq_type), eliminate_unknown_lists(r, &eq_type)),
-//         IRExpr::Not(e) =>
-//             IRExpr::Not(eliminate_unknown_lists(e, &typ)),
-//         IRExpr::IsLessI(l, r) =>
-//             IRExpr::IsLessI(eliminate_unknown_lists(l, &ExprType::I64), eliminate_unknown_lists(r, &ExprType::I64)),
-//         IRExpr::IsLessF(l, r) =>
-//             IRExpr::IsLessF(eliminate_unknown_lists(l, &ExprType::F64), eliminate_unknown_lists(r, &ExprType::F64)),
-//         IRExpr::IntToFloat(e) =>
-//             IRExpr::Not(eliminate_unknown_lists(e, &typ)),
-//         IRExpr::Path(t, e, f) =>
-//             IRExpr::Path(t.clone(), eliminate_unknown_lists(e, &e.type_of()), f.clone()),
-//         IRExpr::If(typ, c, t, e) => {
-//             IRExpr::If(
-//                 typ.clone(),
-//                 eliminate_unknown_lists(c, &ExprType::Bool),
-//                 eliminate_unknown_lists(t, typ),
-//                 eliminate_unknown_lists(f, typ),
-//             )
-//         }
-//         IRExpr::Object(coll, fields, _) => {
-//             IRExpr::Object(t.clone(), eliminate_unknown_lists(e, &e.type_of()), f.clone()),
-//         }
-//         IRExpr::Find(_, e) => {}
-//         IRExpr::List(_, _) => {}
-//         IRExpr::IntConst(_)
-//         | IRExpr::FloatConst(_)
-//         | IRExpr::StringConst(_)
-//         | IRExpr::BoolConst(_)
-//         | IRExpr::LookupById(_, _)
-//         | IRExpr::Var(_, _) => {expr.clone()}
-//     };
-
-//     Box::new(new)
-// }

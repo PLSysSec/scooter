@@ -37,7 +37,7 @@ pub fn is_as_strict(schema: &Schema, before: &Func, after: &Func) -> bool {
     
     {
         let input = child.stdin.as_mut().expect("Failed to open stdin of z3 process");
-        input.write_all(assertion.as_bytes());
+        input.write_all(assertion.as_bytes()).expect("Error writing to z3 input");
     };
 
     let output = child.wait_with_output().expect("Error capturing z3 output");
@@ -142,7 +142,7 @@ fn lower_expr(body: &IRExpr) -> (Ident<SMTVar>, String) {
                     "(= ({} {}) {})\n",
                     ident(f),
                     ident(&quantifier),
-                    ident(&expr_ident)
+                    ident(&e_i)
                 ));
             }
 
@@ -158,26 +158,41 @@ fn lower_expr(body: &IRExpr) -> (Ident<SMTVar>, String) {
                 ident(&expr_ident)
             );
 
-            (expr_ident, preamble + &anded_eqs + &assert)
+            (expr_ident, preamble + &decl + &assert)
         }
-        IRExpr::Object(_, fields) => {
+        IRExpr::Object(_, fields, template) => {
             let expr_ident = Ident::new("expr");
             let decl = format!(
                 "(declare-fun {} () {})\n",
                 ident(&expr_ident),
                 type_name(&body.type_of())
             );
+
+            let smt_template = template.as_ref().map(|e| lower_expr(e));
             let mut preamble = String::new();
             let mut asserts = String::new();
+            if let Some((_, ref t_b))  = smt_template {
+                preamble += t_b;
+            }
             for (f, expr) in fields {
-                let (e_i, e_b) = lower_expr(expr);
-                preamble += &e_b;
-                asserts += &format!(
-                    "(assert (= ({} {}) {})\n",
-                    ident(f),
-                    ident(&expr_ident),
-                    ident(&e_i)
-                );
+                if let Some(expr) = expr {
+                    let (e_i, e_b) = lower_expr(expr);
+                    preamble += &e_b;
+                    asserts += &format!(
+                        "(assert (= ({} {}) {})\n",
+                        ident(f),
+                        ident(&expr_ident),
+                        ident(&e_i)
+                    );
+                } else {
+                    let (t_i, _) = smt_template.as_ref().unwrap();
+                    asserts += &format!(
+                        "(assert (= ({} {}) ({0} {})))\n",
+                        ident(f),
+                        ident(&expr_ident),
+                        ident(t_i)
+                    )
+                }
             }
 
             (expr_ident, preamble + &decl + &asserts)
