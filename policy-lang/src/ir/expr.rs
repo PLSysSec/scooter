@@ -4,6 +4,7 @@ use super::{
 };
 use crate::ast;
 use std::{collections::HashMap, fmt, rc::Rc};
+use std::iter;
 
 /// A marker struct used to distinguise Ident<Var> from other idents.
 #[derive(Debug, Clone, Copy)]
@@ -720,6 +721,47 @@ impl IRExpr {
             IRExpr::IntConst(_) | IRExpr::FloatConst(_) | IRExpr::StringConst(_) | IRExpr::BoolConst(_) => {
                 f(self.clone())
             }
+        }
+    }
+    pub fn subexprs_preorder<'a>(&'a self) -> impl Iterator<Item=&'a Self> {
+        match self {
+            IRExpr::Var(_, _) | IRExpr::IntConst(_) | IRExpr::FloatConst(_)
+                | IRExpr::StringConst(_) | IRExpr::BoolConst(_) =>
+                vec![self].into_iter(),
+            IRExpr::AppendS(l, r) | IRExpr::AppendL(_, l, r) | IRExpr::AddI(l, r)
+                | IRExpr::AddF(l, r) | IRExpr::SubI(l, r) | IRExpr::SubF(l, r)
+                | IRExpr::IsEq(_, l, r) | IRExpr::IsLessI(l, r) | IRExpr::IsLessF(l, r) =>
+                iter::once(self).chain(l.subexprs_preorder()).chain(r.subexprs_preorder())
+                .collect::<Vec<_>>().into_iter(),
+            IRExpr::Not(e) | IRExpr::IntToFloat(e) | IRExpr::Path(_, e, _)
+                | IRExpr::LookupById(_, e) =>
+                iter::once(self).chain(e.subexprs_preorder())
+                .collect::<Vec<_>>().into_iter(),
+            IRExpr::Object(_, fields, template_obj) => {
+                let field_subexprs = fields.iter()
+                    .flat_map(|(_fld, val)| val)
+                    .flat_map(|val| val.subexprs_preorder());
+                let template_subexprs = match template_obj {
+                    Some(obj) => obj.subexprs_preorder().collect::<Vec<_>>().into_iter(),
+                    None => Vec::new().into_iter(),
+                };
+                iter::once(self)
+                    .chain(field_subexprs)
+                    .chain(template_subexprs)
+                    .collect::<Vec<_>>().into_iter()
+            }
+             IRExpr::Find(_, fields) =>
+                iter::once(self).chain(fields.iter().flat_map(|(_fld, val)| val.subexprs_preorder()))
+                .collect::<Vec<_>>().into_iter(),
+            IRExpr::List(_ty, items) =>
+                iter::once(self).chain(items.iter().flat_map(|item| item.subexprs_preorder()))
+                .collect::<Vec<_>>().into_iter(),
+            IRExpr::If(_ty, cond, iftrue, iffalse) =>
+                iter::once(self)
+                .chain(cond.subexprs_preorder())
+                .chain(iftrue.subexprs_preorder())
+                .chain(iffalse.subexprs_preorder())
+                .collect::<Vec<_>>().into_iter(),
         }
     }
 }
