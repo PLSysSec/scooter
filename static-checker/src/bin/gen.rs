@@ -17,7 +17,7 @@ fn main() {
     let gp_before = parse_policy(&get_contents(&before).unwrap()).unwrap();
     let gp_after = parse_policy(&get_contents(&after).unwrap()).unwrap();
 
-    let out = gen_full(&gp_before, &gp_after);
+    let out = "tbd";//gen_full(&gp_before, &gp_after);
     
     println!("{}", out);
 }
