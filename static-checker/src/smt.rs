@@ -8,7 +8,7 @@ use std::{
     io::Write, str::from_utf8,
 };
 
-pub(crate) fn check_collection_refine(
+pub fn check_collection_refine(
     schema: &Schema,
     old_collection_policy: CollectionPolicy,
     new_collection_poilcy: CollectionPolicy,
@@ -16,7 +16,7 @@ pub(crate) fn check_collection_refine(
     unimplemented!("Define in terms of is_as_strict")
 }
 
-pub(crate) fn check_field_refine(
+pub fn check_field_refine(
     schema: &Schema,
     old_field_policy: FieldPolicy,
     new_field_policy: FieldPolicy,
