@@ -667,6 +667,57 @@ impl IRExpr {
             | IRExpr::If(typ, ..) => typ.clone(),
         }
     }
+    pub fn map(&self, f: &dyn Fn(IRExpr) -> IRExpr) -> IRExpr {
+        match self {
+            IRExpr::AppendS(l, r) => f(IRExpr::AppendS(Box::new(l.as_ref().map(f)),
+                                                       Box::new(r.as_ref().map(f)))),
+            IRExpr::AppendL(ty, l, r) => f(IRExpr::AppendL(ty.clone(),
+                                                           Box::new(l.as_ref().map(f)),
+                                                           Box::new(r.as_ref().map(f)))),
+            IRExpr::AddI(l, r) => f(IRExpr::AddI(Box::new(l.as_ref().map(f)),
+                                                 Box::new(r.as_ref().map(f)))),
+            IRExpr::AddF(l, r) => f(IRExpr::AddF(Box::new(l.as_ref().map(f)),
+                                                 Box::new(r.as_ref().map(f)))),
+            IRExpr::SubI(l, r) => f(IRExpr::SubI(Box::new(l.as_ref().map(f)),
+                                                 Box::new(r.as_ref().map(f)))),
+            IRExpr::SubF(l, r) => f(IRExpr::SubF(Box::new(l.as_ref().map(f)),
+                                                 Box::new(r.as_ref().map(f)))),
+            IRExpr::IsEq(ty, l, r) => f(IRExpr::IsEq(ty.clone(),
+                                                     Box::new(l.as_ref().map(f)),
+                                                     Box::new(r.as_ref().map(f)))),
+            IRExpr::Not(b) => f(IRExpr::Not(Box::new(b.as_ref().map(f)))),
+            IRExpr::IsLessI(l, r) => f(IRExpr::IsLessI(Box::new(l.as_ref().map(f)),
+                                                       Box::new(r.as_ref().map(f)))),
+            IRExpr::IsLessF(l, r) => f(IRExpr::IsLessF(Box::new(l.as_ref().map(f)),
+                                                       Box::new(r.as_ref().map(f)))),
+            IRExpr::IntToFloat(i) => f(IRExpr::IntToFloat(Box::new(i.as_ref().map(f)))),
+            IRExpr::Path(ty, o, fld) => f(IRExpr::Path(ty.clone(),
+                                                       Box::new(o.as_ref().map(f)),
+                                                       fld.clone())),
+            IRExpr::Var(_ty, _name) => f(self.clone()),
+            IRExpr::Object(coll, fields, template) =>
+                f(IRExpr::Object(coll.clone(), fields.iter().map(
+                    |(fld, val)|
+                    (fld.clone(), Box::new(val.map(f)))).collect(),
+                                 template.as_ref().map(|expr| Box::new(expr.map(f))))),
+            IRExpr::LookupById(coll, id_expr) =>
+                f(IRExpr::LookupById(coll.clone(), Box::new(id_expr.as_ref().map(f)))),
+            IRExpr::Find(coll, query_fields) =>
+                f(IRExpr::Find(coll.clone(), query_fields.iter().map(
+                    |(fld, val)|
+                    (fld.clone(), Box::new(val.map(f)))).collect())),
+            IRExpr::List(ty, items) =>
+                f(IRExpr::List(ty.clone(), items.iter().map(|item| Box::new(item.map(f))).collect())),
+            IRExpr::If(ty, cond, iftrue, iffalse) =>
+                f(IRExpr::If(ty.clone(),
+                             Box::new(cond.as_ref().map(f)),
+                             Box::new(iftrue.as_ref().map(f)),
+                             Box::new(iffalse.as_ref().map(f)))),
+            IRExpr::IntConst(_) | IRExpr::FloatConst(_) | IRExpr::StringConst(_) | IRExpr::BoolConst(_) => {
+                f(self.clone())
+            }
+        }
+    }
 }
 
 // fn eliminate_unknown_lists(expr: &IRExpr, exp_type: &ExprType) -> Box<IRExpr> {
