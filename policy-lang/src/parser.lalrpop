@@ -134,8 +134,8 @@ pub Migration: Migration = {
 MigrationAction: MigrationAction = {
     "RemoveField" "(" <c:Ident> ")" =>
         MigrationAction::RemoveField{field:c},
-    "AddField" "(" <c:Ident> "," <ty:FieldType> "," <f:Func> ")" =>
-        MigrationAction::AddField{field:c, ty:ty, init:f},
+    "AddField" "(" <fp: FieldPolicy> "," <f:Func> ")" =>
+        MigrationAction::AddField{field:fp.0, pol:fp.1, init:f},
     "ChangeField" "(" <c:Ident> "," <ty:FieldType> "," <f:Func> ")" =>
         MigrationAction::ChangeField{field:c, new_ty:ty, new_init:f},
     "RenameField" "(" <f_old:Ident> "," <f_new:Ident> ")" =>

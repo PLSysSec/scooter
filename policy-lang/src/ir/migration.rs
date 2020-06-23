@@ -1,6 +1,6 @@
 use super::{
     expr::{extract_func, extract_ir_expr, DefMap, ExprType, Func, IRExpr, Var},
-    policy::{extract_partial_schema_policy, extract_policy, Policy, SchemaPolicy},
+    policy::{extract_partial_schema_policy, extract_policy, FieldPolicy, Policy, SchemaPolicy},
     schema::{extract_type, Collection, Field, Schema},
     Ident,
 };
@@ -25,6 +25,7 @@ pub enum MigrationCommand {
         field: Ident<Field>,
         ty: ExprType,
         init: Func,
+        pol: FieldPolicy,
     },
     ChangeField {
         coll: Ident<Collection>,
@@ -113,7 +114,6 @@ pub fn extract_migration_steps(
     result
 }
 
-
 /// Interprets the affect of a migration command on a schema
 /// This is a useful primitive for any analysis being done on migrations
 /// and it's important that everyone agrees on what those effects are,
@@ -187,10 +187,7 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
 }
 
 /// Converts an ast to the lowered representation where Idents and Types (among other things) are resolved.
-pub fn extract_migration_command(
-    schema: &Schema,
-    cmd: ast::MigrationCommand,
-) -> MigrationCommand {
+pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) -> MigrationCommand {
     match cmd {
         ast::MigrationCommand::CollAction { table, action } => {
             let coll = schema.find_collection(&table).expect(&format!(
@@ -210,21 +207,26 @@ pub fn extract_migration_command(
                         field: field.name.clone(),
                     }
                 }
-                ast::MigrationAction::AddField { field, ty, init } => {
+                ast::MigrationAction::AddField {
+                    field,
+                    pol,
+                    init,
+                } => {
                     let field = Ident::new(field);
-                    let ty = extract_type(schema, &ty);
-                    let init = extract_func(
-                        schema,
-                        ExprType::Object(coll.name.clone()),
-                        &ty,
-                        &init,
-                    );
+                    let ty = extract_type(schema, &pol.ty);
+                    let init =
+                        extract_func(schema, ExprType::Object(coll.name.clone()), &ty, &init);
+                    let pol = FieldPolicy {
+                        edit: extract_policy(schema, &coll.name, &pol.write),
+                        read: extract_policy(schema, &coll.name, &pol.read),
+                    };
 
                     MigrationCommand::AddField {
                         coll: coll.name.clone(),
                         field,
                         ty,
                         init,
+                        pol,
                     }
                 }
                 ast::MigrationAction::ChangeField { field, new_ty, new_init } => {

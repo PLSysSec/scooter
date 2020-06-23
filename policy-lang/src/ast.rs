@@ -142,7 +142,7 @@ pub enum MigrationAction {
     },
     AddField {
         field: String,
-        ty: FieldType,
+        pol: FieldPolicy,
         init: Func,
     },
     ChangeField {
