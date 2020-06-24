@@ -26,7 +26,7 @@ fn simple_valid() {
     );
 
     assert_eq!(policy.schema.collections[0].name.orig_name, "User");
-    assert_eq!(policy.schema.principle.orig_name, "User");
+    assert_eq!(policy.schema.principle.unwrap().orig_name, "User");
 }
 
 #[test]
