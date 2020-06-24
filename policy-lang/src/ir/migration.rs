@@ -280,7 +280,7 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
                     ));
                     let pol = extract_policy(schema, &coll.name, &pol);
 
-                    MigrationCommand::LoosenFieldPolicy {
+                    MigrationCommand::TightenFieldPolicy {
                         coll: coll.name.clone(),
                         field: field.name.clone(),
                         kind,
