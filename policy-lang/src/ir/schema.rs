@@ -8,12 +8,23 @@ use std::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schema {
     pub collections: Vec<Collection>,
-    pub principle: Ident<Collection>,
+    pub principle: Option<Ident<Collection>>,
 }
 
 impl Schema {
     pub fn find_collection(&self, name: &str) -> Option<&Collection> {
         self.collections.iter().find(|c| c.name.eq_str(name))
+    }
+    pub fn merge(s1: &Self, s2: &Self) -> Self {
+        let merged_principle = match (&s1.principle, &s2.principle) {
+            (None, None) => None,
+            (Some(p), None) => Some(p.clone()),
+            (None, Some(p)) => Some(p.clone()),
+            (Some(_), Some(_)) => panic!("Cannot merge two schemas that both have principles")
+        };
+        Schema{collections: s1.collections.clone().into_iter()
+               .chain(s2.collections.clone().into_iter()).collect(),
+               principle: merged_principle}
     }
 }
 
@@ -86,7 +97,13 @@ impl Field {
 
 
 pub fn extract_schema(gp: &ast::GlobalPolicy) -> Schema {
-    ExtractionContext::new(gp).extract_schema(gp)
+    let result = ExtractionContext::new(gp, Vec::new()).extract_schema(gp);
+    assert!(result.principle.is_some(), "No `@principle` found in policy");
+    result
+}
+
+pub fn extract_partial_schema(gp: &ast::GlobalPolicy, existing_colls: Vec<Ident<Collection>>) -> Schema {
+    ExtractionContext::new(gp, existing_colls).extract_schema(gp)
 }
 
 struct ExtractionContext {
@@ -96,16 +113,19 @@ struct ExtractionContext {
 impl ExtractionContext {
     /// Because Schemas are self-referential, (that is the `Foo::bar` can be of type `Id(Foo)`)
     /// we first have to create an index of all the type names so we can have stable identifiers
-    fn new(gp: &ast::GlobalPolicy) -> Self {
+    fn new(gp: &ast::GlobalPolicy, extra_colls: Vec<Ident<Collection>>) -> Self {
         let mut coll_idents = HashMap::new();
         for cp in gp.collections.iter() {
             coll_idents.insert(cp.name.clone(), Ident::new(&cp.name));
+        }
+        for coll_name in extra_colls {
+            coll_idents.insert(coll_name.orig_name.clone(), coll_name);
         }
 
         Self { coll_idents }
     }
 
-    fn find_principle(gp: &ast::GlobalPolicy) -> String {
+    fn find_principle(gp: &ast::GlobalPolicy) -> Option<String> {
         let mut principle = None;
         for cp in gp.collections.iter() {
             match cp.annotations.as_slice() {
@@ -124,7 +144,7 @@ impl ExtractionContext {
                 ),
             }
         };
-        principle.expect("No `@principle` found in policy.")
+        principle
     }
 
     fn extract_schema(&mut self, gp: &ast::GlobalPolicy) -> Schema {
@@ -134,7 +154,9 @@ impl ExtractionContext {
             .map(|cp| self.extract_collection(cp))
             .collect();
         let principle_name = Self::find_principle(gp);
-        let principle_id = colls.iter().find(|coll| coll.name.orig_name == principle_name).unwrap().name.clone();
+        let principle_id = principle_name.map(|name|
+                                              colls.iter().find(|coll| coll.name.orig_name == name)
+                                              .unwrap().name.clone());
         Schema {
             collections: colls,
             principle: principle_id,

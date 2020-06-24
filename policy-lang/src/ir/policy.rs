@@ -52,29 +52,35 @@ pub struct CollectionPolicy {
 
 pub fn extract_schema_policy(gp: &ast::GlobalPolicy) -> SchemaPolicy {
     let schema = super::schema::extract_schema(gp);
-    ExtractionContext::new(schema).extract_schema_policy(gp)
+    ExtractionContext::new(schema, None).extract_schema_policy(gp)
 }
 
 pub fn extract_partial_schema_policy(
     gp: &ast::GlobalPolicy,
+    outer_schema: &Schema,
 ) -> SchemaPolicy {
-    let schema = super::schema::extract_schema(gp);
-    ExtractionContext {
-        schema,
-    }
+    let outer_schema_coll_idents = outer_schema.collections.iter().map(|col| col.name.clone()).collect();
+    let schema = super::schema::extract_partial_schema(gp, outer_schema_coll_idents);
+    ExtractionContext::new(schema, Some(outer_schema))
     .extract_schema_policy(gp)
 }
 
 struct ExtractionContext {
     pub(crate) schema: Schema,
+    pub(crate) total_schema: Schema,
 }
 
 impl ExtractionContext {
     /// Because Schemas are self-referential, (that is the `Foo::bar` can be of type `Id(Foo)`)
     /// we first have to create an index of all the type names so we can have stable identifiers
-    fn new(schema: Schema) -> Self {
+    fn new(schema: Schema, outer_schema: Option<&Schema>) -> Self {
+        let total_schema = match outer_schema {
+            Some(s) => Schema::merge(&schema, s),
+            None => schema.clone(),
+        };
         Self {
             schema,
+            total_schema
         }
     }
 
@@ -107,12 +113,12 @@ impl ExtractionContext {
 
         CollectionPolicy {
             create: extract_policy(
-                &self.schema,
+                &self.total_schema,
                 &coll.name,
                 &cp.create,
             ),
             delete: extract_policy(
-                &self.schema,
+                &self.total_schema,
                 &coll.name,
                 &cp.delete,
             ),
@@ -125,12 +131,12 @@ impl ExtractionContext {
         FieldPolicy {
             // TODO: Bring AST names inline
             edit: extract_policy(
-                &self.schema,
+                &self.total_schema,
                 &coll.name,
                 &fp.write,
             ),
             read: extract_policy(
-                &self.schema,
+                &self.total_schema,
                 &coll.name,
                 &fp.read,
             ),
@@ -151,7 +157,7 @@ pub fn extract_policy(
         ast::Policy::Func(e) => Policy::Func(extract_func(
             schema,
             ExprType::Object(coll.clone()),
-            &ExprType::list(ExprType::id(schema.principle.clone())),
+            &ExprType::list(ExprType::id(schema.principle.clone().unwrap())),
             e,
         )),
     }
