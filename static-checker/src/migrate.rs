@@ -176,8 +176,16 @@ fn interpret_migration_on_policy(
     initial_sp: SchemaPolicy,
     migration_steps: Vec<(Schema, MigrationCommand)>,
 ) -> Result<SchemaPolicy, String> {
+    let final_schema = match migration_steps.last() {
+        None => &initial_sp.schema,
+        Some((schema, _cmd)) => schema,
+    };
     // The policy state we'll return
-    let mut result_policy = initial_sp.clone();
+    let mut result_policy =
+        SchemaPolicy { schema: final_schema.clone(),
+                       collection_policies: initial_sp.collection_policies.clone(),
+                       field_policies: initial_sp.field_policies.clone()};
+
 
     // Keep track of fields that are removed, for invalidating
     // functions that refer to them.
@@ -187,8 +195,8 @@ fn interpret_migration_on_policy(
     let mut renamed_fields: HashMap<Ident<Field>, Ident<Field>> = HashMap::new();
 
     // Go over the migration commands (consuming them)
-    for cmd in migration_steps.into_iter() {
-        match cmd.1 {
+    for (schema, cmd) in migration_steps.into_iter() {
+        match cmd {
             // For adding fields, just add new policies based on
             // the initializer function
             MigrationCommand::AddField {
@@ -198,8 +206,8 @@ fn interpret_migration_on_policy(
                 init,
                 pol,
             } => {
-                let inferred_policy = get_policy_from_initializer(&result_policy, field.clone(), init);
-                if !check_field_refine(&result_policy.schema, inferred_policy, pol.clone()) {
+                let inferred_policy = get_policy_from_initializer(&schema, field.clone(), init);
+                if !check_field_refine(&schema, inferred_policy, pol.clone()) {
                     return Err("Cannot determine that the given field policy \
                                 is tight enough for the values that flow into it."
                         .to_string());
@@ -229,7 +237,7 @@ fn interpret_migration_on_policy(
                 result_policy.remove_field_policy(field.clone());
                 result_policy.add_field_policy(
                     field.clone(),
-                    get_policy_from_initializer(&result_policy, field.clone(), new_init),
+                    get_policy_from_initializer(&schema, field.clone(), new_init),
                 );
                 // Anything that referred to it's old value as a
                 // policy isn't going to work anymore.
@@ -264,7 +272,7 @@ fn interpret_migration_on_policy(
             } => {
                 let old_policy = result_policy.field_policies[&field].clone();
                 let new_policy = field_policy_lens_set(old_policy.clone(), kind, new_policy);
-                if !check_field_refine(&result_policy.schema, old_policy, new_policy.clone()) {
+                if !check_field_refine(&schema, old_policy, new_policy.clone()) {
                     return Err(
                         "Cannot determine that the new field policy is tighter than the old one"
                             .to_string(),
@@ -291,7 +299,7 @@ fn interpret_migration_on_policy(
             } => {
                 let old_policy = result_policy.collection_policies[&coll].clone();
                 let new_policy = coll_policy_lens_set(old_policy.clone(), kind, new_policy);
-                if !check_collection_refine(&result_policy.schema, old_policy, new_policy.clone()) {
+                if !check_collection_refine(&schema, old_policy, new_policy.clone()) {
                     return Err("Cannot determine that the new collection policy is tighter than the old one".to_string());
                 }
                 result_policy.remove_collection_policy(coll.clone());
@@ -311,9 +319,7 @@ fn interpret_migration_on_policy(
                 )
             }
             // For creating collections, just create a new create and
-            // delete policies. Since being able to create and delete
-            // from a collection can't leak any info, we can give it
-            // public policies.
+            // delete policies.
             MigrationCommand::Create { pol } => {
                 assert!(pol.schema.collections.len() == 1);
                 assert!(pol.collection_policies.len() == 1);
@@ -491,7 +497,7 @@ fn remove_invalidated_policies(deleted_fields: Vec<Ident<Field>>, result_policy:
             coll.fields()
                 .filter(|field| field.name.orig_name != "id")
         })
-        .map(|field| (field.name.clone(), &old_policy.field_policies[&field.name]))
+        .map(|field| (field.name.clone(), old_policy.field_policies.get(&field.name).expect(&format!("Couldn't find policy for field {}", field.name.orig_name))))
         .collect();
 
     // Get all `read` policies whose body refers to fields or
@@ -542,7 +548,7 @@ fn remove_invalidated_policies(deleted_fields: Vec<Ident<Field>>, result_policy:
 }
 
 fn get_policy_from_initializer(
-    _old_policy: &SchemaPolicy,
+    _old_schema: &Schema,
     _field_id: Ident<Field>,
     init: Func,
 ) -> FieldPolicy {

@@ -1,4 +1,5 @@
 use policy_lang;
+use std::iter;
 
 use policy_lang::ir::*;
 use policy_lang::ir::migration::{extract_migration_steps, MigrationCommand, DataCommand};
@@ -74,20 +75,22 @@ pub fn reset_migration_history(db_conf: &DbConf) {
 /// `policy_ir` - The original policy itself
 fn interpret_migration(
     db_conf: DbConf,
-    _initial_schema_policy: SchemaPolicy,
+    initial_schema_policy: SchemaPolicy,
     migration_steps: Vec<(Schema, MigrationCommand)>,
 ) {
-    println!("Running migration");
     // Create a connection to the database
     let db_conn = Client::with_uri_str(&format!("mongodb://{}:{}", db_conf.host, db_conf.port))
         .expect("Failed to initialize client.")
         .database(&db_conf.db_name);
     // Loop over the migration commands in sequence
-    for (schema, cmd) in migration_steps.into_iter() {
+    for (schema_before, (_schema_after, cmd)) in
+        iter::once(&initial_schema_policy.schema)
+        .chain(migration_steps.iter().map(|(schema, _cmd)| schema))
+        .zip(migration_steps.iter()) {
         match cmd {
             // Remove field command. Removes a field from all records in the collection.
             MigrationCommand::RemoveField { coll, field } => {
-                let coll = &schema[&coll];
+                let coll = &schema_before[coll];
                 // Loop over the records
                 for item in coll_docs(&db_conn, &coll).into_iter() {
                     // Get the item id for replacement
@@ -100,7 +103,7 @@ fn interpret_migration(
             }
             // Add a field to all records in the collection
             MigrationCommand::AddField { coll, field, ty:_, init, pol:_ } => {
-                let coll = &schema[&coll];
+                let coll = &schema_before[coll];
                 // Loop over the records
                 for item in coll_docs(&db_conn, &coll).into_iter() {
                     // Get the item id for replacement
@@ -117,7 +120,7 @@ fn interpret_migration(
                     // Insert the field into the object
                     result.insert(
                         field_name,
-                        exec_query_function(&schema, &init, &result, &db_conn),
+                        exec_query_function(&schema_before, &init, &result, &db_conn),
                     );
                     replace_doc(&db_conn, coll, item_id, result);
                 }
@@ -129,7 +132,7 @@ fn interpret_migration(
                 new_ty: _,
                 new_init,
             } => {
-                let coll = &schema[&coll];
+                let coll = &schema_before[coll];
                 // Loop over the records
                 for item in coll_docs(&db_conn, &coll).into_iter() {
                     // Get the object
@@ -149,7 +152,7 @@ fn interpret_migration(
                     // IR/typechecking level.
                     result.insert(
                         field_name,
-                        exec_query_function(&schema, &new_init, &result, &db_conn),
+                        exec_query_function(&schema_before, &new_init, &result, &db_conn),
                     );
                     replace_doc(&db_conn, &coll, item_id, result);
                 }
@@ -163,7 +166,7 @@ fn interpret_migration(
                 field,
                 new_name
             } => {
-                let coll = &schema[&coll];
+                let coll = &schema_before[coll];
                 // Loop over the records
                 for item in coll_docs(&db_conn, &coll).into_iter() {
                     let item_id = item.get_object_id("_id").unwrap().clone();
@@ -188,8 +191,8 @@ fn interpret_migration(
             }
             // Commands on individual objects, including foreachs
             MigrationCommand::DataCommand(cmd) => {
-                let mut evaluator = Evaluator::new(&schema);
-                interpret_data_command(&db_conn, &schema, &mut evaluator, &cmd);
+                let mut evaluator = Evaluator::new(&schema_before);
+                interpret_data_command(&db_conn, &schema_before, &mut evaluator, &cmd);
             }
             MigrationCommand::TightenFieldPolicy{..} | MigrationCommand::LoosenFieldPolicy{..} |
             MigrationCommand::TightenCollectionPolicy{..} | MigrationCommand::LoosenCollectionPolicy{..} => {},

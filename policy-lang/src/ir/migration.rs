@@ -100,7 +100,7 @@ pub fn extract_migration_steps(
     for migration_command in migration.0.into_iter() {
         let lowered_cmd = extract_migration_command(&cur_schema, migration_command);
         let new_schema = interpret_command(&cur_schema, &lowered_cmd);
-        result.push((cur_schema, lowered_cmd));
+        result.push((new_schema.clone(), lowered_cmd));
         cur_schema = new_schema;
     }
     result
