@@ -526,6 +526,9 @@ impl LoweringContext {
                         let expr = self.coerce(&ExprType::Object(coll.name.clone()), expr);
 
                         for field in missing_fields {
+                            if field.is_id() {
+                                continue;
+                            }
                             ir_fields.push((
                                 field.name.clone(),
                                 None
