@@ -49,7 +49,7 @@ pub fn migrate_policy(policy_text: &str, migration_text: &str) -> Result<String,
 fn policy_to_string(policy: SchemaPolicy) -> String {
     let mut result = "".to_string();
     for (coll_ident, coll_policy) in policy.collection_policies.into_iter() {
-        if policy.schema.principle == Some(coll_ident.clone()){
+        if policy.schema.principle == Some(coll_ident.clone()) {
             result += &format!("@principle\n")
         }
         result += &format!("{} {{\n", coll_ident.orig_name);
@@ -129,28 +129,39 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
         IRExpr::Object(coll, field_exprs, template_expr) => {
             let fields = field_exprs
                 .iter()
-                .flat_map(|(f_id, fexpr)| fexpr.clone().map(|expr| format!("{}: {},", f_id.orig_name,
-                                                                           expr_to_string(expr))))
+                .flat_map(|(f_id, fexpr)| {
+                    fexpr
+                        .clone()
+                        .map(|expr| format!("{}: {},", f_id.orig_name, expr_to_string(expr)))
+                })
                 .collect::<Vec<String>>()
                 .join("");
             match template_expr {
-                None =>
-                    format!("{} {{ {} }}", coll.orig_name, fields),
-                Some(te) =>
-                    format!("{} {{ {} .. {} }}", coll.orig_name, fields, expr_to_string(te)),
+                None => format!("{} {{ {} }}", coll.orig_name, fields),
+                Some(te) => format!(
+                    "{} {{ {} .. {} }}",
+                    coll.orig_name,
+                    fields,
+                    expr_to_string(te)
+                ),
             }
         }
         IRExpr::LookupById(coll, e_id) => {
             format!("{}::ById({})", coll.orig_name, expr_to_string(e_id))
         }
-        IRExpr::Find(coll, query_fields) => {
-            format!("{}::Find({})", coll.orig_name,
-                    query_fields.iter().map(|(f_id, f_expr)| format!("{}: {},",
-                                                                     f_id.orig_name,
-                                                                     expr_to_string(f_expr.clone())))
-                    .collect::<Vec<String>>()
-                    .join(""))
-        }
+        IRExpr::Find(coll, query_fields) => format!(
+            "{}::Find({})",
+            coll.orig_name,
+            query_fields
+                .iter()
+                .map(|(f_id, f_expr)| format!(
+                    "{}: {},",
+                    f_id.orig_name,
+                    expr_to_string(f_expr.clone())
+                ))
+                .collect::<Vec<String>>()
+                .join("")
+        ),
         IRExpr::List(_ty, exprs) => format!(
             "[{}]",
             exprs
@@ -181,11 +192,11 @@ fn interpret_migration_on_policy(
         Some((schema, _cmd)) => schema,
     };
     // The policy state we'll return
-    let mut result_policy =
-        SchemaPolicy { schema: final_schema.clone(),
-                       collection_policies: initial_sp.collection_policies.clone(),
-                       field_policies: initial_sp.field_policies.clone()};
-
+    let mut result_policy = SchemaPolicy {
+        schema: final_schema.clone(),
+        collection_policies: initial_sp.collection_policies.clone(),
+        field_policies: initial_sp.field_policies.clone(),
+    };
 
     // Keep track of fields that are removed, for invalidating
     // functions that refer to them.
@@ -229,7 +240,7 @@ fn interpret_migration_on_policy(
                 }
             }
             MigrationCommand::ChangeField {
-                coll:_,
+                coll: _,
                 field,
                 new_ty: _,
                 new_init,
@@ -244,7 +255,7 @@ fn interpret_migration_on_policy(
                 deleted_fields.push(field);
             }
             MigrationCommand::RenameField {
-                coll:_,
+                coll: _,
                 field: old_field_id,
                 new_name: new_field_id,
             } => {
@@ -265,7 +276,7 @@ fn interpret_migration_on_policy(
                     .add_field_policy(field, field_policy_lens_set(old_policy, kind, new_policy));
             }
             MigrationCommand::TightenFieldPolicy {
-                coll:_,
+                coll: _,
                 field,
                 kind,
                 new_policy,
@@ -340,20 +351,37 @@ fn interpret_migration_on_policy(
 
     remove_invalidated_policies(deleted_fields, &mut result_policy);
 
-    let coll_names: Vec<Ident<Collection>> =
-        result_policy.schema.collections.iter().map(|coll| coll.name.clone()).collect();
+    let coll_names: Vec<Ident<Collection>> = result_policy
+        .schema
+        .collections
+        .iter()
+        .map(|coll| coll.name.clone())
+        .collect();
 
     for coll_name in coll_names.into_iter() {
-        let coll_pol = result_policy.collection_policies.get_mut(&coll_name).unwrap();
-        if let Policy::Func(Func { param: p, param_type: ty, body }) = &coll_pol.create {
+        let coll_pol = result_policy
+            .collection_policies
+            .get_mut(&coll_name)
+            .unwrap();
+        if let Policy::Func(Func {
+            param: p,
+            param_type: ty,
+            body,
+        }) = &coll_pol.create
+        {
             coll_pol.create = Policy::Func(Func {
                 param: p.clone(),
                 param_type: ty.clone(),
                 body: sub_expr(body, &renamed_fields),
             });
         }
-        if let Policy::Func(Func{ param: p, param_type: ty, body }) = &coll_pol.delete {
-            coll_pol.delete = Policy::Func(Func{
+        if let Policy::Func(Func {
+            param: p,
+            param_type: ty,
+            body,
+        }) = &coll_pol.delete
+        {
+            coll_pol.delete = Policy::Func(Func {
                 param: p.clone(),
                 param_type: ty.clone(),
                 body: sub_expr(&body, &renamed_fields),
@@ -361,8 +389,10 @@ fn interpret_migration_on_policy(
         }
     }
 
-    let field_names: Vec<Ident<Field>> =
-        result_policy.schema.collections.iter()
+    let field_names: Vec<Ident<Field>> = result_policy
+        .schema
+        .collections
+        .iter()
         .flat_map(|coll| {
             coll.fields()
                 .filter(|field| field.name.orig_name != "id")
@@ -372,14 +402,24 @@ fn interpret_migration_on_policy(
 
     for field_name in field_names.into_iter() {
         let field_pol = result_policy.field_policies.get_mut(&field_name).unwrap();
-        if let Policy::Func(Func { param: p, param_type: ty, body }) = &field_pol.read {
+        if let Policy::Func(Func {
+            param: p,
+            param_type: ty,
+            body,
+        }) = &field_pol.read
+        {
             field_pol.read = Policy::Func(Func {
                 param: p.clone(),
                 param_type: ty.clone(),
                 body: sub_expr(body, &renamed_fields),
             });
         }
-        if let Policy::Func(Func { param: p, param_type: ty, body }) = &field_pol.edit {
+        if let Policy::Func(Func {
+            param: p,
+            param_type: ty,
+            body,
+        }) = &field_pol.edit
+        {
             field_pol.edit = Policy::Func(Func {
                 param: p.clone(),
                 param_type: ty.clone(),
@@ -424,19 +464,31 @@ fn sub_expr(
     body: &Box<IRExpr>,
     renamed_fields: &HashMap<Ident<Field>, Ident<Field>>,
 ) -> Box<IRExpr> {
-    Box::new(body.as_ref().map(&|subexpr|
-                      match subexpr {
-                          IRExpr::Path(coll, obj_expr, fld) =>
-                              IRExpr::Path(coll, obj_expr, renamed_fields.get(&fld).unwrap_or(&fld).clone()),
-                          _ => subexpr,
-                      }))
+    Box::new(body.as_ref().map(&|subexpr| match subexpr {
+        IRExpr::Path(coll, obj_expr, fld) => IRExpr::Path(
+            coll,
+            obj_expr,
+            renamed_fields.get(&fld).unwrap_or(&fld).clone(),
+        ),
+        _ => subexpr,
+    }))
 }
 
-fn remove_invalidated_policies(deleted_fields: Vec<Ident<Field>>, result_policy: &mut SchemaPolicy) {
+fn remove_invalidated_policies(
+    deleted_fields: Vec<Ident<Field>>,
+    result_policy: &mut SchemaPolicy,
+) {
     let old_policy = result_policy.clone();
-    let coll_policies: Vec<(Ident<Collection>, &CollectionPolicy)> =
-        result_policy.schema.collections.iter()
-        .map(|coll| (coll.name.clone(), &old_policy.collection_policies[&coll.name]))
+    let coll_policies: Vec<(Ident<Collection>, &CollectionPolicy)> = result_policy
+        .schema
+        .collections
+        .iter()
+        .map(|coll| {
+            (
+                coll.name.clone(),
+                &old_policy.collection_policies[&coll.name],
+            )
+        })
         .collect();
 
     // Check if an expression contains any references to deleted
@@ -491,13 +543,20 @@ fn remove_invalidated_policies(deleted_fields: Vec<Ident<Field>>, result_policy:
         );
     }
 
-    let field_policies: Vec<(Ident<Field>, &FieldPolicy)> =
-        result_policy.schema.collections.iter()
-        .flat_map(|coll| {
-            coll.fields()
-                .filter(|field| field.name.orig_name != "id")
+    let field_policies: Vec<(Ident<Field>, &FieldPolicy)> = result_policy
+        .schema
+        .collections
+        .iter()
+        .flat_map(|coll| coll.fields().filter(|field| field.name.orig_name != "id"))
+        .map(|field| {
+            (
+                field.name.clone(),
+                old_policy.field_policies.get(&field.name).expect(&format!(
+                    "Couldn't find policy for field {}",
+                    field.name.orig_name
+                )),
+            )
         })
-        .map(|field| (field.name.clone(), old_policy.field_policies.get(&field.name).expect(&format!("Couldn't find policy for field {}", field.name.orig_name))))
         .collect();
 
     // Get all `read` policies whose body refers to fields or
@@ -570,12 +629,13 @@ fn field_lookups_in_expr(expr: &Box<IRExpr>) -> Vec<Ident<Field>> {
     expr.subexprs_preorder()
         .flat_map(|se| match se {
             IRExpr::Path(_, _, def) => vec![def.clone()],
-            IRExpr::Object(_coll, field_exprs, _template_expr) => {
-                field_exprs.iter().flat_map(|(k, e)| match e {
+            IRExpr::Object(_coll, field_exprs, _template_expr) => field_exprs
+                .iter()
+                .flat_map(|(k, e)| match e {
                     Some(_) => None,
-                    None => Some(k.clone())
-                }).collect()
-            }
+                    None => Some(k.clone()),
+                })
+                .collect(),
             _ => vec![],
         })
         .collect()
@@ -756,8 +816,7 @@ User {
     },
 }
 ";
-        let migration_text =
-            r#"User::LoosenFieldPolicy(username, read, public)
+        let migration_text = r#"User::LoosenFieldPolicy(username, read, public)
 User::LoosenFieldPolicy(username, write, public)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"
@@ -836,8 +895,7 @@ Message {
     },
 }
 ";
-        let migration_text =
-            r#"Message::TightenFieldPolicy(contents, read, m -> [m.from])"#;
+        let migration_text = r#"Message::TightenFieldPolicy(contents, read, m -> [m.from])"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"
 @principle
