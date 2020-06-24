@@ -819,8 +819,7 @@ User {
         let migration_text = r#"User::LoosenFieldPolicy(username, read, public)
 User::LoosenFieldPolicy(username, write, public)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"
-@principle
+        let expected_result_text = r"@principle
 User {
     create: none,
     delete: none,
@@ -835,8 +834,7 @@ User {
     }
     #[test]
     fn simple_tighten_field_policy() {
-        let policy_text = r"
-@principle
+        let policy_text = r"@principle
 User {
     create: none,
     delete: none,
@@ -850,8 +848,7 @@ User {
         let migration_text = r#"User::TightenFieldPolicy(username, read, none)
 User::TightenFieldPolicy(username, write, none)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"
-@principle
+        let expected_result_text = r"@principle
 User {
     create: none,
     delete: none,
@@ -866,8 +863,7 @@ User {
     }
     #[test]
     fn tighten_field_policy() {
-        let policy_text = r"
-@principle
+        let policy_text = r"@principle
 User {
     create: none,
     delete: none,
@@ -897,8 +893,7 @@ Message {
 ";
         let migration_text = r#"Message::TightenFieldPolicy(contents, read, m -> [m.from])"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"
-@principle
+        let expected_result_text = r"@principle
 User {
     create: none,
     delete: none,
@@ -930,8 +925,7 @@ Message {
     }
     #[test]
     fn loosen_collection_policy() {
-        let policy_text = r"
-@principle
+        let policy_text = r"@principle
 User {
     create: none,
     delete: none,
@@ -945,8 +939,7 @@ User {
         let migration_text = r#"User::LoosenCollectionPolicy(create, public)
 User::LoosenCollectionPolicy(delete, public)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"
-@principle
+        let expected_result_text = r"@principle
 User {
     create: public,
     delete: public,
