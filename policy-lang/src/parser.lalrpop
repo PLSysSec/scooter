@@ -153,7 +153,7 @@ MigrationAction: MigrationAction = {
 MigrationCommand: MigrationCommand = {
     <c:Ident> "::" <action: MigrationAction> =>
         MigrationCommand::CollAction{table: c, action },
-    "CreateCollection" "{" <c:CollectionPolicy> "}" =>
+    "CreateCollection" "(" <c:CollectionPolicy> ")" =>
         MigrationCommand::Create{ collection: c },
     "DeleteCollection" "(" <i:Ident> ")" =>
         MigrationCommand::Delete{table_name: i},
