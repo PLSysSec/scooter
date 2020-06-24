@@ -156,20 +156,32 @@ pub enum MigrationAction {
     },
     LoosenFieldPolicy {
         field: String,
-        kind: String,
+        kind: FieldPolicyKind,
         pol: Policy,
     },
     TightenFieldPolicy {
         field: String,
-        kind: String,
+        kind: FieldPolicyKind,
         pol: Policy,
     },
     LoosenCollectionPolicy {
-        kind: String,
+        kind: CollectionPolicyKind,
         pol: Policy,
     },
     TightenCollectionPolicy {
-        kind: String,
+        kind: CollectionPolicyKind,
         pol: Policy,
     },
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum FieldPolicyKind {
+    Write,
+    Read,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum CollectionPolicyKind {
+    Create,
+    Delete
 }

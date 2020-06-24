@@ -6,6 +6,10 @@ use super::{
 };
 use crate::ast;
 
+// Re-export so people don't need AST to look at IR
+pub use ast::CollectionPolicyKind;
+pub use ast::FieldPolicyKind;
+
 /// Because a `MigrationCommand` can:
 ///     - contain an expression
 ///     - modify the schema
@@ -67,18 +71,6 @@ pub enum MigrationCommand {
     Delete {
         name: Ident<Collection>,
     },
-}
-
-#[derive(Debug)]
-pub enum FieldPolicyKind {
-    Read,
-    Edit,
-}
-
-#[derive(Debug)]
-pub enum CollectionPolicyKind {
-    Create,
-    Delete,
 }
 
 #[derive(Debug)]
@@ -272,7 +264,6 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
                         "Unable to loosen field policy {}::{} because it does not exist",
                         &table, &field
                     ));
-                    let kind = extract_field_policy_kind(&kind);
                     let pol = extract_policy(schema, &coll.name, &pol);
 
                     MigrationCommand::LoosenFieldPolicy {
@@ -287,7 +278,6 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
                         "Unable to loosen field policy {}::{} because it does not exist",
                         &table, &field
                     ));
-                    let kind = extract_field_policy_kind(&kind);
                     let pol = extract_policy(schema, &coll.name, &pol);
 
                     MigrationCommand::LoosenFieldPolicy {
@@ -298,7 +288,6 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
                     }
                 }
                 ast::MigrationAction::LoosenCollectionPolicy { kind, pol } => {
-                    let kind = extract_coll_policy_kind(&kind);
                     let pol = extract_policy(schema, &coll.name, &pol);
 
                     MigrationCommand::LoosenCollectionPolicy {
@@ -308,7 +297,6 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
                     }
                 }
                 ast::MigrationAction::TightenCollectionPolicy { kind, pol } => {
-                    let kind = extract_coll_policy_kind(&kind);
                     let pol = extract_policy(schema, &coll.name, &pol);
 
                     MigrationCommand::TightenCollectionPolicy {
@@ -393,21 +381,5 @@ fn extract_data_command(schema: &Schema, def_map: DefMap, oc: ast::ObjectCommand
                 id_expr: *value,
             }
         }
-    }
-}
-
-fn extract_coll_policy_kind(kind: &str) -> CollectionPolicyKind {
-    match kind {
-        "create" => CollectionPolicyKind::Create,
-        "delete" => CollectionPolicyKind::Delete,
-        _ => panic!("`{}` is not a valid permission on collections.", kind),
-    }
-}
-
-fn extract_field_policy_kind(kind: &str) -> FieldPolicyKind {
-    match kind {
-        "write" => FieldPolicyKind::Edit,
-        "read" => FieldPolicyKind::Read,
-        _ => panic!("`{}` is not a valid permission on fields.", kind),
     }
 }

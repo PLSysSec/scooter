@@ -140,13 +140,13 @@ MigrationAction: MigrationAction = {
         MigrationAction::ChangeField{field:c, new_ty:ty, new_init:f},
     "RenameField" "(" <f_old:Ident> "," <f_new:Ident> ")" =>
         MigrationAction::RenameField{old_field:f_old, new_field: f_new},
-    "LoosenFieldPolicy" "(" <f:Ident> "," <k:Ident> "," <p:Policy>")" =>
+    "LoosenFieldPolicy" "(" <f:Ident> "," <k:FieldPolicyKind> "," <p:Policy>")" =>
         MigrationAction::LoosenFieldPolicy{field:f, kind: k, pol: p},
-    "TightenFieldPolicy" "(" <f:Ident> "," <k:Ident> "," <p:Policy>")" =>
+    "TightenFieldPolicy" "(" <f:Ident> "," <k:FieldPolicyKind> "," <p:Policy>")" =>
         MigrationAction::TightenFieldPolicy{field:f, kind: k, pol: p},
-    "LoosenCollectionPolicy" "(" <k:Ident> "," <p:Policy> ")" =>
+    "LoosenCollectionPolicy" "(" <k:CollectionPolicyKind> "," <p:Policy> ")" =>
         MigrationAction::LoosenCollectionPolicy{kind: k, pol: p},
-    "TightenCollectionPolicy" "(" <k:Ident> "," <p:Policy> ")" =>
+    "TightenCollectionPolicy" "(" <k:CollectionPolicyKind> "," <p:Policy> ")" =>
         MigrationAction::TightenCollectionPolicy{kind: k, pol: p},
 }
 
@@ -167,4 +167,14 @@ ObjectCommand: ObjectCommand = {
         ObjectCommand::CreateObject{collection:c, value:e},
     <c:Ident> "::" "Delete" "(" <e:QueryExpr> ")" =>
         ObjectCommand::DeleteObject{collection:c, id_expr:e},
+}
+
+FieldPolicyKind: FieldPolicyKind = {
+    "read" => FieldPolicyKind::Read,
+    "write" => FieldPolicyKind::Write,
+}
+
+CollectionPolicyKind: CollectionPolicyKind = {
+    "create" => CollectionPolicyKind::Create,
+    "delete" => CollectionPolicyKind::Delete,
 }
