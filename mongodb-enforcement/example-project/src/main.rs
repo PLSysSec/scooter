@@ -242,7 +242,7 @@ mod test {
         let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
         let all: Vec<_> = User::find_all(&db_conn.clone().as_princ(Principle::Public)).unwrap().iter().map(|obj| obj.id.clone()).collect();
         for id in uids {
-            assert!(all.contains(&id))
+            assert!(all.contains(&Some(id)))
         }
     }
 }
