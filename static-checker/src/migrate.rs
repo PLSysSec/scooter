@@ -587,7 +587,8 @@ mod test {
 
     #[test]
     fn parse_and_print() {
-        let policy_text = r"User {
+        let policy_text = r"@principle
+User {
     create: none,
     delete: none,
 
@@ -603,7 +604,8 @@ mod test {
 
     #[test]
     fn add_const_field() {
-        let policy_text = r"User {
+        let policy_text = r"@principle
+User {
     create: none,
     delete: none,
 
@@ -613,10 +615,11 @@ mod test {
     },
 }
 ";
-        let migration_text = r#"User::AddField(pass_hash, String, u -> "default_hash")"#;
+        let migration_text = r#"User::AddField(pass_hash: String {read: none, write: u -> [u.id],}, u -> "default_hash")"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-        let expected_result_text = r"User {
+        let expected_result_text = r"@principle
+User {
     create: none,
     delete: none,
 
@@ -635,7 +638,8 @@ mod test {
 
     #[test]
     fn add_private_depends_field() {
-        let policy_text = r"User {
+        let policy_text = r"@principle
+User {
     create: none,
     delete: none,
 
@@ -645,10 +649,11 @@ mod test {
     },
 }
 ";
-        let migration_text = r#"User::AddField(pass_hash, String, u -> u.username + "_hash")"#;
+        let migration_text = r#"User::AddField(pass_hash: String {read: none, write: u -> [u.id],}, u -> u.username + "_hash")"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-        let expected_result_text = r"User {
+        let expected_result_text = r"@principle
+User {
     create: none,
     delete: none,
 
@@ -667,7 +672,8 @@ mod test {
 
     #[test]
     fn remove_policy_field_dependency() {
-        let policy_text = r"User {
+        let policy_text = r"@principle
+User {
     create: public,
     delete: u -> [u.owner],
 
@@ -685,7 +691,8 @@ mod test {
         let migration_text = r#"User::RemoveField(owner)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-        let expected_result_text = r"User {
+        let expected_result_text = r"@principle
+User {
     create: public,
     delete: none,
 
@@ -699,7 +706,8 @@ mod test {
     }
     #[test]
     fn rename_policy_field_dependency() {
-        let policy_text = r"User {
+        let policy_text = r"@principle
+User {
     create: public,
     delete: u -> [u.owner],
 
@@ -717,17 +725,18 @@ mod test {
         let migration_text = r#"User::RenameField(owner, manager)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-        let expected_result_text = r"User {
+        let expected_result_text = r"@principle
+User {
     create: public,
     delete: u -> [u.manager],
 
-    username : String {
-        read: public,
-        write: u -> [u.manager],
-    },
     manager : Id(User) {
         read: none,
         write: none,
+    },
+    username : String {
+        read: public,
+        write: u -> [u.manager],
     },
 }
 ";
@@ -736,7 +745,8 @@ mod test {
 
     #[test]
     fn loosen_field_policy() {
-        let policy_text = r"User {
+        let policy_text = r"@principle
+User {
     create: none,
     delete: none,
 
@@ -747,9 +757,12 @@ mod test {
 }
 ";
         let migration_text =
-            r#"User::LoosenFieldPolicy(username, { read: public, write: public })"#;
+            r#"User::LoosenFieldPolicy(username, read, public)
+User::LoosenFieldPolicy(username, write, public)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"User {
+        let expected_result_text = r"
+@principle
+User {
     create: none,
     delete: none,
 
@@ -763,7 +776,9 @@ mod test {
     }
     #[test]
     fn simple_tighten_field_policy() {
-        let policy_text = r"User {
+        let policy_text = r"
+@principle
+User {
     create: none,
     delete: none,
 
@@ -773,9 +788,12 @@ mod test {
     },
 }
 ";
-        let migration_text = r#"User::TightenFieldPolicy(username, { read: none, write: none})"#;
+        let migration_text = r#"User::TightenFieldPolicy(username, read, none)
+User::TightenFieldPolicy(username, write, none)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"User {
+        let expected_result_text = r"
+@principle
+User {
     create: none,
     delete: none,
 
@@ -790,6 +808,7 @@ mod test {
     #[test]
     fn tighten_field_policy() {
         let policy_text = r"
+@principle
 User {
     create: none,
     delete: none,
@@ -818,9 +837,11 @@ Message {
 }
 ";
         let migration_text =
-            r#"Message::TightenFieldPolicy(contents, { read: m -> [m.from], write: none})"#;
+            r#"Message::TightenFieldPolicy(contents, read, m -> [m.from])"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"User {
+        let expected_result_text = r"
+@principle
+User {
     create: none,
     delete: none,
 
@@ -851,7 +872,9 @@ Message {
     }
     #[test]
     fn loosen_collection_policy() {
-        let policy_text = r"User {
+        let policy_text = r"
+@principle
+User {
     create: none,
     delete: none,
 
@@ -861,9 +884,12 @@ Message {
     },
 }
 ";
-        let migration_text = r#"User::LoosenCollectionPolicy({ create: public, delete: public })"#;
+        let migration_text = r#"User::LoosenCollectionPolicy(create, public)
+User::LoosenCollectionPolicy(delete, public)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"User {
+        let expected_result_text = r"
+@principle
+User {
     create: public,
     delete: public,
 
@@ -877,7 +903,9 @@ Message {
     }
     #[test]
     fn simple_tighten_collection_policy() {
-        let policy_text = r"User {
+        let policy_text = r"
+@principle
+User {
     create: public,
     delete: public,
 
@@ -887,9 +915,11 @@ Message {
     },
 }
 ";
-        let migration_text = r#"User::TightenCollectionPolicy({ create: none, delete: public })"#;
+        let migration_text = r#"User::TightenCollectionPolicy(create, none)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"User {
+        let expected_result_text = r"
+@principle
+User {
     create: none,
     delete: public,
 
