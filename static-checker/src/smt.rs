@@ -1,11 +1,13 @@
 use policy_lang::ir::{
     expr::{ExprType, Func, IRExpr},
+    policy::{CollectionPolicy, FieldPolicy},
     schema::{Collection, Schema},
-    Ident, policy::{CollectionPolicy, FieldPolicy},
+    Ident,
 };
 use std::{
+    io::Write,
     process::{Command, Stdio},
-    io::Write, str::from_utf8,
+    str::from_utf8,
 };
 
 pub fn check_collection_refine(
@@ -26,7 +28,7 @@ pub fn check_field_refine(
 
 pub fn is_as_strict(schema: &Schema, before: &Func, after: &Func) -> bool {
     let assertion = gen_assert(schema, before, after);
-
+    eprintln!("{}", &assertion);
     let mut child = Command::new("z3")
         .arg("-smt2")
         .arg("-in")
@@ -36,15 +38,20 @@ pub fn is_as_strict(schema: &Schema, before: &Func, after: &Func) -> bool {
         .expect("Unable to spawn z3");
 
     {
-        let input = child.stdin.as_mut().expect("Failed to open stdin of z3 process");
-        input.write_all(assertion.as_bytes()).expect("Error writing to z3 input");
+        let input = child
+            .stdin
+            .as_mut()
+            .expect("Failed to open stdin of z3 process");
+        input
+            .write_all(assertion.as_bytes())
+            .expect("Error writing to z3 input");
     };
 
     let output = child.wait_with_output().expect("Error capturing z3 output");
 
-    let output_txt: &str  = from_utf8(&output.stdout).expect("Error parsing z3 output");
-    eprintln!("{}", output_txt);
-    return output_txt == "unsat\n"
+    let output_txt: &str = from_utf8(&output.stdout).expect("Error parsing z3 output");
+
+    return output_txt == "unsat\n";
 }
 
 pub fn gen_assert(schema: &Schema, before: &Func, after: &Func) -> String {
@@ -115,14 +122,14 @@ fn lower_expr(body: &IRExpr) -> (Ident<SMTVar>, String) {
         IRExpr::Not(b) => simple_unop("not", body.type_of(), b),
         IRExpr::IsLessI(l, r) | IRExpr::IsLessF(l, r) => simple_binop("<", body.type_of(), l, r),
         IRExpr::IntToFloat(b) => simple_unop("to-real", body.type_of(), b),
-        IRExpr::Path(_, body, f) => simple_unop(&ident(f), body.type_of(), body),
+        IRExpr::Path(_, obj, f) => simple_unop(&ident(f), body.type_of(), obj),
         // Avoid introducing a new expr for vars. Just reference the old var
         IRExpr::Var(_, i) => (i.coerce(), String::new()),
         // Because id's and object types are the same, find is a no-op
         IRExpr::LookupById(_, b) => lower_expr(b),
         IRExpr::IntConst(i) => const_val(&i.to_string(), body.type_of()),
         IRExpr::FloatConst(f) => const_val(&f.to_string(), body.type_of()),
-        IRExpr::StringConst(s) => const_val(&format!("{}", s), body.type_of()),
+        IRExpr::StringConst(s) => const_val(&format!("\"{}\"", s), body.type_of()),
         IRExpr::BoolConst(b) => const_val(&b.to_string(), body.type_of()),
         IRExpr::Find(coll, fields) => {
             let expr_ident = Ident::new("expr");
@@ -151,7 +158,7 @@ fn lower_expr(body: &IRExpr) -> (Ident<SMTVar>, String) {
             });
 
             let assert = format!(
-                "(assert (forall (({} {})) (=> {} (select {} {0}))",
+                "(assert (forall (({} {})) (= {} (select {} {0}))))",
                 ident(&quantifier),
                 type_name(&ExprType::Object(coll.clone())),
                 anded_eqs,
@@ -171,7 +178,7 @@ fn lower_expr(body: &IRExpr) -> (Ident<SMTVar>, String) {
             let smt_template = template.as_ref().map(|e| lower_expr(e));
             let mut preamble = String::new();
             let mut asserts = String::new();
-            if let Some((_, ref t_b))  = smt_template {
+            if let Some((_, ref t_b)) = smt_template {
                 preamble += t_b;
             }
             for (f, expr) in fields {
@@ -236,7 +243,7 @@ fn lower_expr(body: &IRExpr) -> (Ident<SMTVar>, String) {
 }
 
 fn simple_nary_op(op: &str, typ: ExprType, exprs: &[&IRExpr]) -> (Ident<SMTVar>, String) {
-    let expr_ident = Ident::new("expr");
+    let expr_ident = Ident::new(format!("{}-op", op));
     let typ_name = type_name(&typ);
 
     let (idents, bodies): (Vec<_>, Vec<_>) = exprs.iter().map(|e| lower_expr(e)).unzip();
@@ -287,12 +294,21 @@ fn lower_collection(coll: &Collection) -> String {
     let fields: String = coll
         .fields()
         .map(|f| {
-            format!(
-                "(declare-fun {} ({}) {})\n",
-                ident(&f.name),
-                ident(&coll.name),
-                type_name(&f.typ)
-            )
+            if f.is_id() {
+                format!(
+                    "(define-fun {} ((x {})) {} x)\n",
+                    ident(&f.name),
+                    ident(&coll.name),
+                    type_name(&f.typ)
+                )
+            } else {
+                format!(
+                    "(declare-fun {} ({}) {})\n",
+                    ident(&f.name),
+                    ident(&coll.name),
+                    type_name(&f.typ)
+                )
+            }
         })
         .collect();
     let elements = format!(

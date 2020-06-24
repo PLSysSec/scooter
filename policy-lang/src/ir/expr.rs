@@ -332,7 +332,7 @@ impl LoweringContext {
 
                 let typ = left.type_of();
                 match &typ {
-                    ExprType::I64 | ExprType::F64 => IRExpr::IsEq(typ, left, right),
+                    ExprType::I64 | ExprType::F64 | ExprType::String => IRExpr::IsEq(typ, left, right),
                     _ => panic!(
                         "`==` operation not defined for types: {} + {}",
                         left.type_of(),
@@ -663,9 +663,12 @@ impl IRExpr {
             | IRExpr::IsLessI(..) => ExprType::Bool,
 
             IRExpr::Path(typ, ..) => typ.clone(),
-            IRExpr::Object(coll, ..) | IRExpr::LookupById(coll, ..) | IRExpr::Find(coll, ..) => {
+            IRExpr::Object(coll, ..)
+            | IRExpr::LookupById(coll, ..) => {
                 ExprType::Object(coll.clone())
             }
+
+            IRExpr::Find(coll, ..) => ExprType::list(ExprType::Object(coll.clone())),
 
             IRExpr::Var(typ, ..)
             | IRExpr::AppendL(typ, ..)

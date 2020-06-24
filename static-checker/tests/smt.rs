@@ -37,3 +37,29 @@ fn foo() {
 
     assert!(is_as_strict(&schema, &after, &before))
 }
+
+#[test]
+fn find() {
+    let before_policy = schema_policy(
+        r#"
+        @principle
+        User {
+            create: public,
+            delete: none,
+
+            name: String {
+                read: none,
+                write: none, 
+            },
+        }
+
+    "#,
+    );
+
+    let schema = before_policy.schema;
+    let user = schema.find_collection("User").unwrap();
+    let before = func(&schema, "u -> User::Find({ name: \"John\" })", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Object(user.name.clone())));
+    let after = func(&schema, "u -> (if u.name == \"John\" then [u.id] else [])", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
+
+    assert!(is_as_strict(&schema, &before, &after))
+}
