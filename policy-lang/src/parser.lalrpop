@@ -103,7 +103,7 @@ QueryExpr: Box<QueryExpr> = {
 
 QueryExpr2: Box<QueryExpr> = {
     Var => Box::new(QueryExpr::Var(<>)),
-    <s:r#""(.*)""#> => Box::new(QueryExpr::StringConst(
+    <s:r#""(?:[^"\\]|\\.)*""#> => Box::new(QueryExpr::StringConst(
         s.get(1..s.len()-1).unwrap().to_string())),
     <i:r"[0-9]+"> => Box::new(QueryExpr::IntConst(i64::from_str(i).unwrap())),
     <f:r"[0-9]+\.[0-9]+"> => Box::new(QueryExpr::FloatConst(f64::from_str(f).unwrap())),
