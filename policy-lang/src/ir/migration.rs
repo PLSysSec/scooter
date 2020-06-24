@@ -153,7 +153,7 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
             let old_field = output[coll]
                 .fields
                 .iter_mut()
-                .find(|f| f.name != *field)
+                .find(|f| f.name == *field)
                 .unwrap();
             old_field.name = new_name.clone();
             output
