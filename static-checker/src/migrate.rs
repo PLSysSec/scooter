@@ -48,11 +48,12 @@ pub fn migrate_policy(policy_text: &str, migration_text: &str) -> Result<String,
 
 fn policy_to_string(policy: SchemaPolicy) -> String {
     let mut result = "".to_string();
-    for (coll_ident, coll_policy) in policy.collection_policies.into_iter() {
-        if policy.schema.principle == Some(coll_ident.clone()) {
+    for coll in policy.schema.collections.iter() {
+        let coll_policy = policy.collection_policies[&coll.name].clone();
+        if policy.schema.principle == Some(coll.name.clone()) {
             result += &format!("@principle\n")
         }
-        result += &format!("{} {{\n", coll_ident.orig_name);
+        result += &format!("{} {{\n", coll.name.orig_name);
         result += &format!(
             "    create: {},\n",
             policy_value_to_string(coll_policy.create)
@@ -62,7 +63,7 @@ fn policy_to_string(policy: SchemaPolicy) -> String {
             policy_value_to_string(coll_policy.delete)
         );
         result += "\n";
-        for field in policy.schema[&coll_ident].fields() {
+        for field in policy.schema[&coll.name].fields() {
             if field.name.orig_name == "id" {
                 continue;
             }
