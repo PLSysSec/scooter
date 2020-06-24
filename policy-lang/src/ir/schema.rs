@@ -237,6 +237,6 @@ pub(crate) fn extract_type(schema: &Schema, ty: &ast::FieldType) -> ExprType {
 
             ExprType::Id(coll.name.clone())
         }
-        FieldType::List(_) => unimplemented!("Lowering lists"),
+        FieldType::List(inner_ty) => ExprType::List(Box::new(extract_type(schema, inner_ty))),
     }
 }
