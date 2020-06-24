@@ -176,7 +176,7 @@ pub enum MigrationAction {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum FieldPolicyKind {
-    Write,
+    Edit,
     Read,
 }
 

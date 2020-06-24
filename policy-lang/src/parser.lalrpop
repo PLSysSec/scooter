@@ -171,7 +171,7 @@ ObjectCommand: ObjectCommand = {
 
 FieldPolicyKind: FieldPolicyKind = {
     "read" => FieldPolicyKind::Read,
-    "write" => FieldPolicyKind::Write,
+    "write" => FieldPolicyKind::Edit,
 }
 
 CollectionPolicyKind: CollectionPolicyKind = {
