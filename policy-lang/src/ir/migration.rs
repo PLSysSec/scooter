@@ -406,7 +406,7 @@ fn extract_coll_policy_kind(kind: &str) -> CollectionPolicyKind {
 
 fn extract_field_policy_kind(kind: &str) -> FieldPolicyKind {
     match kind {
-        "edit" => FieldPolicyKind::Edit,
+        "write" => FieldPolicyKind::Edit,
         "read" => FieldPolicyKind::Read,
         _ => panic!("`{}` is not a valid permission on fields.", kind),
     }
