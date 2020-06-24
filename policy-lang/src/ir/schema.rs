@@ -184,7 +184,11 @@ impl ExtractionContext {
             FieldType::I64 => ExprType::I64,
             FieldType::F64 => ExprType::F64,
             FieldType::Bool => ExprType::Bool,
-            FieldType::Id(ref name) => ExprType::Id(self.coll_idents[name].clone()),
+            FieldType::Id(ref name) => ExprType::Id(
+                self.coll_idents.get(name).expect(
+                    &format!("Bad type Id({}): couldn't find collection {}; collections are {:?}",
+                             name, name, self.coll_idents))
+                    .clone()),
             FieldType::List(ty) => {
                 if let FieldType::List(_)  = **ty {
                     panic!("Schemas may not contain nested lists")
