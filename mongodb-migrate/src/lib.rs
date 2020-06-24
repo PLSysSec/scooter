@@ -83,8 +83,8 @@ mod tests {
             .unwrap(),
             r#"
                 User::RemoveField(num_followers)
-                User::AddField(num_friends, I64, u -> 1337)
-                User::AddField(num_roomates, I64, u -> 0)
+                User::AddField(num_friends: I64 {read: public, write: none,}, u -> 1337)
+                User::AddField(num_roomates: I64 {read: public, write: none,}, u -> 0)
                 User::RemoveField(num_roomates)
                 "#,
             "test_migration",
@@ -203,7 +203,7 @@ mod tests {
             )
             .unwrap(),
             r#"
-                User::AddField(num_friends, I64, u -> u.num_followers)
+                User::AddField(num_friends: I64 { read: public, write: none, }, u -> u.num_followers)
                 User::RemoveField(num_followers)
                 "#,
             "test_migration",
@@ -579,7 +579,7 @@ mod tests {
             },
             &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
-                CreateCollection(Phone, {owner: Id(User)})
+                CreateCollection(Phone {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
                 User::ForEach(u -> Phone::Create(Phone {owner: u.id}))
                 "#,
             "test_migration",
@@ -739,7 +739,7 @@ mod tests {
             DbConf { host: "localhost".to_string(), port: 27017, db_name},
             &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
-                Message::AddField(popular_sender,  Bool, m -> (if User::ById(m.from).num_followers < 20 then false else true))
+                Message::AddField(popular_sender: Bool {read: public, write: none,}, m -> (if User::ById(m.from).num_followers < 20 then false else true))
                 "#,
             "test_migration",
         ).expect("migration failed");
