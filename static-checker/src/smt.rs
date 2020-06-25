@@ -1,6 +1,6 @@
 use policy_lang::ir::{
     expr::{ExprType, Func, IRExpr},
-    policy::{CollectionPolicy, FieldPolicy},
+    policy::{CollectionPolicy, FieldPolicy, Policy},
     schema::{Collection, Schema},
     Ident,
 };
@@ -26,8 +26,8 @@ pub fn check_field_refine(
     unimplemented!("Define in terms of is_as_strict")
 }
 
-pub fn is_as_strict(schema: &Schema, before: &Func, after: &Func) -> bool {
-    let assertion = gen_assert(schema, before, after);
+pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, after: &Policy) -> bool {
+    let assertion = gen_assert(schema, coll, before, after);
     eprintln!("{}", &assertion);
     let mut child = Command::new("z3")
         .arg("-smt2")
@@ -54,22 +54,18 @@ pub fn is_as_strict(schema: &Schema, before: &Func, after: &Func) -> bool {
     return output_txt == "unsat\n";
 }
 
-pub fn gen_assert(schema: &Schema, before: &Func, after: &Func) -> String {
+pub fn gen_assert(schema: &Schema, coll: &Ident<Collection>, before: &Policy, after: &Policy) -> String {
     let schema_str = lower_schema(schema);
-    let princ_type = match before.body.type_of() {
-        ExprType::List(princ) => *princ,
-        _ => unreachable!("All policy functions must return lists of principles."),
-    };
-    
+    let princ_type =  ExprType::Id(schema.principle.clone().expect("Schemas are guaranteed to have a policy at this point"));
     let scope = Scope::empty();
 
     // Lower the functions
-    let (before_i, before_b) = lower_func(&scope, before);
-    let (after_i, after_b) = lower_func(&scope, after);
+    let (before_i, before_b) = lower_policy(&scope, coll, before);
+    let (after_i, after_b) = lower_policy(&scope, coll, after);
 
     // Declare the principle and record
     let (princ_i, princ_b) = scope.declare("principle", &[], princ_type);
-    let (rec_i, rec_b) = scope.declare("principle", &[], before.param_type.clone());
+    let (rec_i, rec_b) = scope.declare("record", &[], ExprType::Object(coll.clone()));
 
     let safety_assertion = format!(
         "(assert (not (=> (select {} {}) (select {} {1}))))\n(check-sat)",
@@ -82,6 +78,16 @@ pub fn gen_assert(schema: &Schema, before: &Func, after: &Func) -> String {
 
 #[derive(Debug, Copy, Clone)]
 struct SMTVar;
+
+fn lower_policy(scope: &Scope, coll: &Ident<Collection>, pol: &Policy) -> (Ident<SMTVar>, String) {
+    let typ = ExprType::list(ExprType::Object(coll.clone()));
+
+    match pol {
+        Policy::None => scope.define("none", &[(Ident::new("_"), ExprType::Object(coll.clone()))], typ.clone(), format!("((as const {}) false)", type_name(&typ))),
+        Policy::Anyone => scope.define("anyone", &[(Ident::new("_"), ExprType::Object(coll.clone()))], typ.clone(), format!("((as const {}) true)", type_name(&typ))),
+        Policy::Func(f) => lower_func(scope, f)
+    }
+}
 
 fn lower_func(scope: &Scope, func: &Func) -> (Ident<SMTVar>, String) {
     lower_expr(&scope.extend(func.param.coerce(), func.param_type.clone()), &func.body)
