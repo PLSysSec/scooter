@@ -1,6 +1,6 @@
 use policy_lang::ir::{
     expr::{ExprType, Func, IRExpr},
-    policy::{CollectionPolicy, FieldPolicy, Policy},
+    policy::Policy,
     schema::{Collection, Schema},
     Ident,
 };
