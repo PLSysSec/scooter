@@ -3,8 +3,8 @@ use super::{
     Ident,
 };
 use crate::ast;
-use std::{collections::HashMap, fmt, rc::Rc};
 use std::iter;
+use std::{collections::HashMap, fmt, rc::Rc};
 
 /// A marker struct used to distinguise Ident<Var> from other idents.
 #[derive(Debug, Clone, Copy)]
@@ -126,7 +126,12 @@ pub fn extract_func(
     }
 }
 
-pub fn extract_ir_expr(schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr, expected_ty: Option<ExprType>) -> Box<IRExpr> {
+pub fn extract_ir_expr(
+    schema: &Schema,
+    def_map: DefMap,
+    expr: &ast::QueryExpr,
+    expected_ty: Option<ExprType>,
+) -> Box<IRExpr> {
     let mut ctx = LoweringContext {
         type_map: Default::default(),
     };
@@ -210,7 +215,7 @@ fn apply_ty(type_map: &HashMap<Ident<ExprType>, ExprType>, ty: &ExprType) -> Exp
         | ExprType::Object(_)
         | ExprType::Bool => ty.clone(),
         ExprType::List(lty) => ExprType::list(apply_ty(type_map, lty)),
-        ExprType::Unknown(id) => apply_ty(type_map, &type_map[id])
+        ExprType::Unknown(id) => apply_ty(type_map, &type_map[id]),
     }
 }
 
@@ -264,7 +269,12 @@ pub enum IRExpr {
     /// list must contain all of the fields in the object; otherwise,
     /// missing fields take their values from the corresponding field
     /// on the template object.
-    Object(Ident<Collection>, Vec<(Ident<Field>, Option<Box<IRExpr>>)>, Option<Box<IRExpr>>),
+    Object(
+        Ident<Collection>,
+        Vec<(Ident<Field>, Option<Box<IRExpr>>)>,
+        Option<Box<IRExpr>>,
+    ),
+
 
     /// Look up an id in a collection
     LookupById(Ident<Collection>, Box<IRExpr>),
@@ -286,7 +296,12 @@ struct LoweringContext {
 }
 
 impl LoweringContext {
-    pub fn extract_ir_expr(&mut self, schema: &Schema, def_map: DefMap, expr: &ast::QueryExpr) -> Box<IRExpr> {
+    pub fn extract_ir_expr(
+        &mut self,
+        schema: &Schema,
+        def_map: DefMap,
+        expr: &ast::QueryExpr,
+    ) -> Box<IRExpr> {
         let ir_expr = match expr {
             ast::QueryExpr::Plus(l, r) => {
                 let left = self.extract_ir_expr(schema, def_map.clone(), l);
@@ -334,7 +349,9 @@ impl LoweringContext {
 
                 let typ = left.type_of();
                 match &typ {
-                    ExprType::I64 | ExprType::F64 | ExprType::String => IRExpr::IsEq(typ, left, right),
+                    ExprType::I64 | ExprType::F64 | ExprType::String => {
+                        IRExpr::IsEq(typ, left, right)
+                    }
                     _ => panic!(
                         "`==` operation not defined for types: {} + {}",
                         left.type_of(),
@@ -491,8 +508,7 @@ impl LoweringContext {
                         panic!("id not allowed on object literals");
                     }
                     let fexpr = self.extract_ir_expr(schema, def_map.clone(), fexpr);
-                    let fexpr =
-                       self.coerce(&field.typ, fexpr);
+                    let fexpr = self.coerce(&field.typ, fexpr);
 
                     ir_fields.push((field.name.clone(), Some(fexpr)));
                 }
@@ -531,10 +547,7 @@ impl LoweringContext {
                             if field.is_id() {
                                 continue;
                             }
-                            ir_fields.push((
-                                field.name.clone(),
-                                None
-                            ));
+                            ir_fields.push((field.name.clone(), None));
                         }
 
                         Some(expr)
@@ -604,8 +617,7 @@ impl LoweringContext {
     fn is_subtype(&mut self, typ1: &ExprType, typ2: &ExprType) -> bool {
         match (typ1, typ2) {
             (ExprType::List(inner1), ExprType::List(inner2)) => self.is_subtype(inner1, inner2),
-            (ExprType::Unknown(id), l)
-            | (l, ExprType::Unknown(id)) => {
+            (ExprType::Unknown(id), l) | (l, ExprType::Unknown(id)) => {
                 if !self.type_map.contains_key(&id) {
                     self.type_map.insert(id.clone(), l.clone());
                     true
@@ -668,8 +680,7 @@ impl IRExpr {
             | IRExpr::IsLessI(..) => ExprType::Bool,
 
             IRExpr::Path(typ, ..) => typ.clone(),
-            IRExpr::Object(coll, ..)
-            | IRExpr::LookupById(coll, ..) => {
+            IRExpr::Object(coll, ..) | IRExpr::LookupById(coll, ..) => {
                 ExprType::Object(coll.clone())
             }
 
@@ -683,70 +694,119 @@ impl IRExpr {
     }
     pub fn map(&self, f: &dyn Fn(IRExpr) -> IRExpr) -> IRExpr {
         match self {
-            IRExpr::AppendS(l, r) => f(IRExpr::AppendS(Box::new(l.as_ref().map(f)),
-                                                       Box::new(r.as_ref().map(f)))),
-            IRExpr::AppendL(ty, l, r) => f(IRExpr::AppendL(ty.clone(),
-                                                           Box::new(l.as_ref().map(f)),
-                                                           Box::new(r.as_ref().map(f)))),
-            IRExpr::AddI(l, r) => f(IRExpr::AddI(Box::new(l.as_ref().map(f)),
-                                                 Box::new(r.as_ref().map(f)))),
-            IRExpr::AddF(l, r) => f(IRExpr::AddF(Box::new(l.as_ref().map(f)),
-                                                 Box::new(r.as_ref().map(f)))),
-            IRExpr::SubI(l, r) => f(IRExpr::SubI(Box::new(l.as_ref().map(f)),
-                                                 Box::new(r.as_ref().map(f)))),
-            IRExpr::SubF(l, r) => f(IRExpr::SubF(Box::new(l.as_ref().map(f)),
-                                                 Box::new(r.as_ref().map(f)))),
-            IRExpr::IsEq(ty, l, r) => f(IRExpr::IsEq(ty.clone(),
-                                                     Box::new(l.as_ref().map(f)),
-                                                     Box::new(r.as_ref().map(f)))),
+            IRExpr::AppendS(l, r) => f(IRExpr::AppendS(
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
+            IRExpr::AppendL(ty, l, r) => f(IRExpr::AppendL(
+                ty.clone(),
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
+            IRExpr::AddI(l, r) => f(IRExpr::AddI(
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
+            IRExpr::AddF(l, r) => f(IRExpr::AddF(
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
+            IRExpr::SubI(l, r) => f(IRExpr::SubI(
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
+            IRExpr::SubF(l, r) => f(IRExpr::SubF(
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
+            IRExpr::IsEq(ty, l, r) => f(IRExpr::IsEq(
+                ty.clone(),
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
             IRExpr::Not(b) => f(IRExpr::Not(Box::new(b.as_ref().map(f)))),
-            IRExpr::IsLessI(l, r) => f(IRExpr::IsLessI(Box::new(l.as_ref().map(f)),
-                                                       Box::new(r.as_ref().map(f)))),
-            IRExpr::IsLessF(l, r) => f(IRExpr::IsLessF(Box::new(l.as_ref().map(f)),
-                                                       Box::new(r.as_ref().map(f)))),
+            IRExpr::IsLessI(l, r) => f(IRExpr::IsLessI(
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
+            IRExpr::IsLessF(l, r) => f(IRExpr::IsLessF(
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
             IRExpr::IntToFloat(i) => f(IRExpr::IntToFloat(Box::new(i.as_ref().map(f)))),
-            IRExpr::Path(ty, o, fld) => f(IRExpr::Path(ty.clone(),
-                                                       Box::new(o.as_ref().map(f)),
-                                                       fld.clone())),
+            IRExpr::Path(ty, o, fld) => f(IRExpr::Path(
+                ty.clone(),
+                Box::new(o.as_ref().map(f)),
+                fld.clone(),
+            )),
             IRExpr::Var(_ty, _name) => f(self.clone()),
-            IRExpr::Object(coll, fields, template) =>
-                f(IRExpr::Object(coll.clone(), fields.iter().map(
-                    |(fld, opt_val)|
-                    (fld.clone(), opt_val.as_ref().map(|fe| Box::new(fe.map(f))))).collect(), template.as_ref().map(|te| Box::new(te.map(f))))),
-            IRExpr::LookupById(coll, id_expr) =>
-                f(IRExpr::LookupById(coll.clone(), Box::new(id_expr.as_ref().map(f)))),
-            IRExpr::Find(coll, query_fields) =>
-                f(IRExpr::Find(coll.clone(), query_fields.iter().map(
-                    |(fld, val)|
-                    (fld.clone(), Box::new(val.map(f)))).collect())),
-            IRExpr::List(ty, items) =>
-                f(IRExpr::List(ty.clone(), items.iter().map(|item| Box::new(item.map(f))).collect())),
-            IRExpr::If(ty, cond, iftrue, iffalse) =>
-                f(IRExpr::If(ty.clone(),
-                             Box::new(cond.as_ref().map(f)),
-                             Box::new(iftrue.as_ref().map(f)),
-                             Box::new(iffalse.as_ref().map(f)))),
-            IRExpr::IntConst(_) | IRExpr::FloatConst(_) | IRExpr::StringConst(_) | IRExpr::BoolConst(_) => {
-                f(self.clone())
-            }
+            IRExpr::Object(coll, fields, template) => f(IRExpr::Object(
+                coll.clone(),
+                fields
+                    .iter()
+                    .map(|(fld, opt_val)| {
+                        (fld.clone(), opt_val.as_ref().map(|fe| Box::new(fe.map(f))))
+                    })
+                    .collect(),
+                template.as_ref().map(|te| Box::new(te.map(f))),
+            )),
+            IRExpr::LookupById(coll, id_expr) => f(IRExpr::LookupById(
+                coll.clone(),
+                Box::new(id_expr.as_ref().map(f)),
+            )),
+            IRExpr::Find(coll, query_fields) => f(IRExpr::Find(
+                coll.clone(),
+                query_fields
+                    .iter()
+                    .map(|(fld, val)| (fld.clone(), Box::new(val.map(f))))
+                    .collect(),
+            )),
+            IRExpr::List(ty, items) => f(IRExpr::List(
+                ty.clone(),
+                items.iter().map(|item| Box::new(item.map(f))).collect(),
+            )),
+            IRExpr::If(ty, cond, iftrue, iffalse) => f(IRExpr::If(
+                ty.clone(),
+                Box::new(cond.as_ref().map(f)),
+                Box::new(iftrue.as_ref().map(f)),
+                Box::new(iffalse.as_ref().map(f)),
+            )),
+            IRExpr::IntConst(_)
+            | IRExpr::FloatConst(_)
+            | IRExpr::StringConst(_)
+            | IRExpr::BoolConst(_) => f(self.clone()),
         }
     }
-    pub fn subexprs_preorder<'a>(&'a self) -> impl Iterator<Item=&'a Self> {
+    pub fn subexprs_preorder<'a>(&'a self) -> impl Iterator<Item = &'a Self> {
         match self {
-            IRExpr::Var(_, _) | IRExpr::IntConst(_) | IRExpr::FloatConst(_)
-                | IRExpr::StringConst(_) | IRExpr::BoolConst(_) =>
-                vec![self].into_iter(),
-            IRExpr::AppendS(l, r) | IRExpr::AppendL(_, l, r) | IRExpr::AddI(l, r)
-                | IRExpr::AddF(l, r) | IRExpr::SubI(l, r) | IRExpr::SubF(l, r)
-                | IRExpr::IsEq(_, l, r) | IRExpr::IsLessI(l, r) | IRExpr::IsLessF(l, r) =>
-                iter::once(self).chain(l.subexprs_preorder()).chain(r.subexprs_preorder())
-                .collect::<Vec<_>>().into_iter(),
-            IRExpr::Not(e) | IRExpr::IntToFloat(e) | IRExpr::Path(_, e, _)
-                | IRExpr::LookupById(_, e) =>
-                iter::once(self).chain(e.subexprs_preorder())
-                .collect::<Vec<_>>().into_iter(),
+            IRExpr::Var(_, _)
+            | IRExpr::IntConst(_)
+            | IRExpr::FloatConst(_)
+            | IRExpr::StringConst(_)
+            | IRExpr::BoolConst(_) => vec![self].into_iter(),
+            IRExpr::AppendS(l, r)
+            | IRExpr::AppendL(_, l, r)
+            | IRExpr::AddI(l, r)
+            | IRExpr::AddF(l, r)
+            | IRExpr::SubI(l, r)
+            | IRExpr::SubF(l, r)
+            | IRExpr::IsEq(_, l, r)
+            | IRExpr::IsLessI(l, r)
+            | IRExpr::IsLessF(l, r) => iter::once(self)
+                .chain(l.subexprs_preorder())
+                .chain(r.subexprs_preorder())
+                .collect::<Vec<_>>()
+                .into_iter(),
+            IRExpr::Not(e)
+            | IRExpr::IntToFloat(e)
+            | IRExpr::Path(_, e, _)
+            | IRExpr::LookupById(_, e) => iter::once(self)
+                .chain(e.subexprs_preorder())
+                .collect::<Vec<_>>()
+                .into_iter(),
             IRExpr::Object(_, fields, template_obj) => {
-                let field_subexprs = fields.iter()
+                let field_subexprs = fields
+                    .iter()
                     .flat_map(|(_fld, val)| val)
                     .flat_map(|val| val.subexprs_preorder());
                 let template_subexprs = match template_obj {
@@ -756,20 +816,28 @@ impl IRExpr {
                 iter::once(self)
                     .chain(field_subexprs)
                     .chain(template_subexprs)
-                    .collect::<Vec<_>>().into_iter()
+                    .collect::<Vec<_>>()
+                    .into_iter()
             }
-             IRExpr::Find(_, fields) =>
-                iter::once(self).chain(fields.iter().flat_map(|(_fld, val)| val.subexprs_preorder()))
-                .collect::<Vec<_>>().into_iter(),
-            IRExpr::List(_ty, items) =>
-                iter::once(self).chain(items.iter().flat_map(|item| item.subexprs_preorder()))
-                .collect::<Vec<_>>().into_iter(),
-            IRExpr::If(_ty, cond, iftrue, iffalse) =>
                 iter::once(self)
+            IRExpr::Find(_, fields) => iter::once(self)
+                .chain(
+                    fields
+                        .iter()
+                        .flat_map(|(_fld, val)| val.subexprs_preorder()),
+                )
+                .collect::<Vec<_>>()
+                .into_iter(),
+            IRExpr::List(_ty, items) => iter::once(self)
+                .chain(items.iter().flat_map(|item| item.subexprs_preorder()))
+                .collect::<Vec<_>>()
+                .into_iter(),
+            IRExpr::If(_ty, cond, iftrue, iffalse) => iter::once(self)
                 .chain(cond.subexprs_preorder())
                 .chain(iftrue.subexprs_preorder())
                 .chain(iffalse.subexprs_preorder())
-                .collect::<Vec<_>>().into_iter(),
+                .collect::<Vec<_>>()
+                .into_iter(),
         }
     }
 }
