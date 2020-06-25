@@ -1,4 +1,4 @@
-use crate::smt::{check_collection_refine, check_field_refine};
+use crate::smt::is_as_strict;
 use policy_lang::ir::expr::{ExprType, Func, IRExpr};
 use policy_lang::ir::migration::{
     extract_migration_steps, CollectionPolicyKind, DataCommand, FieldPolicyKind, MigrationCommand,
@@ -212,18 +212,22 @@ fn interpret_migration_on_policy(
             // For adding fields, just add new policies based on
             // the initializer function
             MigrationCommand::AddField {
-                coll: _,
+                coll,
                 field,
                 ty: _,
                 init,
                 pol,
             } => {
                 let inferred_policy = get_policy_from_initializer(&schema, field.clone(), init);
-                if !check_field_refine(&schema, inferred_policy, pol.clone()) {
+                let new_read_fine = is_as_strict(&schema, &coll,
+                                                 &inferred_policy.read,
+                                                 &pol.read);
+                if !new_read_fine {
                     return Err("Cannot determine that the given field policy \
                                 is tight enough for the values that flow into it."
                         .to_string());
                 }
+                println!("Adding new field policy {:?}", pol);
                 result_policy.add_field_policy(field, pol)
             }
             // For removing fields, remove the policy data, and
@@ -277,19 +281,24 @@ fn interpret_migration_on_policy(
                     .add_field_policy(field, field_policy_lens_set(old_policy, kind, new_policy));
             }
             MigrationCommand::TightenFieldPolicy {
-                coll: _,
+                coll,
                 field,
                 kind,
                 new_policy,
             } => {
                 let old_policy = result_policy.field_policies[&field].clone();
-                let new_policy = field_policy_lens_set(old_policy.clone(), kind, new_policy);
-                if !check_field_refine(&schema, old_policy, new_policy.clone()) {
+                if match kind {
+                    FieldPolicyKind::Read => !is_as_strict(&schema, &coll,
+                                                           &old_policy.read, &new_policy),
+                    FieldPolicyKind::Edit => !is_as_strict(&schema, &coll,
+                                                            &new_policy, &old_policy.edit),
+                } {
                     return Err(
                         "Cannot determine that the new field policy is tighter than the old one"
                             .to_string(),
                     );
                 }
+                let new_policy = field_policy_lens_set(old_policy.clone(), kind, new_policy);
                 result_policy.remove_field_policy(field.clone());
                 result_policy.add_field_policy(field, new_policy);
             }
@@ -310,11 +319,20 @@ fn interpret_migration_on_policy(
                 new_policy,
             } => {
                 let old_policy = result_policy.collection_policies[&coll].clone();
-                let new_policy = coll_policy_lens_set(old_policy.clone(), kind, new_policy);
-                if !check_collection_refine(&schema, old_policy, new_policy.clone()) {
-                    return Err("Cannot determine that the new collection policy is tighter than the old one".to_string());
+                if match kind {
+                    // The "schema" here is actually the schema
+                    // afterwards, which would be a problem except
+                    // this command doesb't modify the schema.
+                    CollectionPolicyKind::Create => !is_as_strict(&schema, &coll,
+                                                                  &old_policy.create, &new_policy),
+                    CollectionPolicyKind::Delete => !is_as_strict(&schema, &coll,
+                                                                  &old_policy.delete, &new_policy),
+                } {
+                    return Err("Cannot determine that the new collection policy is tighter than the old one"
+                               .to_string());
                 }
                 result_policy.remove_collection_policy(coll.clone());
+                let new_policy = coll_policy_lens_set(old_policy.clone(), kind, new_policy);
                 result_policy.add_collection_policy(coll, new_policy);
             }
             MigrationCommand::DataCommand(DataCommand::ForEach { .. }) => {

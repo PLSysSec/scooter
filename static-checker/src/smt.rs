@@ -10,22 +10,6 @@ use std::{
     str::from_utf8,
 };
 
-pub fn check_collection_refine(
-    schema: &Schema,
-    old_collection_policy: CollectionPolicy,
-    new_collection_poilcy: CollectionPolicy,
-) -> bool {
-    unimplemented!("Define in terms of is_as_strict")
-}
-
-pub fn check_field_refine(
-    schema: &Schema,
-    old_field_policy: FieldPolicy,
-    new_field_policy: FieldPolicy,
-) -> bool {
-    unimplemented!("Define in terms of is_as_strict")
-}
-
 pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, after: &Policy) -> bool {
     let assertion = gen_assert(schema, coll, before, after);
     eprintln!("{}", &assertion);
@@ -176,7 +160,7 @@ fn lower_expr(scope: &Scope, body: &IRExpr) -> (Ident<SMTVar>, String) {
             let (l_i, l_b) = lower_expr(scope, l);
             let (r_i, r_b) = lower_expr(scope, r);
 
-            let (app_i, app_b) = scope.define("append", &[], body.type_of(), 
+            let (app_i, app_b) = scope.define("append", &[], body.type_of(),
             format!(
                 "((_ map or) {} {}))\n",
                 scope.invoke(&l_i, &[]),
@@ -193,7 +177,7 @@ fn lower_expr(scope: &Scope, body: &IRExpr) -> (Ident<SMTVar>, String) {
                 format!("(or {} false)", spaced(eqs))
             });
 
-            
+
             (arr_i, preamble + &arr_b)
         }
         IRExpr::If(_, c, t, e) => scope.simple_nary_op("ite", body.type_of(), &[c, t, e]),
