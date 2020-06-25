@@ -955,8 +955,7 @@ User {
     }
     #[test]
     fn simple_tighten_collection_policy() {
-        let policy_text = r"
-@principle
+        let policy_text = r"@principle
 User {
     create: public,
     delete: public,
@@ -969,8 +968,7 @@ User {
 ";
         let migration_text = r#"User::TightenCollectionPolicy(create, none)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"
-@principle
+        let expected_result_text = r"@principle
 User {
     create: none,
     delete: public,
