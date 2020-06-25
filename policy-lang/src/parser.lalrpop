@@ -114,6 +114,7 @@ QueryExpr2: Box<QueryExpr> = {
     CollectionExpr => <>,
     List => Box::new(QueryExpr::List(<>)),
     "(" <e:QueryExpr> ")" => e,
+    <le: QueryExpr2> "." "map" "(" <f: Func> ")" => Box::new(QueryExpr::Map(le, f)),
     <o: QueryExpr2> "." <f: Ident> => Box::new(QueryExpr::FieldAccess(o, f)),
 }
 

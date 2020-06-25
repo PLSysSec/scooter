@@ -190,6 +190,12 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             out += ".finalize()";
             out
         }
+        IRExpr::Map(list_expr, func) => {
+            format!("{}.into_iter().map(|{}| {})",
+                    translate_queryexpr(schema, list_expr),
+                    func.param.orig_name,
+                    translate_queryexpr(schema, &func.body))
+        }
         IRExpr::List(_ty, exprs) => {
             let mut out = "vec![".to_string();
             for expr in exprs.into_iter() {

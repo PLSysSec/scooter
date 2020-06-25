@@ -181,6 +181,10 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
                 }
             }
         }
+        IRExpr::Map(list_expr, func) => {
+            resolve_types(type_map, &mut func.body);
+            resolve_types(type_map, list_expr);
+        }
         IRExpr::Find(_, fields) => {
             for (_, field) in fields.iter_mut() {
                 resolve_types(type_map, field);
@@ -275,6 +279,8 @@ pub enum IRExpr {
         Option<Box<IRExpr>>,
     ),
 
+    /// Functional map across lists
+    Map(Box<IRExpr>, Func),
 
     /// Look up an id in a collection
     LookupById(Ident<Collection>, Box<IRExpr>),
@@ -556,6 +562,9 @@ impl LoweringContext {
 
                 IRExpr::Object(coll.name.clone(), ir_fields, texpr)
             }
+            ast::QueryExpr::Map(_list_expr, _func) => {
+                panic!("Unimplemented!")
+            }
             ast::QueryExpr::Find(coll_name, fields) => {
                 let coll = schema.find_collection(coll_name).expect(&format!(
                     "Unable to lookup by id because collection `{}` does not exist",
@@ -683,6 +692,7 @@ impl IRExpr {
             IRExpr::Object(coll, ..) | IRExpr::LookupById(coll, ..) => {
                 ExprType::Object(coll.clone())
             }
+            IRExpr::Map(_list_expr, func) => ExprType::list(func.return_type.clone()),
 
             IRExpr::Find(coll, ..) => ExprType::list(ExprType::Object(coll.clone())),
 
@@ -750,6 +760,12 @@ impl IRExpr {
                     .collect(),
                 template.as_ref().map(|te| Box::new(te.map(f))),
             )),
+            IRExpr::Map(list_expr, func) => f(IRExpr::Map(
+                Box::new(list_expr.map(f)),
+                Func{param: func.param.clone(),
+                     param_type: func.param_type.clone(),
+                     return_type: func.return_type.clone(),
+                     body: Box::new(func.body.map(f))})),
             IRExpr::LookupById(coll, id_expr) => f(IRExpr::LookupById(
                 coll.clone(),
                 Box::new(id_expr.as_ref().map(f)),
@@ -819,7 +835,13 @@ impl IRExpr {
                     .collect::<Vec<_>>()
                     .into_iter()
             }
+            IRExpr::Map(list_expr, func) => {
                 iter::once(self)
+                    .chain(list_expr.subexprs_preorder())
+                    .chain(func.body.subexprs_preorder())
+                    .collect::<Vec<_>>()
+                    .into_iter()
+            }
             IRExpr::Find(_, fields) => iter::once(self)
                 .chain(
                     fields

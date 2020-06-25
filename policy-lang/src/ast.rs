@@ -17,6 +17,7 @@ pub enum QueryExpr {
     Var(String),
     FieldAccess(Box<QueryExpr>, String),
     Object(ObjectLiteral),
+    Map(Box<QueryExpr>, Func),
 
     LookupById(String, Box<QueryExpr>),
     Find(String, Vec<(String, Box<QueryExpr>)>),
@@ -43,7 +44,7 @@ pub enum Policy {
     Func(Func),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Func {
     pub param: String,
     pub expr: Box<QueryExpr>,

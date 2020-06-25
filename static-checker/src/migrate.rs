@@ -147,6 +147,10 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
                 ),
             }
         }
+        IRExpr::Map(list_expr, func) => {
+            format!("{}.map({} -> {})", expr_to_string(list_expr), func.param.orig_name,
+                    expr_to_string(func.body))
+        }
         IRExpr::LookupById(coll, e_id) => {
             format!("{}::ById({})", coll.orig_name, expr_to_string(e_id))
         }

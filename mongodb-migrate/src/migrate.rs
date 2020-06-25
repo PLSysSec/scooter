@@ -336,7 +336,7 @@ impl Evaluator<'_> {
         None
     }
     // Evaluate an expression down to a value
-    fn eval_expr(&self, db_conn: &Database, expr: Box<IRExpr>) -> Value {
+    fn eval_expr(&mut self, db_conn: &Database, expr: Box<IRExpr>) -> Value {
         match *expr {
             // String append
             IRExpr::AppendS(subexpr_l, subexpr_r) => {
@@ -493,6 +493,20 @@ impl Evaluator<'_> {
                     );
                 }
                 Value::Object(result_object)
+            }
+            IRExpr::Map(list_expr, func) => {
+                let list_val = self.eval_expr(db_conn, list_expr.clone());
+                if let Value::List(subvals) = list_val {
+                    Value::List(subvals.into_iter().map(
+                        |subval| {
+                            self.push_scope(&func.param, subval);
+                            let result = self.eval_expr(db_conn, func.body.clone());
+                            self.pop_scope(&func.param);
+                            result
+                        }).collect())
+                } else {
+                    panic!("Runtime type error: value mapped over is not a list");
+                }
             }
             IRExpr::Find(coll, query_fields) => {
                 let mut doc = bson::Document::new();

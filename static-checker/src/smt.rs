@@ -156,6 +156,9 @@ fn lower_expr(scope: &Scope, body: &IRExpr) -> (Ident<SMTVar>, String) {
 
             (expr_ident, preamble + &decl + &asserts)
         }
+        IRExpr::Map(_list_expr, _func) => {
+            panic!("Unimplemented");
+        }
         IRExpr::AppendL(_, l, r) => {
             let (l_i, l_b) = lower_expr(scope, l);
             let (r_i, r_b) = lower_expr(scope, r);
