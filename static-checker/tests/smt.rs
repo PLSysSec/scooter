@@ -61,5 +61,5 @@ fn find() {
     let before = func(&schema, "u -> User::Find({ name: \"John\" })", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Object(user.name.clone())));
     let after = func(&schema, "u -> (if u.name == (\"Jo\" + \"hn\") then [u.id] else [])", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
 
-    assert!(is_as_strict(&schema, &before, &after))
+    assert!(is_as_strict(&schema, &after, &before))
 }

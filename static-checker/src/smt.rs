@@ -55,117 +55,79 @@ pub fn is_as_strict(schema: &Schema, before: &Func, after: &Func) -> bool {
 }
 
 pub fn gen_assert(schema: &Schema, before: &Func, after: &Func) -> String {
-    let mut preamble = lower_schema(schema);
+    let schema_str = lower_schema(schema);
     let princ_type = match before.body.type_of() {
-        ExprType::List(princ) => princ.clone(),
+        ExprType::List(princ) => *princ,
         _ => unreachable!("All policy functions must return lists of principles."),
     };
+    
+    let scope = Scope::empty();
+
+    // Lower the functions
+    let (before_i, before_b) = lower_func(&scope, before);
+    let (after_i, after_b) = lower_func(&scope, after);
 
     // Declare the principle and record
-    let princ = Ident::<SMTVar>::new("principle");
-    let rec = Ident::<SMTVar>::new("record");
-    preamble += &format!(
-        "(declare-fun {} () {})\n",
-        ident(&princ),
-        type_name(&princ_type)
-    );
-    preamble += &format!(
-        "(declare-fun {} () {})\n",
-        ident(&rec),
-        type_name(&before.param_type)
-    );
-
-    // Declare the params
-    let mut params = String::new();
-    params += &format!(
-        "(declare-fun {} () {})\n",
-        ident(&before.param),
-        type_name(&before.param_type)
-    );
-    params += &format!(
-        "(declare-fun {} () {})\n",
-        ident(&after.param),
-        type_name(&after.param_type)
-    );
-
-    // "Apply the functions"
-    params += &format!(
-        "(assert (and (= {} {}) (= {} {0})))\n",
-        ident(&rec),
-        ident(&after.param),
-        ident(&before.param)
-    );
-
-    let (b_i, b_b) = lower_expr(&before.body);
-    let (a_i, a_b) = lower_expr(&after.body);
+    let (princ_i, princ_b) = scope.declare("principle", &[], princ_type);
+    let (rec_i, rec_b) = scope.declare("principle", &[], before.param_type.clone());
 
     let safety_assertion = format!(
         "(assert (not (=> (select {} {}) (select {} {1}))))\n(check-sat)",
-        ident(&a_i),
-        ident(&princ),
-        ident(&b_i)
+        scope.invoke(&after_i, &[rec_i.clone()]),
+        ident(&princ_i),
+        scope.invoke(&before_i, &[rec_i.clone()])
     );
-    preamble + &params + &b_b + &a_b + &safety_assertion
+    schema_str + &before_b + &after_b + &princ_b + &rec_b + &safety_assertion
 }
 
+#[derive(Debug, Copy, Clone)]
 struct SMTVar;
 
-fn lower_expr(body: &IRExpr) -> (Ident<SMTVar>, String) {
+fn lower_func(scope: &Scope, func: &Func) -> (Ident<SMTVar>, String) {
+    lower_expr(&scope.extend(func.param.coerce(), func.param_type.clone()), &func.body)
+}
+
+fn lower_expr(scope: &Scope, body: &IRExpr) -> (Ident<SMTVar>, String) {
     debug_assert!(!contains_unknown(&body.type_of()));
 
     match body {
-        IRExpr::AppendS(l, r) => simple_binop("str.++", body.type_of(), l, r),
-        IRExpr::AddI(l, r) | IRExpr::AddF(l, r) => simple_binop("+", body.type_of(), l, r),
-        IRExpr::SubI(l, r) | IRExpr::SubF(l, r) => simple_binop("-", body.type_of(), l, r),
+        IRExpr::AppendS(l, r) => scope.simple_nary_op("str.++", body.type_of(), &[l, r]),
+        IRExpr::AddI(l, r) | IRExpr::AddF(l, r) => scope.simple_nary_op("+", body.type_of(), &[l, r]),
+        IRExpr::SubI(l, r) | IRExpr::SubF(l, r) => scope.simple_nary_op("-", body.type_of(), &[l, r]),
         // In policylang, equality is not defined for lists so no special handling is needed
-        IRExpr::IsEq(_, l, r) => simple_binop("=", body.type_of(), l, r),
-        IRExpr::Not(b) => simple_unop("not", body.type_of(), b),
-        IRExpr::IsLessI(l, r) | IRExpr::IsLessF(l, r) => simple_binop("<", body.type_of(), l, r),
-        IRExpr::IntToFloat(b) => simple_unop("to-real", body.type_of(), b),
-        IRExpr::Path(_, obj, f) => simple_unop(&ident(f), body.type_of(), obj),
+        IRExpr::IsEq(_, l, r) => scope.simple_nary_op("=", body.type_of(), &[l, r]),
+        IRExpr::Not(b) => scope.simple_nary_op("not", body.type_of(), &[b]),
+        IRExpr::IsLessI(l, r) | IRExpr::IsLessF(l, r) => scope.simple_nary_op("<", body.type_of(), &[l, r]),
+        IRExpr::IntToFloat(b) => scope.simple_nary_op("to-real", body.type_of(), &[b]),
+        IRExpr::Path(_, obj, f) => scope.simple_nary_op(&ident(f), body.type_of(), &[obj]),
         // Avoid introducing a new expr for vars. Just reference the old var
-        IRExpr::Var(_, i) => (i.coerce(), String::new()),
+        IRExpr::Var(_, i) => Scope::empty().define(i.orig_name.clone(), &[(i.coerce(), body.type_of())], body.type_of(), ident(i)),
         // Because id's and object types are the same, find is a no-op
-        IRExpr::LookupById(_, b) => lower_expr(b),
-        IRExpr::IntConst(i) => const_val(&i.to_string(), body.type_of()),
-        IRExpr::FloatConst(f) => const_val(&f.to_string(), body.type_of()),
-        IRExpr::StringConst(s) => const_val(&format!("\"{}\"", s), body.type_of()),
-        IRExpr::BoolConst(b) => const_val(&b.to_string(), body.type_of()),
-        IRExpr::Find(coll, fields) => {
-            let expr_ident = Ident::new("expr");
-            let decl = format!(
-                "(declare-fun {} () {})\n",
-                ident(&expr_ident),
-                type_name(&body.type_of())
-            );
-
+        IRExpr::LookupById(_, b) => lower_expr(scope, b),
+        IRExpr::IntConst(i) => scope.define("const-int", &[], body.type_of(), i.to_string()),
+        IRExpr::FloatConst(f) => scope.define("const-float", &[], body.type_of(), &f.to_string()),
+        IRExpr::StringConst(s) => scope.define("const-string", &[], body.type_of(), &format!("\"{}\"", s)),
+        IRExpr::BoolConst(b) => scope.define("const-bool", &[], body.type_of(), &b.to_string()),
+        IRExpr::Find(_, fields) => {
             let mut preamble = String::new();
-            let mut equalities = vec![];
-            let quantifier = Ident::<SMTVar>::new("quant");
-            for (f, expr) in fields.iter() {
-                let (e_i, e_b) = lower_expr(expr);
-                preamble += &e_b;
-                equalities.push(format!(
-                    "(= ({} {}) {})\n",
-                    ident(f),
-                    ident(&quantifier),
-                    ident(&e_i)
-                ));
-            }
 
-            let anded_eqs = equalities.into_iter().fold("true".to_owned(), |anded, eq| {
-                format!("(and {} {})", &eq, &anded)
+            let (arr_i, arr_b) = scope.define_array(body.type_of(), |id| {
+                let mut equalities = vec![];
+                for (f, expr) in fields.iter() {
+                    let (e_i, e_b) = lower_expr(scope, expr);
+                    preamble += &e_b;
+                    equalities.push(format!(
+                        "(= ({} {}) {})\n",
+                        ident(f),
+                        ident(&id),
+                        scope.invoke(&e_i, &[])
+                    ));
+                }
+
+                format!("(and {} true)", equalities.join(" "))
             });
 
-            let assert = format!(
-                "(assert (forall (({} {})) (= {} (select {} {0}))))",
-                ident(&quantifier),
-                type_name(&ExprType::Object(coll.clone())),
-                anded_eqs,
-                ident(&expr_ident)
-            );
-
-            (expr_ident, preamble + &decl + &assert)
+            (arr_i, preamble + &arr_b)
         }
         IRExpr::Object(_, fields, template) => {
             let expr_ident = Ident::new("expr");
@@ -175,7 +137,7 @@ fn lower_expr(body: &IRExpr) -> (Ident<SMTVar>, String) {
                 type_name(&body.type_of())
             );
 
-            let smt_template = template.as_ref().map(|e| lower_expr(e));
+            let smt_template = template.as_ref().map(|e| lower_expr(scope, e));
             let mut preamble = String::new();
             let mut asserts = String::new();
             if let Some((_, ref t_b)) = smt_template {
@@ -183,7 +145,7 @@ fn lower_expr(body: &IRExpr) -> (Ident<SMTVar>, String) {
             }
             for (f, expr) in fields {
                 if let Some(expr) = expr {
-                    let (e_i, e_b) = lower_expr(expr);
+                    let (e_i, e_b) = lower_expr(scope, expr);
                     preamble += &e_b;
                     asserts += &format!(
                         "(assert (= ({} {}) {})\n",
@@ -205,80 +167,33 @@ fn lower_expr(body: &IRExpr) -> (Ident<SMTVar>, String) {
             (expr_ident, preamble + &decl + &asserts)
         }
         IRExpr::AppendL(_, l, r) => {
-            let expr_ident = Ident::new("expr");
-            let (l_i, l_b) = lower_expr(l);
-            let (r_i, r_b) = lower_expr(r);
-            let decl = format!(
-                "(declare-fun {} () {})\n",
-                ident(&expr_ident),
-                type_name(&body.type_of())
-            );
-            let assert = format!(
-                "(assert (= {} ((_ map or {} {}))))\n",
-                ident(&expr_ident),
-                ident(&l_i),
-                ident(&r_i)
-            );
+            let (l_i, l_b) = lower_expr(scope, l);
+            let (r_i, r_b) = lower_expr(scope, r);
 
-            (expr_ident, l_b + &r_b + &decl + &assert)
+            let (app_i, app_b) = scope.define("append", &[], body.type_of(), 
+            format!(
+                "((_ map or) {} {}))\n",
+                scope.invoke(&l_i, &[]),
+                scope.invoke(&r_i, &[]),
+            ));
+
+            (app_i, l_b + &r_b + &app_b)
         }
         IRExpr::List(_, exprs) => {
-            let expr_ident = Ident::new("expr");
-            let typ_name = type_name(&body.type_of());
-            let (idents, bodies): (Vec<_>, Vec<_>) = exprs.iter().map(|e| lower_expr(e)).unzip();
-            let preamble: String = bodies.join("");
-            let decl = format!("(declare-fun {} () {})\n", ident(&expr_ident), typ_name);
-
-            let empty = format!("((as const {}) false)", typ_name);
-            let list = idents.into_iter().fold(empty, |list, id| {
-                format!("(store {} {} true)", &list, ident(&id))
+            let (idents, bodies): (Vec<_>, Vec<_>) = exprs.iter().map(|e| lower_expr(scope, e)).unzip();
+            let preamble = bodies.join("");
+            let (arr_i, arr_b) = scope.define_array(body.type_of(), |some_record| {
+                let eqs = idents.iter().map(|id| format!("(= {} {})", ident(&some_record), scope.invoke(id, &[])));
+                format!("(or {} false)", spaced(eqs))
             });
 
-            let assert = format!("(assert (= {} {}))\n", ident(&expr_ident), &list);
-
-            (expr_ident, preamble + &decl + &assert)
+            
+            (arr_i, preamble + &arr_b)
         }
-        IRExpr::If(_, c, t, e) => simple_nary_op("ite", body.type_of(), &[c, t, e]),
+        IRExpr::If(_, c, t, e) => scope.simple_nary_op("ite", body.type_of(), &[c, t, e]),
     }
 }
 
-fn simple_nary_op(op: &str, typ: ExprType, exprs: &[&IRExpr]) -> (Ident<SMTVar>, String) {
-    let expr_ident = Ident::new(format!("{}-op", op));
-    let typ_name = type_name(&typ);
-
-    let (idents, bodies): (Vec<_>, Vec<_>) = exprs.iter().map(|e| lower_expr(e)).unzip();
-    let spaced_idents: String = idents.iter().map(ident).collect::<Vec<_>>().join(" ");
-    let preamble: String = bodies.join("");
-    let decl = format!("(declare-fun {} () {})\n", ident(&expr_ident), typ_name);
-    let assert = format!(
-        "(assert (= {} ({} {})))\n",
-        ident(&expr_ident),
-        op,
-        spaced_idents
-    );
-
-    (expr_ident, preamble + &decl + &assert)
-}
-
-fn simple_binop(op: &str, typ: ExprType, l: &IRExpr, r: &IRExpr) -> (Ident<SMTVar>, String) {
-    simple_nary_op(op, typ, &[l, r])
-}
-
-fn simple_unop(op: &str, typ: ExprType, body: &IRExpr) -> (Ident<SMTVar>, String) {
-    simple_nary_op(op, typ, &[body])
-}
-
-fn const_val(val: &str, typ: ExprType) -> (Ident<SMTVar>, String) {
-    let expr_ident = Ident::new("expr");
-    let typ_name = type_name(&typ);
-    let body = format!(
-        "(define-fun {} () {} {})\n",
-        ident(&expr_ident),
-        typ_name,
-        val
-    );
-    (expr_ident, body)
-}
 
 /// Lowers the schema to a String containing an SMT2LIB script
 fn lower_schema(schema: &Schema) -> String {
@@ -329,7 +244,7 @@ pub fn type_name(typ: &ExprType) -> String {
         ExprType::I64 => "Int".to_owned(),
         ExprType::F64 => "Real".to_owned(),
         ExprType::Bool => "Bool".to_owned(),
-        ExprType::List(t) => format!("(Array {} bool)", type_name(t)),
+        ExprType::List(t) => format!("(Array {} Bool)", type_name(t)),
         ExprType::Unknown(_) => panic!("ListUnknowns should never be serialized"),
 
         // Ids and objects are the same in SMT land
@@ -356,4 +271,72 @@ fn contains_unknown(typ: &ExprType) -> bool {
         ExprType::Unknown(_) => true,
         ExprType::List(t) => contains_unknown(t),
     }
+}
+
+/// Tracks which variables are in scope. Each expr is parameterized by these
+#[derive(Debug, Clone)]
+struct Scope(Vec<(Ident<SMTVar>, ExprType)>);
+
+impl Scope {
+    fn empty() -> Self {
+        Scope(vec![])
+    }
+
+    fn define(&self, name: impl AsRef<str>, args: &[(Ident<SMTVar>, ExprType)], typ: ExprType, body: impl AsRef<str>) -> (Ident<SMTVar>, String){
+        let expr_id = Ident::new("expr_".to_string() + name.as_ref());
+        let params = self.0.iter().chain(args.iter()).map(|(i, t)| format!("({} {})", ident(i), type_name(t)));
+        let smt_decl = format!("(define-fun {} ({}) {}\n\t{})\n", ident(&expr_id), spaced(params), type_name(&typ), body.as_ref());
+        (expr_id, smt_decl)
+    }
+
+    fn define_array(&self, ty: ExprType, mut gen_body: impl FnMut(&Ident<SMTVar>) -> String) -> (Ident<SMTVar>, String) {
+        let elem = Ident::new("elem");
+        let body = gen_body(&elem);
+
+        let elem_ty = match ty {
+            ExprType::List(ref it) => *it.clone(),
+            _ => unreachable!("All list exprs should have type List")
+        };
+
+        let (bool_i, bool_b) = self.define("find-fn", &[(elem.clone(), elem_ty.clone())], ExprType::Bool,
+            body);
+
+        let (arr_i, arr_b) = self.declare("find-arr", &[], ty.clone());
+        let assert_params = self.0.iter().map(|(i, t)| format!("({} {})", ident(i), type_name(t)));
+        let assert = format!("(assert (forall ({} ({} {})) (= (select {} {1}) {})))\n", spaced(assert_params), ident(&elem), type_name(&elem_ty), self.invoke(&arr_i, &[]), self.invoke(&bool_i, &[elem.clone()]));
+        (arr_i, bool_b + &arr_b + &assert)
+
+    }
+
+    fn declare(&self, name: impl AsRef<str>, args: &[ExprType], typ: ExprType) -> (Ident<SMTVar>, String){
+        let expr_id = Ident::new("expr_".to_string() + name.as_ref());
+        let params = self.0.iter().map(|(_, t)| t).chain(args.iter()).map(type_name);
+        let smt_decl = format!("(declare-fun {} ({}) {})\n", ident(&expr_id), spaced(params), type_name(&typ));
+        (expr_id, smt_decl)
+    }
+
+
+    fn invoke(&self, expr: &Ident<SMTVar>, args: &[Ident<SMTVar>]) -> String {
+        let idents = spaced(self.0.iter().map(|(i, _)| i).chain(args.iter()).map(ident));
+        format!("({} {})", ident(expr), idents)
+    }
+
+    fn simple_nary_op(&self, op: &str, typ: ExprType, exprs: &[&IRExpr]) -> (Ident<SMTVar>, String) {
+        let (idents, decls): (Vec<_>, Vec<_>) = exprs.iter().map(|e| lower_expr(self, e)).unzip();
+        let body = format!("({} {})", op, spaced(idents.iter().map(|id| self.invoke(id, &[]))));
+        let (def_i, def_b) = self.define("op".to_string() + op, &[], typ, body);
+        (def_i, decls.join("") + &def_b)
+    }
+
+    fn extend(&self, var: Ident<SMTVar>, typ: ExprType) -> Self {
+        let mut new = self.clone();
+        new.0.push((var, typ));
+        new
+    }
+
+
+}
+
+fn spaced(iter: impl Iterator<Item=impl ToString>) -> String {
+    iter.map(|elem| elem.to_string()).collect::<Vec<_>>().join(" ")
 }
