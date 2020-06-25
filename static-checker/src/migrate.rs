@@ -707,8 +707,8 @@ User {
         write: none,
     },
     pass_hash : String {
-        read: public,
-        write: public,
+        read: none,
+        write: u -> [u.id],
     },
 }
 ";
@@ -728,7 +728,7 @@ User {
     },
 }
 ";
-        let migration_text = r#"User::AddField(pass_hash: String {read: none, write: u -> [u.id],}, u -> u.username + "_hash")"#;
+        let migration_text = r#"User::AddField(pass_hash: String {read: none, write: public,}, u -> u.username + "_hash")"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
         let expected_result_text = r"@principle
@@ -742,7 +742,7 @@ User {
     },
     pass_hash : String {
         read: none,
-        write: none,
+        write: public,
     },
 }
 ";
