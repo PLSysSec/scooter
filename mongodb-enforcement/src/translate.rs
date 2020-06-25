@@ -34,7 +34,7 @@ fn get_contents(fname: &Path) -> io::Result<String> {
 
 fn policy_binder_var(policy: &Policy) -> String {
     match policy {
-        Policy::Func(Func {param, param_type: _, body: _}) => mangled_ident(param),
+        Policy::Func(Func {param, ..}) => mangled_ident(param),
         _ => "_".to_string(),
     }
 }
@@ -45,7 +45,7 @@ fn gen_policy_body(schema: &Schema, policy: &Policy) -> String {
     match policy {
         Policy::Anyone => "        PolicyValue::Public\n    }\n".to_string(),
         Policy::None => "        PolicyValue::Ids(vec![])\n    }\n".to_string(),
-        Policy::Func(Func {param: _, param_type: _, body}) => format!(
+        Policy::Func(Func {body, ..}) => format!(
             "        PolicyValue::Ids({})\n    }}\n",
             translate_queryexpr_to_idlist(schema, body)
         ),

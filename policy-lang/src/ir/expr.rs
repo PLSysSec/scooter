@@ -96,6 +96,7 @@ impl fmt::Display for ExprType {
 pub struct Func {
     pub param: Ident<Var>,
     pub param_type: ExprType,
+    pub return_type: ExprType,
     pub body: Box<IRExpr>,
 }
 
@@ -120,6 +121,7 @@ pub fn extract_func(
     Func {
         param: param_id,
         param_type,
+        return_type: exp_ret_type.clone(),
         body,
     }
 }

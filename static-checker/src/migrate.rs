@@ -385,24 +385,28 @@ fn interpret_migration_on_policy(
         if let Policy::Func(Func {
             param: p,
             param_type: ty,
+            return_type: rty,
             body,
         }) = &coll_pol.create
         {
             coll_pol.create = Policy::Func(Func {
                 param: p.clone(),
                 param_type: ty.clone(),
+                return_type: rty.clone(),
                 body: sub_expr(body, &renamed_fields),
             });
         }
         if let Policy::Func(Func {
             param: p,
             param_type: ty,
+            return_type: rty,
             body,
         }) = &coll_pol.delete
         {
             coll_pol.delete = Policy::Func(Func {
                 param: p.clone(),
                 param_type: ty.clone(),
+                return_type: rty.clone(),
                 body: sub_expr(&body, &renamed_fields),
             });
         }
@@ -424,24 +428,28 @@ fn interpret_migration_on_policy(
         if let Policy::Func(Func {
             param: p,
             param_type: ty,
+            return_type: rty,
             body,
         }) = &field_pol.read
         {
             field_pol.read = Policy::Func(Func {
                 param: p.clone(),
                 param_type: ty.clone(),
+                return_type: rty.clone(),
                 body: sub_expr(body, &renamed_fields),
             });
         }
         if let Policy::Func(Func {
             param: p,
             param_type: ty,
+            return_type: rty,
             body,
         }) = &field_pol.edit
         {
             field_pol.edit = Policy::Func(Func {
                 param: p.clone(),
                 param_type: ty.clone(),
+                return_type: rty.clone(),
                 body: sub_expr(body, &renamed_fields),
             });
         }

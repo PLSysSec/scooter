@@ -553,7 +553,7 @@ impl Evaluator<'_> {
 fn exec_query_function(ir_env: &Schema, f: &Func, arg: &Document, db_conn: &Database) -> Value {
     // Make an evaluator
     let mut evaluator = Evaluator::new(ir_env);
-    let Func { param, param_type:_, body } = f;
+    let Func { param, body, .. } = f;
     // Push the parameter to scope
     evaluator.push_scope(&param, Value::Object(arg.clone()));
     // eval
