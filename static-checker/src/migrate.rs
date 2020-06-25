@@ -616,12 +616,12 @@ fn get_policy_from_initializer(
     if sources.is_empty() {
         FieldPolicy {
             read: Policy::Anyone,
-            edit: Policy::Anyone,
+            edit: Policy::None,
         }
     } else {
         FieldPolicy {
             read: Policy::None,
-            edit: Policy::None,
+            edit: Policy::Anyone,
         }
     }
 }
