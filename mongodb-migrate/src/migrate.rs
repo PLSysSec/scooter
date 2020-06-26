@@ -285,7 +285,7 @@ impl From<Value> for Bson {
             Value::String(s) => Bson::String(s),
             Value::Object(_) => panic!("Cannot return an object where a value is expected"),
             Value::Id(i) => Bson::ObjectId(i),
-            Value::List(vs) => Bson::Array(vs.iter().map(|v| v.clone().into()).collect()),
+            Value::List(vs) => Bson::Array(vs.into_iter().map(|v| v.into()).collect()),
             Value::Bool(b) => Bson::Boolean(b),
         }
     }
@@ -298,6 +298,7 @@ impl From<Bson> for Value {
             Bson::String(s) => Value::String(s),
             Bson::ObjectId(i) => Value::Id(i),
             Bson::Boolean(b) => Value::Bool(b),
+            Bson::Array(l) => Value::List(l.into_iter().map(|v| v.into()).collect()),
             _ => panic!("These kinds of bson objects shouldn't exist"),
         }
     }
