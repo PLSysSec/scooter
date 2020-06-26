@@ -7,7 +7,7 @@ use policy_lang::ir::{
 use std::{
     io::Write,
     process::{Command, Stdio},
-    str::from_utf8,
+    str::from_utf8, fmt::Display,
 };
 
 pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, after: &Policy) -> bool {
@@ -41,149 +41,169 @@ pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, 
 pub fn gen_assert(schema: &Schema, coll: &Ident<Collection>, before: &Policy, after: &Policy) -> String {
     let schema_str = lower_schema(schema);
     let princ_type =  ExprType::Id(schema.principle.clone().expect("Schemas are guaranteed to have a policy at this point"));
-    let scope = Scope::empty();
 
-    // Lower the functions
-    let (before_i, before_b) = lower_policy(&scope, coll, before);
-    let (after_i, after_b) = lower_policy(&scope, coll, after);
+    let princ_id = Ident::new("principle");
+    let rec_id = Ident::new("rec");
 
     // Declare the principle and record
-    let (princ_i, princ_b) = scope.declare("principle", &[], princ_type);
-    let (rec_i, rec_b) = scope.declare("record", &[], ExprType::Object(coll.clone()));
+    let princ = declare(princ_id.clone(), princ_type);
+    let rec = declare(rec_id.clone(),ExprType::Object(coll.clone()));
 
-    let safety_assertion = format!(
-        "(assert (not (=> (select {} {}) (select {} {1}))))\n(check-sat)",
-        scope.invoke(&after_i, &[rec_i.clone()]),
-        ident(&princ_i),
-        scope.invoke(&before_i, &[rec_i.clone()])
-    );
-    schema_str + &before_b + &after_b + &princ_b + &rec_b + &safety_assertion
+    // Lower the functions
+    let before= lower_policy(&princ_id, &rec_id, coll, before);
+    let after = lower_policy(&princ_id, &rec_id, coll, after);
+
+
+    let safety_assertion = Statement::Assert(format!(
+        "(and {} (not {}))",
+        &after.expr,
+        &before.expr,
+    ));
+
+    schema_str + &princ.to_string() + &rec.to_string() + &before.stmts.iter().chain(after.stmts.iter()).map(Statement::to_string).collect::<String>() + &safety_assertion.to_string() + "(check-sat)"
 }
 
 #[derive(Debug, Copy, Clone)]
 struct SMTVar;
 
-fn lower_policy(scope: &Scope, coll: &Ident<Collection>, pol: &Policy) -> (Ident<SMTVar>, String) {
-    let typ = ExprType::list(ExprType::Object(coll.clone()));
 
-    match pol {
-        Policy::None => scope.define("none", &[(Ident::new("_"), ExprType::Object(coll.clone()))], typ.clone(), format!("((as const {}) false)", type_name(&typ))),
-        Policy::Anyone => scope.define("anyone", &[(Ident::new("_"), ExprType::Object(coll.clone()))], typ.clone(), format!("((as const {}) true)", type_name(&typ))),
-        Policy::Func(f) => lower_func(scope, f)
+
+struct SMTResult {
+    stmts: Vec<Statement>,
+    expr: String,
+}
+
+impl SMTResult {
+    fn expr(e: impl ToString) -> Self {
+        Self {
+            stmts: vec![], expr: e.to_string()
+        }
+    }
+
+    fn new(stmts: Vec<Statement>, expr: impl ToString) -> Self {
+        Self {
+            stmts, expr: expr.to_string()
+        }
     }
 }
 
-fn lower_func(scope: &Scope, func: &Func) -> (Ident<SMTVar>, String) {
-    lower_expr(&scope.extend(func.param.coerce(), func.param_type.clone()), &func.body)
+fn lower_policy(princ: &Ident<SMTVar>, rec: &Ident<SMTVar>, coll: &Ident<Collection>, pol: &Policy) -> SMTResult {
+    let typ = ExprType::list(ExprType::Object(coll.clone()));
+    let id= Ident::new("policy");
+    let stmts = match pol {
+        Policy::None => vec![define(id.clone(),  ExprType::Bool, false)],
+        Policy::Anyone => vec![define(id.clone(), ExprType::Bool, true)],
+        Policy::Func(f) => {
+            // Declare the function param as a synonym for the record.
+            // This will allow easy lowering of var's while still ensuring
+            // that every policy references the same record
+            let param = define(f.param.coerce(), f.param_type.clone(), ident(rec));
+            let f = lower_expr(princ, &f.body);
+            let func = define(id.clone(), ExprType::Bool, &f.expr);
+
+            let mut out = f.stmts;
+            out.insert(0, param);
+            out.push(func);
+            out
+        }
+    };
+
+    SMTResult::new(stmts, ident(&id))
 }
 
-fn lower_expr(scope: &Scope, body: &IRExpr) -> (Ident<SMTVar>, String) {
+
+fn lower_expr(target: &Ident<SMTVar>, body: &IRExpr) -> SMTResult {
     debug_assert!(!contains_unknown(&body.type_of()));
 
     match body {
-        IRExpr::AppendS(l, r) => scope.simple_nary_op("str.++", body.type_of(), &[l, r]),
-        IRExpr::AddI(l, r) | IRExpr::AddF(l, r) => scope.simple_nary_op("+", body.type_of(), &[l, r]),
-        IRExpr::SubI(l, r) | IRExpr::SubF(l, r) => scope.simple_nary_op("-", body.type_of(), &[l, r]),
+        IRExpr::AppendS(l, r) => simple_nary_op("str.++", target, body.type_of(), &[l, r]),
+        IRExpr::AddI(l, r) | IRExpr::AddF(l, r) => simple_nary_op("+", target, body.type_of(), &[l, r]),
+        IRExpr::SubI(l, r) | IRExpr::SubF(l, r) => simple_nary_op("-", target, body.type_of(), &[l, r]),
         // In policylang, equality is not defined for lists so no special handling is needed
-        IRExpr::IsEq(_, l, r) => scope.simple_nary_op("=", body.type_of(), &[l, r]),
-        IRExpr::Not(b) => scope.simple_nary_op("not", body.type_of(), &[b]),
-        IRExpr::IsLessI(l, r) | IRExpr::IsLessF(l, r) => scope.simple_nary_op("<", body.type_of(), &[l, r]),
-        IRExpr::IntToFloat(b) => scope.simple_nary_op("to-real", body.type_of(), &[b]),
-        IRExpr::Path(_, obj, f) => scope.simple_nary_op(&ident(f), body.type_of(), &[obj]),
-        // Avoid introducing a new expr for vars. Just reference the old var
-        IRExpr::Var(_, i) => Scope::empty().define(i.orig_name.clone(), &[(i.coerce(), body.type_of())], body.type_of(), ident(i)),
+        IRExpr::IsEq(_, l, r) => simple_nary_op("=", target, body.type_of(), &[l, r]),
+        IRExpr::Not(b) => simple_nary_op("not", target, body.type_of(), &[b]),
+        IRExpr::IsLessI(l, r) | IRExpr::IsLessF(l, r) => simple_nary_op("<", target, body.type_of(), &[l, r]),
+        IRExpr::IntToFloat(b) => simple_nary_op("to-real", target, body.type_of(), &[b]),
+        IRExpr::Path(_, obj, f) => simple_nary_op(&ident(f), target, body.type_of(), &[obj]),
+        IRExpr::Var(_, i) => SMTResult::expr(ident(i)),
         // Because id's and object types are the same, find is a no-op
-        IRExpr::LookupById(_, b) => lower_expr(scope, b),
-        IRExpr::IntConst(i) => scope.define("const-int", &[], body.type_of(), i.to_string()),
-        IRExpr::FloatConst(f) => scope.define("const-float", &[], body.type_of(), &f.to_string()),
-        IRExpr::StringConst(s) => scope.define("const-string", &[], body.type_of(), &format!("\"{}\"", s)),
-        IRExpr::BoolConst(b) => scope.define("const-bool", &[], body.type_of(), &b.to_string()),
+        IRExpr::LookupById(_, b) => lower_expr(target, b),
+        IRExpr::IntConst(i) => SMTResult::expr(i),
+        IRExpr::FloatConst(f) => SMTResult::expr(f),
+        IRExpr::StringConst(s) => SMTResult::expr(format!("\"{}\"", s)),
+        IRExpr::BoolConst(b) => SMTResult::expr(b),
         IRExpr::Find(_, fields) => {
-            let mut preamble = String::new();
+            let mut stmts = vec![];
+            let mut equalities = vec![];
+            for (f, expr) in fields.iter() {
+                let field_expr = lower_expr(target, expr);
 
-            let (arr_i, arr_b) = scope.define_array(body.type_of(), |id| {
-                let mut equalities = vec![];
-                for (f, expr) in fields.iter() {
-                    let (e_i, e_b) = lower_expr(scope, expr);
-                    preamble += &e_b;
-                    equalities.push(format!(
-                        "(= ({} {}) {})\n",
-                        ident(f),
-                        ident(&id),
-                        scope.invoke(&e_i, &[])
-                    ));
-                }
+                equalities.push(format!(
+                    "(= ({} {}) {})\n",
+                    ident(f),
+                    ident(target),
+                    &field_expr.expr
+                ));
 
-                format!("(and {} true)", equalities.join(" "))
-            });
+                stmts.extend(field_expr.stmts)
+            }
 
-            (arr_i, preamble + &arr_b)
+            let anded_eqs = format!("(and {} true)", spaced(equalities.into_iter()));
+
+            SMTResult::new(stmts, anded_eqs)
         }
-        IRExpr::Object(_, fields, template) => {
-            let expr_ident = Ident::new("expr");
-            let decl = format!(
-                "(declare-fun {} () {})\n",
-                ident(&expr_ident),
-                type_name(&body.type_of())
-            );
+        IRExpr::Object(coll, fields, template) => {
+            let obj_id = Ident::new("obj_lit");
+            let obj = declare(obj_id.clone(), ExprType::Object(coll.clone()));
+            let template_expr = template.as_ref().map(|t| lower_expr(target, t));
 
-            let smt_template = template.as_ref().map(|e| lower_expr(scope, e));
-            let mut preamble = String::new();
-            let mut asserts = String::new();
-            if let Some((_, ref t_b)) = smt_template {
-                preamble += t_b;
-            }
-            for (f, expr) in fields {
-                if let Some(expr) = expr {
-                    let (e_i, e_b) = lower_expr(scope, expr);
-                    preamble += &e_b;
-                    asserts += &format!(
-                        "(assert (= ({} {}) {})\n",
-                        ident(f),
-                        ident(&expr_ident),
-                        ident(&e_i)
-                    );
+            let mut stmts = vec![obj];
+            let mut exprs = vec![];
+            for (f_id, f_expr) in fields.iter() {
+                if let Some(e) = f_expr {
+                    let low_e = lower_expr(target, e);
+                    exprs.push(format!("(= {} {})", ident(&obj_id), &low_e.expr));
+                    stmts.extend(low_e.stmts);
                 } else {
-                    let (t_i, _) = smt_template.as_ref().unwrap();
-                    asserts += &format!(
-                        "(assert (= ({} {}) ({0} {})))\n",
-                        ident(f),
-                        ident(&expr_ident),
-                        ident(t_i)
-                    )
+                    exprs.push(format!("(= {} {})", ident(&obj_id), template_expr.as_ref().unwrap().expr))
                 }
             }
 
-            (expr_ident, preamble + &decl + &asserts)
+            stmts.push(Statement::Assert(format!("(and {})", spaced(exprs.into_iter()))));
+
+            SMTResult::new(stmts, ident(&obj_id))
         }
         IRExpr::Map(_list_expr, _func) => {
             panic!("Unimplemented");
         }
         IRExpr::AppendL(_, l, r) => {
-            let (l_i, l_b) = lower_expr(scope, l);
-            let (r_i, r_b) = lower_expr(scope, r);
+            let left= lower_expr(target, l);
+            let right = lower_expr(target, r);
+            let expr = format!("(or {} {})", &left.expr, &right.expr);
 
-            let (app_i, app_b) = scope.define("append", &[], body.type_of(),
-            format!(
-                "((_ map or) {} {}))\n",
-                scope.invoke(&l_i, &[]),
-                scope.invoke(&r_i, &[]),
-            ));
-
-            (app_i, l_b + &r_b + &app_b)
+            let mut stmts = left.stmts;
+            stmts.extend(right.stmts);
+            SMTResult::new(stmts, expr)
         }
         IRExpr::List(_, exprs) => {
-            let (idents, bodies): (Vec<_>, Vec<_>) = exprs.iter().map(|e| lower_expr(scope, e)).unzip();
-            let preamble = bodies.join("");
-            let (arr_i, arr_b) = scope.define_array(body.type_of(), |some_record| {
-                let eqs = idents.iter().map(|id| format!("(= {} {})", ident(&some_record), scope.invoke(id, &[])));
-                format!("(or {} false)", spaced(eqs))
-            });
+            let mut stmts = vec![];
+            let mut equalities = vec![];
+            for expr in exprs.iter() {
+                let elem_expr = lower_expr(target, expr);
 
+                equalities.push(format!(
+                    "(= {} {})\n",
+                    ident(target),
+                    &elem_expr.expr
+                ));
 
-            (arr_i, preamble + &arr_b)
+                stmts.extend(elem_expr.stmts)
+            }
+
+            let expr = format!("(or {} false)", spaced(equalities.into_iter()));
+            SMTResult::new(stmts, expr)
         }
-        IRExpr::If(_, c, t, e) => scope.simple_nary_op("ite", body.type_of(), &[c, t, e]),
+        IRExpr::If(_, c, t, e) => simple_nary_op("ite", target, body.type_of(), &[c, t, e]),
     }
 }
 
@@ -219,12 +239,7 @@ fn lower_collection(coll: &Collection) -> String {
             }
         })
         .collect();
-    let elements = format!(
-        "(declare-fun {} () {})\n",
-        all(&coll.name),
-        type_name(&ExprType::list(ExprType::Object(coll.name.clone())))
-    );
-    sort + &fields + &elements
+    sort + &fields
 }
 
 pub fn ident<T>(ident: &Ident<T>) -> String {
@@ -245,11 +260,6 @@ pub fn type_name(typ: &ExprType) -> String {
     }
 }
 
-/// Produces the identifier for the complete set of records for a collection
-pub fn all(coll: &Ident<Collection>) -> String {
-    format!("{}_all", ident(coll))
-}
-
 #[cfg(debug_assertions)]
 /// A helper function used for debug asserts to guarantee we don't unknown types (i.e. empty lists)
 fn contains_unknown(typ: &ExprType) -> bool {
@@ -266,68 +276,78 @@ fn contains_unknown(typ: &ExprType) -> bool {
     }
 }
 
-/// Tracks which variables are in scope. Each expr is parameterized by these
+
+
+
+
+fn simple_nary_op(op: &str, target: &Ident<SMTVar>, typ: ExprType, exprs: &[&IRExpr]) -> SMTResult {
+    let (stmts, exprs): (Vec<Vec<Statement>>, Vec<String>) = exprs.into_iter().map(|e| lower_expr(target, e)).map(|r| (r.stmts, r.expr)).unzip();
+    let body = format!("({} {})", op, spaced(exprs.iter()));
+    SMTResult::new(stmts.concat(), body)
+}
+
+    // fn define_array(&self, ty: ExprType, mut gen_body: impl FnMut(&Ident<SMTVar>) -> String) -> (Ident<SMTVar>, String) {
+    //     let elem = Ident::new("elem");
+    //     let body = gen_body(&elem);
+
+    //     let elem_ty = match ty {
+    //         ExprType::List(ref it) => *it.clone(),
+    //         _ => unreachable!("All list exprs should have type List")
+    //     };
+
+    //     let (bool_i, bool_b) = self.define("find-fn", &[(elem.clone(), elem_ty.clone())], ExprType::Bool,
+    //         body);
+
+    //     let (arr_i, arr_b) = self.declare("find-arr", &[], ty.clone());
+    //     let assert_params = self.0.iter().map(|(i, t)| format!("({} {})", ident(i), type_name(t)));
+    //     let assert = format!("(assert (forall ({} ({} {})) (= (select {} {1}) {})))\n", spaced(assert_params), ident(&elem), type_name(&elem_ty), self.invoke(&arr_i, &[]), self.invoke(&bool_i, &[elem.clone()]));
+    //     (arr_i, bool_b + &arr_b + &assert)
+
+    // }
+
 #[derive(Debug, Clone)]
-struct Scope(Vec<(Ident<SMTVar>, ExprType)>);
+enum Statement {
+    Decl {
+        id: Ident<SMTVar>,
+        typ: ExprType,
+    },
+    Def {
+        id: Ident<SMTVar>,
+        typ: ExprType,
+        body: String
+    },
+    Assert(String),
+}
 
-impl Scope {
-    fn empty() -> Self {
-        Scope(vec![])
+impl Display for Statement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Statement::Decl { id, typ } => {
+                write!(f, "(declare-fun {} () {})\n", ident(id), type_name(typ))
+            }
+            Statement::Def { id, typ, body } => {
+                write!(f, "(define-fun {} () {}\n\t{})\n", ident(id), type_name(typ), &body)
+            }
+            Statement::Assert(s) => {
+                write!(f, "(assert {})\n", s)
+            }
+        }
     }
+}
 
-    fn define(&self, name: impl AsRef<str>, args: &[(Ident<SMTVar>, ExprType)], typ: ExprType, body: impl AsRef<str>) -> (Ident<SMTVar>, String){
-        let expr_id = Ident::new("expr_".to_string() + name.as_ref());
-        let params = self.0.iter().chain(args.iter()).map(|(i, t)| format!("({} {})", ident(i), type_name(t)));
-        let smt_decl = format!("(define-fun {} ({}) {}\n\t{})\n", ident(&expr_id), spaced(params), type_name(&typ), body.as_ref());
-        (expr_id, smt_decl)
+fn declare(id: Ident<SMTVar>, typ: ExprType) -> Statement {
+    Statement::Decl {
+        id,
+        typ
     }
+}
 
-    fn define_array(&self, ty: ExprType, mut gen_body: impl FnMut(&Ident<SMTVar>) -> String) -> (Ident<SMTVar>, String) {
-        let elem = Ident::new("elem");
-        let body = gen_body(&elem);
-
-        let elem_ty = match ty {
-            ExprType::List(ref it) => *it.clone(),
-            _ => unreachable!("All list exprs should have type List")
-        };
-
-        let (bool_i, bool_b) = self.define("find-fn", &[(elem.clone(), elem_ty.clone())], ExprType::Bool,
-            body);
-
-        let (arr_i, arr_b) = self.declare("find-arr", &[], ty.clone());
-        let assert_params = self.0.iter().map(|(i, t)| format!("({} {})", ident(i), type_name(t)));
-        let assert = format!("(assert (forall ({} ({} {})) (= (select {} {1}) {})))\n", spaced(assert_params), ident(&elem), type_name(&elem_ty), self.invoke(&arr_i, &[]), self.invoke(&bool_i, &[elem.clone()]));
-        (arr_i, bool_b + &arr_b + &assert)
-
+fn define(id: Ident<SMTVar>, typ: ExprType, body: impl ToString) -> Statement {
+    Statement::Def {
+        id, 
+        typ, 
+        body: body.to_string(),
     }
-
-    fn declare(&self, name: impl AsRef<str>, args: &[ExprType], typ: ExprType) -> (Ident<SMTVar>, String){
-        let expr_id = Ident::new("expr_".to_string() + name.as_ref());
-        let params = self.0.iter().map(|(_, t)| t).chain(args.iter()).map(type_name);
-        let smt_decl = format!("(declare-fun {} ({}) {})\n", ident(&expr_id), spaced(params), type_name(&typ));
-        (expr_id, smt_decl)
-    }
-
-
-    fn invoke(&self, expr: &Ident<SMTVar>, args: &[Ident<SMTVar>]) -> String {
-        let idents = spaced(self.0.iter().map(|(i, _)| i).chain(args.iter()).map(ident));
-        format!("({} {})", ident(expr), idents)
-    }
-
-    fn simple_nary_op(&self, op: &str, typ: ExprType, exprs: &[&IRExpr]) -> (Ident<SMTVar>, String) {
-        let (idents, decls): (Vec<_>, Vec<_>) = exprs.iter().map(|e| lower_expr(self, e)).unzip();
-        let body = format!("({} {})", op, spaced(idents.iter().map(|id| self.invoke(id, &[]))));
-        let (def_i, def_b) = self.define("op".to_string() + op, &[], typ, body);
-        (def_i, decls.join("") + &def_b)
-    }
-
-    fn extend(&self, var: Ident<SMTVar>, typ: ExprType) -> Self {
-        let mut new = self.clone();
-        new.0.push((var, typ));
-        new
-    }
-
-
 }
 
 fn spaced(iter: impl Iterator<Item=impl ToString>) -> String {
