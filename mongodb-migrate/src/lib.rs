@@ -3,7 +3,7 @@ pub use crate::migrate::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bson::{bson, doc, Document};
+    use bson::{bson, doc, Document, Bson};
     use std::fs::read_to_string;
 
     mod types;
@@ -672,7 +672,7 @@ mod tests {
 
     #[test]
     fn stamp_messages() {
-        // The name of the user collection
+        // The name of the message collection
         let mcol_name = "Message".to_string();
         // Create a connection to the database
         let db_name = "stamp_messages_test".to_string();
@@ -779,5 +779,63 @@ mod tests {
             .expect("Failed to retreive message #2 doc (2)");
 
         assert_eq!(m4_doc.get_bool("popular_sender").unwrap(), false);
+    }
+    #[test]
+    fn identity_using_map() {
+        // The name of the users collection
+        let mcol_name = "MultiMessage".to_string();
+        // Create a connection to the database
+        let db_name = "identity_using_map_test".to_string();
+        let db_conn = get_dbconn(&db_name);
+        let users: Vec<_> = vec![
+            user! {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+                num_followers: 42,
+            },
+            user! {
+                username: "John".to_string(),
+                pass_hash: "john_hash".to_string(),
+                num_followers: 0,
+            },
+        ];
+        // Insert the users into the database, and get back their ids
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let (uid_alex, uid_john) = match uids.as_slice() {
+            [id1, id2] => (id1, id2),
+            _ => panic!("Not the right number of returned ids"),
+        };
+        let alex_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_alex.clone().into()));
+        let m_id = MultiMessage::insert_one(
+            alex_conn,
+            multimessage! { from: uid_alex.clone(),
+                            to: vec![uid_john.clone(), uid_alex.clone()],
+                            text: "Suuuup everyone".to_string() },
+        )
+        .unwrap();
+        migrate(DbConf {host: "localhost".to_string(), port: 27017, db_name},
+                &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
+                r#"
+                     MultiMessage::ChangeField(to, [Id(User)], u -> u.to.map(id -> id))
+                     "#,
+                "test_migration")
+            .expect("migration failed");
+        let m_doc = db_conn
+            .mongo_conn
+            .collection(&mcol_name)
+            .find_one(Some(doc! {"_id": m_id}), None)
+            .expect("Failed to retreive message #1 doc")
+            .expect("Failed to retreive message #1 doc (2)");
+        let resulting_to = m_doc.get_array("to").unwrap();
+        assert_eq!(resulting_to.len(), 2);
+        match (&resulting_to[0], &resulting_to[1]) {
+            (Bson::ObjectId(first), Bson::ObjectId(second)) => {
+                assert_eq!(TypedRecordId::<User>::from(first.clone()), *uid_john);
+                assert_eq!(TypedRecordId::<User>::from(second.clone()), *uid_alex);
+            }
+            _ => panic!("result wasn't the right type!")
+        };
     }
 }

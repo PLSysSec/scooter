@@ -35,3 +35,21 @@ User {
         write: none,
     },
 }
+MultiMessage {
+    create: m -> [m.from],
+    delete: none,
+    from : Id(User) {
+        read: m -> [m.from] +  m.to,
+        write: none,
+    },
+
+    to : [Id(User)] {
+        read: m -> m.to + [m.from],
+        write: none,
+    },
+
+    text : String {
+        read: m -> [m.from],
+        write: none,
+    },
+}
