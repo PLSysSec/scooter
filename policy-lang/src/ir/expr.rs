@@ -182,6 +182,8 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
             }
         }
         IRExpr::Map(list_expr, func) => {
+            func.param_type = apply_ty(type_map, &func.param_type);
+            func.return_type = apply_ty(type_map, &func.return_type);
             resolve_types(type_map, &mut func.body);
             resolve_types(type_map, list_expr);
         }
