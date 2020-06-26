@@ -225,7 +225,7 @@ fn interpret_migration_on_policy(
                 let inferred_policy = get_policy_from_initializer(&schema, field.clone(), init);
                 let new_read_fine = is_as_strict(&schema, &coll,
                                                  &inferred_policy.read,
-                                                 &pol.read);
+                                                 &pol.read).is_ok();
                 if !new_read_fine {
                     return Err("Cannot determine that the given field policy \
                                 is tight enough for the values that flow into it."
@@ -293,9 +293,9 @@ fn interpret_migration_on_policy(
                 let old_policy = result_policy.field_policies[&field].clone();
                 if match kind {
                     FieldPolicyKind::Read => !is_as_strict(&schema, &coll,
-                                                           &old_policy.read, &new_policy),
+                                                           &old_policy.read, &new_policy).is_ok(),
                     FieldPolicyKind::Edit => !is_as_strict(&schema, &coll,
-                                                            &new_policy, &old_policy.edit),
+                                                            &new_policy, &old_policy.edit).is_ok(),
                 } {
                     return Err(
                         "Cannot determine that the new field policy is tighter than the old one"
@@ -328,9 +328,9 @@ fn interpret_migration_on_policy(
                     // afterwards, which would be a problem except
                     // this command doesb't modify the schema.
                     CollectionPolicyKind::Create => !is_as_strict(&schema, &coll,
-                                                                  &old_policy.create, &new_policy),
+                                                                  &old_policy.create, &new_policy).is_ok(),
                     CollectionPolicyKind::Delete => !is_as_strict(&schema, &coll,
-                                                                  &old_policy.delete, &new_policy),
+                                                                  &old_policy.delete, &new_policy).is_ok(),
                 } {
                     return Err("Cannot determine that the new collection policy is tighter than the old one"
                                .to_string());

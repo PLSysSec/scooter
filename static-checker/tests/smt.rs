@@ -35,8 +35,8 @@ fn foo() {
     let before = func(&schema, "u -> []", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
     let after = func(&schema, "u -> [u.id]", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
 
-    assert!(!is_as_strict(&schema, &user.name, &before, &after));
-    assert!(is_as_strict(&schema, &user.name, &before, &Policy::None));
+    assert!(!is_as_strict(&schema, &user.name, &before, &after).is_ok());
+    assert!(is_as_strict(&schema, &user.name, &before, &Policy::None).is_ok());
 }
 
 #[test]
@@ -62,6 +62,6 @@ fn find() {
     let before = func(&schema, "u -> User::Find({ name: \"John\" })", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Object(user.name.clone())));
     let after = func(&schema, "u -> (if u.name == (\"Jo\" + \"hn\") then [u.id] else [])", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
 
-    assert!(is_as_strict(&schema, &user.name, &before, &after));
-    assert!(!is_as_strict(&schema, &user.name, &after, &before));
+    assert!(is_as_strict(&schema, &user.name, &before, &after).is_ok());
+    eprintln!("{}", is_as_strict(&schema, &user.name, &after, &before).expect_err("strictness check should fail"));
 }
