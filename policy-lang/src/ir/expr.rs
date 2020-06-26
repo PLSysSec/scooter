@@ -568,6 +568,10 @@ impl LoweringContext {
                 let param_ty = ExprType::Unknown(Ident::new("map_param"));
                 let list_ir_expr = self.extract_ir_expr(schema, def_map.clone(), list_expr);
                 let list_ir_expr = self.coerce(&ExprType::list(param_ty.clone()), list_ir_expr);
+                let param_ty = match list_ir_expr.type_of() {
+                    ExprType::List(p) => *p,
+                    _ => unreachable!("We just set the type")
+                };
                 let param_ident = Ident::new(func.param.clone());
                 let body_expr = self.extract_ir_expr(schema, def_map.extend(&param_ident.orig_name,
                                                                             param_ident.clone(),

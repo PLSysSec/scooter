@@ -158,8 +158,17 @@ fn lower_expr(target: &Ident<SMTVar>, body: &IRExpr) -> SMTResult {
 
             SMTResult::new(stmts, ident(&obj_id))
         }
-        IRExpr::Map(_list_expr, _func) => {
-            panic!("Unimplemented");
+        IRExpr::Map(list_expr, func) => {
+            let obj = declare(func.param.coerce(), &[], func.param_type.clone());
+            let mut list_expr = lower_expr(&func.param.coerce(), &list_expr);
+            let mut func_expr = lower_expr(&func.param.coerce(), &func.body);
+            let assert = Statement::Assert(format!("(= {} {})", &func_expr.expr, ident(target)));
+            
+            let mut out = vec![obj];
+            out.append(&mut list_expr.stmts);
+            out.append(&mut func_expr.stmts);
+            out.push(assert);
+            SMTResult::new(out, list_expr.expr)
         }
         IRExpr::AppendL(_, l, r) => {
             let left= lower_expr(target, l);

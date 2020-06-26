@@ -65,3 +65,43 @@ fn find() {
     assert!(is_as_strict(&schema, &user.name, &before, &after).is_ok());
     eprintln!("{}", is_as_strict(&schema, &user.name, &after, &before).expect_err("strictness check should fail"));
 }
+
+#[test]
+fn friends() {
+    let before_policy = schema_policy(
+        r#"
+        @principle
+        User {
+            create: public,
+            delete: none,
+
+            name: String {
+                read: none,
+                write: none, 
+            },
+        }
+
+        Friendship {
+            create: none,
+            delete: none,
+            from: Id(User) {
+                read: none,
+                write: none,
+            },
+            to: Id(User){
+                read: none,
+                write:none,
+            },
+        }
+
+    "#,
+    );
+
+    let schema = before_policy.schema;
+    let user = schema.find_collection("User").unwrap();
+    let before = func(&schema, "u -> [u.id] + (Friendship::Find({ from: u.id }).map(f -> f.to))", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
+    let after = func(&schema, "u -> [u.id]", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
+
+    assert!(is_as_strict(&schema, &user.name, &before, &after).is_ok());
+    eprintln!("{}", is_as_strict(&schema, &user.name, &after, &before).expect_err("strictness check should fail"));
+}
