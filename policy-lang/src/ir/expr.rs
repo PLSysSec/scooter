@@ -568,7 +568,7 @@ impl LoweringContext {
                 let list_ir_expr = self.extract_ir_expr(schema, def_map.clone(), list_expr);
                 let item_type = match list_ir_expr.type_of() {
                     ExprType::List(inner_ty) => inner_ty.as_ref().clone(),
-                    _ => panic!("Runtime type error! Map caller is not a list"),
+                    _ => panic!("Type error map caller is not a list"),
                 };
                 let param_ident = Ident::new(func.param.clone());
                 let body_expr = self.extract_ir_expr(schema, def_map.extend(&param_ident.orig_name,
