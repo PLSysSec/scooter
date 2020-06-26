@@ -562,8 +562,20 @@ impl LoweringContext {
 
                 IRExpr::Object(coll.name.clone(), ir_fields, texpr)
             }
-            ast::QueryExpr::Map(_list_expr, _func) => {
-                panic!("Unimplemented!")
+            ast::QueryExpr::Map(list_expr, func) => {
+                let list_ir_expr = self.extract_ir_expr(schema, def_map.clone(), list_expr);
+                let item_type = match list_ir_expr.type_of() {
+                    ExprType::List(inner_ty) => inner_ty.as_ref().clone(),
+                    _ => panic!("Runtime type error! Map caller is not a list"),
+                };
+                let param_ident = Ident::new(func.param.clone());
+                let body_expr = self.extract_ir_expr(schema, def_map.extend(&param_ident.orig_name,
+                                                                            param_ident.clone(),
+                                                                            item_type.clone()),
+                                                     &func.expr);
+                IRExpr::Map(list_ir_expr, Func { param: param_ident, param_type: item_type,
+                                                 return_type: body_expr.type_of(),
+                                                 body: body_expr })
             }
             ast::QueryExpr::Find(coll_name, fields) => {
                 let coll = schema.find_collection(coll_name).expect(&format!(
