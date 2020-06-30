@@ -206,6 +206,7 @@ impl ExtractionContext {
             FieldType::I64 => ExprType::I64,
             FieldType::F64 => ExprType::F64,
             FieldType::Bool => ExprType::Bool,
+            FieldType::DateTime => ExprType::DateTime,
             FieldType::Id(ref name) => ExprType::Id(
                 self.coll_idents.get(name).expect(
                     &format!("Bad type Id({}): couldn't find collection {}; collections are {:?}",
@@ -229,6 +230,7 @@ pub(crate) fn extract_type(schema: &Schema, ty: &ast::FieldType) -> ExprType {
         FieldType::String => ExprType::String,
         FieldType::I64 => ExprType::I64,
         FieldType::F64 => ExprType::F64,
+        FieldType::DateTime => ExprType::DateTime,
         FieldType::Bool => ExprType::Bool,
         FieldType::Id(ref name) => {
             let coll = schema

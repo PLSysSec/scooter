@@ -5,6 +5,7 @@ use super::{
 use crate::ast;
 use std::iter;
 use std::{collections::HashMap, fmt, rc::Rc};
+use chrono::{DateTime, Utc, TimeZone};
 
 /// A marker struct used to distinguise Ident<Var> from other idents.
 #[derive(Debug, Clone, Copy)]
@@ -53,6 +54,7 @@ pub enum ExprType {
     I64,
     F64,
     Bool,
+    DateTime,
     List(Box<ExprType>),
     Object(Ident<Collection>),
     /// Represents an unresolved type. These won't exist after lowering
@@ -85,6 +87,7 @@ impl fmt::Display for ExprType {
             ExprType::I64 => write!(f, "I64"),
             ExprType::F64 => write!(f, "F64"),
             ExprType::Bool => write!(f, "Bool"),
+            ExprType::DateTime => write!(f, "DateTime"),
             ExprType::List(ty) => write!(f, "List({})", ty),
             ExprType::Object(coll) => write!(f, "{}", coll.orig_name),
             ExprType::Unknown(id) => write!(f, "{}_{}", &id.orig_name, id.index),
@@ -156,6 +159,7 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
         IRExpr::AppendS(l, r)
         | IRExpr::IsLessI(l, r)
         | IRExpr::IsLessF(l, r)
+        | IRExpr::IsLessD(l, r)
         | IRExpr::AddI(l, r)
         | IRExpr::AddF(l, r)
         | IRExpr::SubI(l, r)
@@ -205,7 +209,9 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
             resolve_types(type_map, e);
         }
 
-        IRExpr::IntConst(_)
+        IRExpr::Now
+        | IRExpr::DateTimeConst(..)
+        | IRExpr::IntConst(_)
         | IRExpr::FloatConst(_)
         | IRExpr::StringConst(_)
         | IRExpr::BoolConst(_) => {}
@@ -219,6 +225,7 @@ fn apply_ty(type_map: &HashMap<Ident<ExprType>, ExprType>, ty: &ExprType) -> Exp
         | ExprType::I64
         | ExprType::F64
         | ExprType::Object(_)
+        | ExprType::DateTime
         | ExprType::Bool => ty.clone(),
         ExprType::List(lty) => ExprType::list(apply_ty(type_map, lty)),
         ExprType::Unknown(id) => apply_ty(type_map, &type_map[id]),
@@ -256,6 +263,8 @@ pub enum IRExpr {
     /// Inequalities on numbers
     IsLessI(Box<IRExpr>, Box<IRExpr>),
     IsLessF(Box<IRExpr>, Box<IRExpr>),
+    /// Inequalities on dates
+    IsLessD(Box<IRExpr>, Box<IRExpr>),
 
     /// Convert an integer into a float. These nodes don't appear in
     /// syntax, but are inserted by the typechecker.
@@ -292,6 +301,11 @@ pub enum IRExpr {
     List(ExprType, Vec<Box<IRExpr>>),
     /// Conditional expression
     If(ExprType, Box<IRExpr>, Box<IRExpr>, Box<IRExpr>),
+
+    /// Date values
+    Now,
+    DateTimeConst(DateTime<Utc>),
+
     /// Constant primitive values
     IntConst(i64),
     FloatConst(f64),
@@ -357,7 +371,7 @@ impl LoweringContext {
 
                 let typ = left.type_of();
                 match &typ {
-                    ExprType::I64 | ExprType::F64 | ExprType::String => {
+                    ExprType::I64 | ExprType::F64 | ExprType::String | ExprType::DateTime => {
                         IRExpr::IsEq(typ, left, right)
                     }
                     _ => panic!(
@@ -374,7 +388,7 @@ impl LoweringContext {
 
                 let typ = left.type_of();
                 match &typ {
-                    ExprType::I64 | ExprType::F64 | ExprType::Id(_) => {
+                    ExprType::I64 | ExprType::F64 | ExprType::Id(_) | ExprType::DateTime => {
                         IRExpr::Not(Box::new(IRExpr::IsEq(typ, left, right)))
                     }
                     _ => panic!(
@@ -401,6 +415,7 @@ impl LoweringContext {
                 match &left.type_of() {
                     ExprType::I64 => IRExpr::IsLessI(left, right),
                     ExprType::F64 => IRExpr::IsLessF(left, right),
+                    ExprType::DateTime => IRExpr::IsLessD(left, right),
                     _ => panic!(
                         "`<` operation not defined for types: {} + {}",
                         left.type_of(),
@@ -416,6 +431,7 @@ impl LoweringContext {
                 match &left.type_of() {
                     ExprType::I64 => IRExpr::Not(Box::new(IRExpr::IsLessI(right, left))),
                     ExprType::F64 => IRExpr::Not(Box::new(IRExpr::IsLessF(right, left))),
+                    ExprType::DateTime => IRExpr::Not(Box::new(IRExpr::IsLessD(right, left))),
                     _ => panic!(
                         "`<=` operation not defined for types: {} + {}",
                         left.type_of(),
@@ -431,6 +447,7 @@ impl LoweringContext {
                 match &left.type_of() {
                     ExprType::I64 => IRExpr::IsLessI(right, left),
                     ExprType::F64 => IRExpr::IsLessF(right, left),
+                    ExprType::DateTime => IRExpr::IsLessD(right, left),
                     _ => panic!(
                         "`>` operation not defined for types: {} + {}",
                         left.type_of(),
@@ -446,6 +463,7 @@ impl LoweringContext {
                 match &left.type_of() {
                     ExprType::I64 => IRExpr::Not(Box::new(IRExpr::IsLessI(left, right))),
                     ExprType::F64 => IRExpr::Not(Box::new(IRExpr::IsLessF(left, right))),
+                    ExprType::DateTime => IRExpr::Not(Box::new(IRExpr::IsLessD(left, right))),
                     _ => panic!(
                         "`>=` operation not defined for types: {} + {}",
                         left.type_of(),
@@ -463,6 +481,10 @@ impl LoweringContext {
             ast::QueryExpr::FloatConst(val) => IRExpr::FloatConst(*val),
             ast::QueryExpr::StringConst(val) => IRExpr::StringConst(val.clone()),
             ast::QueryExpr::BoolConst(val) => IRExpr::BoolConst(*val),
+            ast::QueryExpr::DateTimeConst(mo, d, y, h, mi, s) => {
+                IRExpr::DateTimeConst(Utc.ymd(*y as i32, *mo, *d).and_hms(*h, *mi, *s))
+            }
+            ast::QueryExpr::Now => IRExpr::Now,
             ast::QueryExpr::If(cond, then, els) => {
                 let cond = self.extract_ir_expr(schema, def_map.clone(), cond);
                 let then = self.extract_ir_expr(schema, def_map.clone(), then);
@@ -570,16 +592,27 @@ impl LoweringContext {
                 let list_ir_expr = self.coerce(&ExprType::list(param_ty.clone()), list_ir_expr);
                 let param_ty = match list_ir_expr.type_of() {
                     ExprType::List(p) => *p,
-                    _ => unreachable!("We just set the type")
+                    _ => unreachable!("We just set the type"),
                 };
                 let param_ident = Ident::new(func.param.clone());
-                let body_expr = self.extract_ir_expr(schema, def_map.extend(&param_ident.orig_name,
-                                                                            param_ident.clone(),
-                                                                            param_ty.clone()),
-                                                     &func.expr);
-                IRExpr::Map(list_ir_expr, Func { param: param_ident, param_type: param_ty,
-                                                 return_type: body_expr.type_of(),
-                                                 body: body_expr })
+                let body_expr = self.extract_ir_expr(
+                    schema,
+                    def_map.extend(
+                        &param_ident.orig_name,
+                        param_ident.clone(),
+                        param_ty.clone(),
+                    ),
+                    &func.expr,
+                );
+                IRExpr::Map(
+                    list_ir_expr,
+                    Func {
+                        param: param_ident,
+                        param_type: param_ty,
+                        return_type: body_expr.type_of(),
+                        body: body_expr,
+                    },
+                )
             }
             ast::QueryExpr::Find(coll_name, fields) => {
                 let coll = schema.find_collection(coll_name).expect(&format!(
@@ -695,12 +728,15 @@ impl IRExpr {
                 ExprType::F64
             }
 
+            IRExpr::DateTimeConst(..) | IRExpr::Now => ExprType::DateTime,
+
             IRExpr::StringConst(_) => ExprType::String,
             IRExpr::AppendS(..) => ExprType::String,
 
             IRExpr::IsEq(..)
             | IRExpr::Not(..)
             | IRExpr::IsLessF(..)
+            | IRExpr::IsLessD(..)
             | IRExpr::BoolConst(..)
             | IRExpr::IsLessI(..) => ExprType::Bool,
 
@@ -759,6 +795,10 @@ impl IRExpr {
                 Box::new(l.as_ref().map(f)),
                 Box::new(r.as_ref().map(f)),
             )),
+            IRExpr::IsLessD(l, r) => f(IRExpr::IsLessD(
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
             IRExpr::IntToFloat(i) => f(IRExpr::IntToFloat(Box::new(i.as_ref().map(f)))),
             IRExpr::Path(ty, o, fld) => f(IRExpr::Path(
                 ty.clone(),
@@ -778,10 +818,13 @@ impl IRExpr {
             )),
             IRExpr::Map(list_expr, func) => f(IRExpr::Map(
                 Box::new(list_expr.map(f)),
-                Func{param: func.param.clone(),
-                     param_type: func.param_type.clone(),
-                     return_type: func.return_type.clone(),
-                     body: Box::new(func.body.map(f))})),
+                Func {
+                    param: func.param.clone(),
+                    param_type: func.param_type.clone(),
+                    return_type: func.return_type.clone(),
+                    body: Box::new(func.body.map(f)),
+                },
+            )),
             IRExpr::LookupById(coll, id_expr) => f(IRExpr::LookupById(
                 coll.clone(),
                 Box::new(id_expr.as_ref().map(f)),
@@ -803,7 +846,9 @@ impl IRExpr {
                 Box::new(iftrue.as_ref().map(f)),
                 Box::new(iffalse.as_ref().map(f)),
             )),
-            IRExpr::IntConst(_)
+            IRExpr::DateTimeConst(..)
+            | IRExpr::Now
+            | IRExpr::IntConst(_)
             | IRExpr::FloatConst(_)
             | IRExpr::StringConst(_)
             | IRExpr::BoolConst(_) => f(self.clone()),
@@ -812,6 +857,8 @@ impl IRExpr {
     pub fn subexprs_preorder<'a>(&'a self) -> impl Iterator<Item = &'a Self> {
         match self {
             IRExpr::Var(_, _)
+            | IRExpr::DateTimeConst(..)
+            | IRExpr::Now
             | IRExpr::IntConst(_)
             | IRExpr::FloatConst(_)
             | IRExpr::StringConst(_)
@@ -824,7 +871,8 @@ impl IRExpr {
             | IRExpr::SubF(l, r)
             | IRExpr::IsEq(_, l, r)
             | IRExpr::IsLessI(l, r)
-            | IRExpr::IsLessF(l, r) => iter::once(self)
+            | IRExpr::IsLessF(l, r)
+            | IRExpr::IsLessD(l, r) => iter::once(self)
                 .chain(l.subexprs_preorder())
                 .chain(r.subexprs_preorder())
                 .collect::<Vec<_>>()
@@ -851,13 +899,11 @@ impl IRExpr {
                     .collect::<Vec<_>>()
                     .into_iter()
             }
-            IRExpr::Map(list_expr, func) => {
-                iter::once(self)
-                    .chain(list_expr.subexprs_preorder())
-                    .chain(func.body.subexprs_preorder())
-                    .collect::<Vec<_>>()
-                    .into_iter()
-            }
+            IRExpr::Map(list_expr, func) => iter::once(self)
+                .chain(list_expr.subexprs_preorder())
+                .chain(func.body.subexprs_preorder())
+                .collect::<Vec<_>>()
+                .into_iter(),
             IRExpr::Find(_, fields) => iter::once(self)
                 .chain(
                     fields

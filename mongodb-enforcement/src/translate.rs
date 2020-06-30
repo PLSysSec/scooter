@@ -9,6 +9,8 @@ use std::io::Write;
 use std::io::{self, Read};
 use std::path::Path;
 
+use chrono::{Timelike, Datelike};
+
 pub fn translate_policy_file(in_name: impl ToString, out_name: impl ToString) {
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join(out_name.to_string());
@@ -165,7 +167,7 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             translate_queryexpr(schema, e2)
         ),
         IRExpr::Not(e) => format!("(!{})", translate_queryexpr(schema, e)),
-        IRExpr::IsLessI(e1, e2) | IRExpr::IsLessF(e1, e2) => format!(
+        IRExpr::IsLessI(e1, e2) | IRExpr::IsLessF(e1, e2) | IRExpr::IsLessD(e1, e2) => format!(
             "({} < {})",
             translate_queryexpr(schema, e1),
             translate_queryexpr(schema, e2)
@@ -211,6 +213,12 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             translate_queryexpr(schema, e1),
             translate_queryexpr(schema, e2)
         ),
+        IRExpr::DateTimeConst(datetime) => {
+            format!("DateTime(Utc.ymd({}, {}, {}).and_hms({}, {}, {})",
+                    datetime.month(), datetime.day(), datetime.year(),
+                    datetime.hour(), datetime.minute(), datetime.second())
+        }
+        IRExpr::Now => format!("DateTime.now()"),
         IRExpr::IntConst(i) => format!("{}", i),
         IRExpr::FloatConst(f) => format!("{}", f),
         IRExpr::StringConst(s) => format!("\"{}\".to_string()", s),
@@ -260,6 +268,7 @@ fn lower_ty(ty: &ExprType) -> String {
         ExprType::I64 => "i64".to_string(),
         ExprType::F64 => "f64".to_string(),
         ExprType::Bool => "bool".to_string(),
+        ExprType::DateTime => "DateTime".to_string(),
         ExprType::List(inner_ty) => format!("Vec<{}>", lower_ty(inner_ty)).to_string(),
         ExprType::Unknown(_id) => "_".to_string(),
         ExprType::Object(coll) => coll.orig_name.clone(),

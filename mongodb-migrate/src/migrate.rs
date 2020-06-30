@@ -9,6 +9,7 @@ use policy_lang::ir::expr::{Var, IRExpr, Func};
 
 use bson::{doc, oid::ObjectId, Bson, Document};
 use mongodb::{Client, Database};
+use chrono;
 
 /// Descriptor for the mongodb database a migration would operate on
 pub struct DbConf {
@@ -265,6 +266,8 @@ pub enum Value {
     String(String),
     /// Primitive booleans
     Bool(bool),
+    /// Datetimes and Datetime intervals
+    DateTime(chrono::DateTime<chrono::Utc>),
     /// Object values. They are represented by the MongoDocument type,
     /// but not all valid MongoDocuments contain valid values, so be
     /// careful.
@@ -287,6 +290,7 @@ impl From<Value> for Bson {
             Value::Id(i) => Bson::ObjectId(i),
             Value::List(vs) => Bson::Array(vs.into_iter().map(|v| v.into()).collect()),
             Value::Bool(b) => Bson::Boolean(b),
+            Value::DateTime(datetime) => Bson::UtcDatetime(datetime),
         }
     }
 }
@@ -417,6 +421,14 @@ impl Evaluator<'_> {
             IRExpr::IsLessF(se1, se2) => {
                 match (self.eval_expr(db_conn, se1), self.eval_expr(db_conn, se2)) {
                     (Value::Float(f1), Value::Float(f2)) => Value::Bool(f1 < f2),
+                    _ => {
+                        panic!("Runtime type error: arguments to less than (float) are not floats")
+                    }
+                }
+            }
+            IRExpr::IsLessD(se1, se2) => {
+                match (self.eval_expr(db_conn, se1), self.eval_expr(db_conn, se2)) {
+                    (Value::DateTime(f1), Value::DateTime(f2)) => Value::Bool(f1 < f2),
                     _ => {
                         panic!("Runtime type error: arguments to less than (float) are not floats")
                     }
@@ -555,6 +567,8 @@ impl Evaluator<'_> {
                     panic!("Runtime type error: condition of if doesn't evaluate to a bool")
                 }
             }
+            IRExpr::DateTimeConst(datetime) => Value::DateTime(datetime.clone()),
+            IRExpr::Now => Value::DateTime(chrono::Utc::now()),
             // Constants evaluate to the constant value
             IRExpr::IntConst(i) => Value::Int(i.clone()),
             IRExpr::FloatConst(f) => Value::Float(f.clone()),

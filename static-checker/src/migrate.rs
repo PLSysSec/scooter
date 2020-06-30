@@ -14,6 +14,8 @@ use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::path::Path;
 
+use chrono::{Timelike, Datelike};
+
 /// Take two filenames, a policy and a migration, and produce a new
 /// policy as a string, by reading those files.
 pub fn migrate_policy_from_files(
@@ -98,7 +100,7 @@ fn policy_value_to_string(policy_value: Policy) -> String {
 
 fn type_to_string(ty: ExprType) -> String {
     match ty {
-        ExprType::Object(_id) => panic!("Can't have a colletion type in a policy!"),
+        ExprType::Object(_id) => panic!("Can't have a collection type in a policy!"),
         _ => format!("{}", ty),
     }
 }
@@ -119,7 +121,7 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
             format!("({} == {})", expr_to_string(e1_id), expr_to_string(e2_id))
         }
         IRExpr::Not(e_id) => format!("!({})", expr_to_string(e_id)),
-        IRExpr::IsLessI(e1_id, e2_id) | IRExpr::IsLessF(e1_id, e2_id) => {
+        IRExpr::IsLessI(e1_id, e2_id) | IRExpr::IsLessF(e1_id, e2_id) | IRExpr::IsLessD(e1_id, e2_id) => {
             format!("({} < {})", expr_to_string(e1_id), expr_to_string(e2_id))
         }
         // These don't appear in concrete syntax, but will be inserted
@@ -181,6 +183,14 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
             expr_to_string(iftrue),
             expr_to_string(iffalse)
         ),
+        IRExpr::Now => "now()".to_string(),
+        IRExpr::DateTimeConst(datetime) => format!("d<{}-{}-{}-{}:{}:{}>",
+                                                   datetime.month(),
+                                                   datetime.day(),
+                                                   datetime.year(),
+                                                   datetime.hour(),
+                                                   datetime.minute(),
+                                                   datetime.second()),
         IRExpr::IntConst(i) => format!("{}", i),
         IRExpr::FloatConst(f) => format!("{}", f),
         IRExpr::StringConst(s) => format!("\"{}\"", s),

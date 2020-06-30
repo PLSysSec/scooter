@@ -25,6 +25,9 @@ pub enum QueryExpr {
     List(Vec<Box<QueryExpr>>),
     If(Box<QueryExpr>, Box<QueryExpr>, Box<QueryExpr>),
 
+    DateTimeConst(u32, u32, u32, u32, u32, u32),
+    Now,
+
     IntConst(i64),
     FloatConst(f64),
     StringConst(String),
@@ -82,6 +85,7 @@ pub enum FieldType {
     I64,
     F64,
     Bool,
+    DateTime,
     Id(String),
     List(Box<FieldType>),
 }
@@ -92,6 +96,7 @@ impl fmt::Display for FieldType {
             FieldType::String => write!(f, "String"),
             FieldType::I64 => write!(f, "i64"),
             FieldType::F64 => write!(f, "f64"),
+            FieldType::DateTime => write!(f, "DateTime"),
             FieldType::Id(coll) => write!(f, "Id({})", coll),
             FieldType::Bool => write!(f, "bool"),
             FieldType::List(inner_type) => write!(f, "[{}]", inner_type),

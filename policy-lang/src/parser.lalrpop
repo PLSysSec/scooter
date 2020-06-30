@@ -41,6 +41,7 @@ FieldType: FieldType = {
     "F64" => FieldType::F64,
     "Bool" => FieldType::Bool,
     "Id" "(" <coll:Ident> ")" => FieldType::Id(coll),
+    "DateTime" => FieldType::DateTime,
     "[" <ft:FieldType> "]" => FieldType::List(Box::new(ft)),
 }
 
@@ -101,12 +102,23 @@ QueryExpr: Box<QueryExpr> = {
     QueryExpr2
 }
 
+DateTime: Box<QueryExpr> = {
+    "d" "<" <mo:r"[0-9]+"> "-" <d:r"[0-9]+"> "-" <y:r"[0-9]+"> "-" <h:r"[0-9]+"> ":" <mi:r"[0-9]+"> ":" <s:r"[0-9]+"> ">" => Box::new(QueryExpr::DateTimeConst(u32::from_str(mo).unwrap(),
+                                              u32::from_str(d).unwrap(),
+                                              u32::from_str(y).unwrap(),
+                                              u32::from_str(h).unwrap(),
+                                              u32::from_str(mi).unwrap(),
+                                              u32::from_str(s).unwrap())),
+    "now" "()" => Box::new(QueryExpr::Now),
+}
+
 QueryExpr2: Box<QueryExpr> = {
     Var => Box::new(QueryExpr::Var(<>)),
     <s:r#""(?:[^"\\]|\\.)*""#> => Box::new(QueryExpr::StringConst(
         s.get(1..s.len()-1).unwrap().to_string())),
     <i:r"[0-9]+"> => Box::new(QueryExpr::IntConst(i64::from_str(i).unwrap())),
     <f:r"[0-9]+\.[0-9]+"> => Box::new(QueryExpr::FloatConst(f64::from_str(f).unwrap())),
+    DateTime => <>,
     "true" => Box::new(QueryExpr::BoolConst(true)),
     "false" => Box::new(QueryExpr::BoolConst(false)),
     Object => Box::new(QueryExpr::Object(<>)),

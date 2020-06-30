@@ -10,6 +10,7 @@ edition = "2018"
 mongodb = '0.9.0'
 policy-lang = {path = "../policy-lang"}
 bson = "0.14.0"
+chrono = "*"
 
 [dev-dependencies]
 enforcement = {path="../mongodb-enforcement"}

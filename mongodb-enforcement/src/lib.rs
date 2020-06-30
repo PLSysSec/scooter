@@ -13,9 +13,11 @@ use std::fmt;
 use std::fs::read_to_string;
 use std::marker::PhantomData;
 use std::path::Path;
+use chrono;
 
 pub mod gen_prelude {
     pub use ::bson::{self, bson, doc};
+    pub use chrono::Utc;
     pub use mongodb;
 }
 
@@ -37,6 +39,15 @@ impl PolicyValue {
             (Self::Ids(ids), Principle::Id(user)) => ids.iter().find(|&el| *el == *user).is_some(),
             _ => false,
         }
+    }
+}
+
+#[derive(Eq, PartialEq, Ord, PartialOrd)]
+pub struct DateTime(chrono::DateTime<chrono::Utc>);
+
+impl DateTime {
+    pub fn now() -> Self {
+        DateTime(chrono::Utc::now())
     }
 }
 
