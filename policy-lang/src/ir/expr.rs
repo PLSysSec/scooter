@@ -371,9 +371,12 @@ impl LoweringContext {
 
                 let typ = left.type_of();
                 match &typ {
-                    ExprType::I64 | ExprType::F64 | ExprType::String | ExprType::DateTime => {
-                        IRExpr::IsEq(typ, left, right)
-                    }
+                    ExprType::I64
+                    | ExprType::F64
+                    | ExprType::String
+                    | ExprType::DateTime
+                    | ExprType::Id(_)
+                    | ExprType::Bool => IRExpr::IsEq(typ, left, right),
                     _ => panic!(
                         "`==` operation not defined for types: {} + {}",
                         left.type_of(),
@@ -388,9 +391,12 @@ impl LoweringContext {
 
                 let typ = left.type_of();
                 match &typ {
-                    ExprType::I64 | ExprType::F64 | ExprType::Id(_) | ExprType::DateTime => {
-                        IRExpr::Not(Box::new(IRExpr::IsEq(typ, left, right)))
-                    }
+                    ExprType::I64
+                    | ExprType::F64
+                    | ExprType::String
+                    | ExprType::DateTime
+                    | ExprType::Id(_)
+                    | ExprType::Bool => IRExpr::Not(Box::new(IRExpr::IsEq(typ, left, right))),
                     _ => panic!(
                         "`!=` operation not defined for types: {} + {}",
                         left.type_of(),
