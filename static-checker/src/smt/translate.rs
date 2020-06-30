@@ -5,7 +5,6 @@ use policy_lang::ir::{
     Ident,
 };
 
-use chrono::Utc;
 use std::{fmt::Display, iter};
 
 use lazy_static::lazy_static;
@@ -121,10 +120,10 @@ fn lower_expr(target: &Ident<SMTVar>, body: &IRExpr) -> SMTResult {
 
     match body {
         IRExpr::AppendS(l, r) => simple_nary_op("str.++", target, body.type_of(), &[l, r]),
-        IRExpr::AddI(l, r) | IRExpr::AddF(l, r) => {
+        IRExpr::AddI(l, r) | IRExpr::AddF(l, r) | IRExpr::AddD(l, r) => {
             simple_nary_op("+", target, body.type_of(), &[l, r])
         }
-        IRExpr::SubI(l, r) | IRExpr::SubF(l, r) => {
+        IRExpr::SubI(l, r) | IRExpr::SubF(l, r) | IRExpr::SubD(l, r) => {
             simple_nary_op("-", target, body.type_of(), &[l, r])
         }
         // In policylang, equality is not defined for lists so no special handling is needed

@@ -13,7 +13,9 @@ use std::fmt;
 use std::fs::read_to_string;
 use std::marker::PhantomData;
 use std::path::Path;
+use std::ops::{Add, Sub};
 use chrono;
+use chrono::TimeZone;
 
 pub mod gen_prelude {
     pub use ::bson::{self, bson, doc};
@@ -48,6 +50,20 @@ pub struct DateTime(chrono::DateTime<chrono::Utc>);
 impl DateTime {
     pub fn now() -> Self {
         DateTime(chrono::Utc::now())
+    }
+}
+impl Add for DateTime {
+    type Output=DateTime;
+
+    fn add(self, other: DateTime) -> DateTime {
+        DateTime(self.0 + (chrono::Utc.ymd(0, 0, 0).and_hms(0, 0, 0) - other.0))
+    }
+}
+impl Sub for DateTime {
+    type Output=DateTime;
+
+    fn sub(self, other: DateTime) -> DateTime {
+        DateTime(self.0 - (chrono::Utc.ymd(0, 0, 0).and_hms(0, 0, 0) - other.0))
     }
 }
 

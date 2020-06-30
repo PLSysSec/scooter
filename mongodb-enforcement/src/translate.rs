@@ -152,12 +152,12 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             translate_queryexpr(schema, e1),
             translate_queryexpr(schema, e2)
         ),
-        IRExpr::AddI(e1, e2) | IRExpr::AddF(e1, e2) => format!(
+        IRExpr::AddI(e1, e2) | IRExpr::AddF(e1, e2) | IRExpr::AddD(e1, e2) => format!(
             "({} + {})",
             translate_queryexpr(schema, e1),
             translate_queryexpr(schema, e2)
         ),
-        IRExpr::SubI(e1, e2) | IRExpr::SubF(e1, e2) => format!(
+        IRExpr::SubI(e1, e2) | IRExpr::SubF(e1, e2) | IRExpr::SubD(e1, e2) => format!(
             "({} - {})",
             translate_queryexpr(schema, e1),
             translate_queryexpr(schema, e2)

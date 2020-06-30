@@ -10,6 +10,7 @@ use policy_lang::ir::expr::{Var, IRExpr, Func};
 use bson::{doc, oid::ObjectId, Bson, Document};
 use mongodb::{Client, Database};
 use chrono;
+use chrono::{TimeZone};
 
 /// Descriptor for the mongodb database a migration would operate on
 pub struct DbConf {
@@ -384,6 +385,15 @@ impl Evaluator<'_> {
                     panic!("Runtime type error: arguments to addf aren't floats");
                 }
             }
+            IRExpr::AddD(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(db_conn, subexpr_l);
+                let arg_r = self.eval_expr(db_conn, subexpr_r);
+                if let (Value::DateTime(f1), Value::DateTime(f2)) = (arg_l, arg_r) {
+                    Value::DateTime(f1 + (f2 - chrono::Utc.ymd(0, 0, 0).and_hms(0, 0, 0)))
+                } else {
+                    panic!("Runtime type error: arguments to addf aren't floats");
+                }
+            }
             IRExpr::SubI(subexpr_l, subexpr_r) => {
                 let arg_l = self.eval_expr(db_conn, subexpr_l);
                 let arg_r = self.eval_expr(db_conn, subexpr_r);
@@ -398,6 +408,15 @@ impl Evaluator<'_> {
                 let arg_r = self.eval_expr(db_conn, subexpr_r);
                 if let (Value::Float(f1), Value::Float(f2)) = (arg_l, arg_r) {
                     Value::Float(f1 - f2)
+                } else {
+                    panic!("Runtime type error: arguments to addf aren't floats");
+                }
+            }
+            IRExpr::SubD(subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(db_conn, subexpr_l);
+                let arg_r = self.eval_expr(db_conn, subexpr_r);
+                if let (Value::DateTime(f1), Value::DateTime(f2)) = (arg_l, arg_r) {
+                    Value::DateTime(f1 - (f2 - chrono::Utc.ymd(0, 0, 0).and_hms(0, 0, 0)))
                 } else {
                     panic!("Runtime type error: arguments to addf aren't floats");
                 }

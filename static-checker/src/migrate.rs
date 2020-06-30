@@ -110,11 +110,12 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
         IRExpr::AppendS(e1_id, e2_id)
         | IRExpr::AppendL(_, e1_id, e2_id)
         | IRExpr::AddI(e1_id, e2_id)
-        | IRExpr::AddF(e1_id, e2_id) => {
+        | IRExpr::AddF(e1_id, e2_id)
+        | IRExpr::AddD(e1_id, e2_id) => {
             format!("({} + {})", expr_to_string(e1_id), expr_to_string(e2_id))
         }
 
-        IRExpr::SubI(e1_id, e2_id) | IRExpr::SubF(e1_id, e2_id) => {
+        IRExpr::SubI(e1_id, e2_id) | IRExpr::SubF(e1_id, e2_id) | IRExpr::SubD(e1_id, e2_id) => {
             format!("({} - {})", expr_to_string(e1_id), expr_to_string(e2_id))
         }
         IRExpr::IsEq(_, e1_id, e2_id) => {

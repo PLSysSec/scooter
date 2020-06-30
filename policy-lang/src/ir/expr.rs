@@ -162,8 +162,10 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
         | IRExpr::IsLessD(l, r)
         | IRExpr::AddI(l, r)
         | IRExpr::AddF(l, r)
+        | IRExpr::AddD(l, r)
         | IRExpr::SubI(l, r)
-        | IRExpr::SubF(l, r) => {
+        | IRExpr::SubF(l, r)
+        | IRExpr::SubD(l, r) => {
             resolve_types(type_map, l);
             resolve_types(type_map, r);
         }
@@ -251,10 +253,14 @@ pub enum IRExpr {
     AddI(Box<IRExpr>, Box<IRExpr>),
     /// Adding floats
     AddF(Box<IRExpr>, Box<IRExpr>),
+    /// Adding dates and intervals
+    AddD(Box<IRExpr>, Box<IRExpr>),
     /// Subtracting integers
     SubI(Box<IRExpr>, Box<IRExpr>),
     /// Subtracting floats
     SubF(Box<IRExpr>, Box<IRExpr>),
+    /// Subtracting dates and intervals
+    SubD(Box<IRExpr>, Box<IRExpr>),
 
     /// Equality
     IsEq(ExprType, Box<IRExpr>, Box<IRExpr>),
@@ -333,6 +339,7 @@ impl LoweringContext {
                 match left.type_of() {
                     ExprType::I64 => IRExpr::AddI(left, right),
                     ExprType::F64 => IRExpr::AddF(left, right),
+                    ExprType::DateTime => IRExpr::AddD(left, right),
                     ExprType::List(_) => {
                         let typ = if self.is_subtype(&left.type_of(), &right.type_of()) {
                             left.type_of()
@@ -357,6 +364,7 @@ impl LoweringContext {
                 match left.type_of() {
                     ExprType::I64 => IRExpr::SubI(left, right),
                     ExprType::F64 => IRExpr::SubF(left, right),
+                    ExprType::DateTime => IRExpr::SubD(left, right),
                     _ => panic!(
                         "`-` operation not defined for types: {} + {}",
                         left.type_of(),
@@ -734,7 +742,9 @@ impl IRExpr {
                 ExprType::F64
             }
 
-            IRExpr::DateTimeConst(..) | IRExpr::Now => ExprType::DateTime,
+            IRExpr::DateTimeConst(..) | IRExpr::Now | IRExpr::AddD(..) | IRExpr::SubD(..) => {
+                ExprType::DateTime
+            }
 
             IRExpr::StringConst(_) => ExprType::String,
             IRExpr::AppendS(..) => ExprType::String,
@@ -779,11 +789,19 @@ impl IRExpr {
                 Box::new(l.as_ref().map(f)),
                 Box::new(r.as_ref().map(f)),
             )),
+            IRExpr::AddD(l, r) => f(IRExpr::AddF(
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
             IRExpr::SubI(l, r) => f(IRExpr::SubI(
                 Box::new(l.as_ref().map(f)),
                 Box::new(r.as_ref().map(f)),
             )),
             IRExpr::SubF(l, r) => f(IRExpr::SubF(
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
+            IRExpr::SubD(l, r) => f(IRExpr::SubD(
                 Box::new(l.as_ref().map(f)),
                 Box::new(r.as_ref().map(f)),
             )),
@@ -873,8 +891,10 @@ impl IRExpr {
             | IRExpr::AppendL(_, l, r)
             | IRExpr::AddI(l, r)
             | IRExpr::AddF(l, r)
+            | IRExpr::AddD(l, r)
             | IRExpr::SubI(l, r)
             | IRExpr::SubF(l, r)
+            | IRExpr::SubD(l, r)
             | IRExpr::IsEq(_, l, r)
             | IRExpr::IsLessI(l, r)
             | IRExpr::IsLessF(l, r)
