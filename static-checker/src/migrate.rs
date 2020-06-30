@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::path::Path;
 
-use chrono::{Timelike, Datelike};
+use chrono::{Datelike, Timelike};
 
 /// Take two filenames, a policy and a migration, and produce a new
 /// policy as a string, by reading those files.
@@ -121,7 +121,9 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
             format!("({} == {})", expr_to_string(e1_id), expr_to_string(e2_id))
         }
         IRExpr::Not(e_id) => format!("!({})", expr_to_string(e_id)),
-        IRExpr::IsLessI(e1_id, e2_id) | IRExpr::IsLessF(e1_id, e2_id) | IRExpr::IsLessD(e1_id, e2_id) => {
+        IRExpr::IsLessI(e1_id, e2_id)
+        | IRExpr::IsLessF(e1_id, e2_id)
+        | IRExpr::IsLessD(e1_id, e2_id) => {
             format!("({} < {})", expr_to_string(e1_id), expr_to_string(e2_id))
         }
         // These don't appear in concrete syntax, but will be inserted
@@ -149,10 +151,12 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
                 ),
             }
         }
-        IRExpr::Map(list_expr, func) => {
-            format!("{}.map({} -> {})", expr_to_string(list_expr), func.param.orig_name,
-                    expr_to_string(func.body))
-        }
+        IRExpr::Map(list_expr, func) => format!(
+            "{}.map({} -> {})",
+            expr_to_string(list_expr),
+            func.param.orig_name,
+            expr_to_string(func.body)
+        ),
         IRExpr::LookupById(coll, e_id) => {
             format!("{}::ById({})", coll.orig_name, expr_to_string(e_id))
         }
@@ -184,13 +188,15 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
             expr_to_string(iffalse)
         ),
         IRExpr::Now => "now()".to_string(),
-        IRExpr::DateTimeConst(datetime) => format!("d<{}-{}-{}-{}:{}:{}>",
-                                                   datetime.month(),
-                                                   datetime.day(),
-                                                   datetime.year(),
-                                                   datetime.hour(),
-                                                   datetime.minute(),
-                                                   datetime.second()),
+        IRExpr::DateTimeConst(datetime) => format!(
+            "d<{}-{}-{}-{}:{}:{}>",
+            datetime.month(),
+            datetime.day(),
+            datetime.year(),
+            datetime.hour(),
+            datetime.minute(),
+            datetime.second()
+        ),
         IRExpr::IntConst(i) => format!("{}", i),
         IRExpr::FloatConst(f) => format!("{}", f),
         IRExpr::StringConst(s) => format!("\"{}\"", s),
@@ -233,9 +239,8 @@ fn interpret_migration_on_policy(
                 pol,
             } => {
                 let inferred_policy = get_policy_from_initializer(&schema, field.clone(), init);
-                let new_read_fine = is_as_strict(&schema, &coll,
-                                                 &inferred_policy.read,
-                                                 &pol.read).is_ok();
+                let new_read_fine =
+                    is_as_strict(&schema, &coll, &inferred_policy.read, &pol.read).is_ok();
                 if !new_read_fine {
                     return Err("Cannot determine that the given field policy \
                                 is tight enough for the values that flow into it."
@@ -302,10 +307,12 @@ fn interpret_migration_on_policy(
             } => {
                 let old_policy = result_policy.field_policies[&field].clone();
                 if match kind {
-                    FieldPolicyKind::Read => !is_as_strict(&schema, &coll,
-                                                           &old_policy.read, &new_policy).is_ok(),
-                    FieldPolicyKind::Edit => !is_as_strict(&schema, &coll,
-                                                            &new_policy, &old_policy.edit).is_ok(),
+                    FieldPolicyKind::Read => {
+                        !is_as_strict(&schema, &coll, &old_policy.read, &new_policy).is_ok()
+                    }
+                    FieldPolicyKind::Edit => {
+                        !is_as_strict(&schema, &coll, &new_policy, &old_policy.edit).is_ok()
+                    }
                 } {
                     return Err(
                         "Cannot determine that the new field policy is tighter than the old one"
@@ -337,10 +344,12 @@ fn interpret_migration_on_policy(
                     // The "schema" here is actually the schema
                     // afterwards, which would be a problem except
                     // this command doesb't modify the schema.
-                    CollectionPolicyKind::Create => !is_as_strict(&schema, &coll,
-                                                                  &old_policy.create, &new_policy).is_ok(),
-                    CollectionPolicyKind::Delete => !is_as_strict(&schema, &coll,
-                                                                  &old_policy.delete, &new_policy).is_ok(),
+                    CollectionPolicyKind::Create => {
+                        !is_as_strict(&schema, &coll, &old_policy.create, &new_policy).is_ok()
+                    }
+                    CollectionPolicyKind::Delete => {
+                        !is_as_strict(&schema, &coll, &old_policy.delete, &new_policy).is_ok()
+                    }
                 } {
                     return Err("Cannot determine that the new collection policy is tighter than the old one"
                                .to_string());

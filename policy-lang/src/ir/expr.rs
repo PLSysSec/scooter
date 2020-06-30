@@ -3,9 +3,9 @@ use super::{
     Ident,
 };
 use crate::ast;
+use chrono::{DateTime, TimeZone, Utc};
 use std::iter;
 use std::{collections::HashMap, fmt, rc::Rc};
-use chrono::{DateTime, Utc, TimeZone};
 
 /// A marker struct used to distinguise Ident<Var> from other idents.
 #[derive(Debug, Clone, Copy)]

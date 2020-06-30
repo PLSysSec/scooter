@@ -1,4 +1,4 @@
-use policy_lang::ir::expr::{IRExpr, ExprType, Func};
+use policy_lang::ir::expr::{ExprType, Func, IRExpr};
 use policy_lang::ir::policy::*;
 use policy_lang::ir::schema::Schema;
 use policy_lang::ir::Ident;
@@ -9,7 +9,7 @@ use std::io::Write;
 use std::io::{self, Read};
 use std::path::Path;
 
-use chrono::{Timelike, Datelike};
+use chrono::{Datelike, Timelike};
 
 pub fn translate_policy_file(in_name: impl ToString, out_name: impl ToString) {
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -36,7 +36,7 @@ fn get_contents(fname: &Path) -> io::Result<String> {
 
 fn policy_binder_var(policy: &Policy) -> String {
     match policy {
-        Policy::Func(Func {param, ..}) => mangled_ident(param),
+        Policy::Func(Func { param, .. }) => mangled_ident(param),
         _ => "_".to_string(),
     }
 }
@@ -47,7 +47,7 @@ fn gen_policy_body(schema: &Schema, policy: &Policy) -> String {
     match policy {
         Policy::Anyone => "        PolicyValue::Public\n    }\n".to_string(),
         Policy::None => "        PolicyValue::Ids(vec![])\n    }\n".to_string(),
-        Policy::Func(Func {body, ..}) => format!(
+        Policy::Func(Func { body, .. }) => format!(
             "        PolicyValue::Ids({})\n    }}\n",
             translate_queryexpr_to_idlist(schema, body)
         ),
@@ -94,7 +94,8 @@ mod {}_policies {{
                 continue;
             }
             let field_policy = &sp.field_policies[&field.name];
-            col_struct += &format!("    {}: {},\n", field.name.orig_name, lower_ty(&field.typ)).to_string();
+            col_struct +=
+                &format!("    {}: {},\n", field.name.orig_name, lower_ty(&field.typ)).to_string();
             pol_mod += &format!("    #[allow(unused_variables)]").to_string();
             pol_mod += &format!(
                 "    pub fn read_{}({}: &{}, conn: &AuthConn) -> PolicyValue {{\n",
@@ -187,17 +188,21 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
                 coll_ident.orig_name, coll_ident.orig_name,
             );
             for (field, val_expr) in fields.into_iter() {
-                out += &format!(".{}({})", field.orig_name, translate_queryexpr(schema, val_expr));
+                out += &format!(
+                    ".{}({})",
+                    field.orig_name,
+                    translate_queryexpr(schema, val_expr)
+                );
             }
             out += ".finalize()";
             out
         }
-        IRExpr::Map(list_expr, func) => {
-            format!("{}.into_iter().map(|{}| {})",
-                    translate_queryexpr(schema, list_expr),
-                    func.param.orig_name,
-                    translate_queryexpr(schema, &func.body))
-        }
+        IRExpr::Map(list_expr, func) => format!(
+            "{}.into_iter().map(|{}| {})",
+            translate_queryexpr(schema, list_expr),
+            func.param.orig_name,
+            translate_queryexpr(schema, &func.body)
+        ),
         IRExpr::List(_ty, exprs) => {
             let mut out = "vec![".to_string();
             for expr in exprs.into_iter() {
@@ -213,11 +218,15 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             translate_queryexpr(schema, e1),
             translate_queryexpr(schema, e2)
         ),
-        IRExpr::DateTimeConst(datetime) => {
-            format!("DateTime(Utc.ymd({}, {}, {}).and_hms({}, {}, {})",
-                    datetime.month(), datetime.day(), datetime.year(),
-                    datetime.hour(), datetime.minute(), datetime.second())
-        }
+        IRExpr::DateTimeConst(datetime) => format!(
+            "DateTime(Utc.ymd({}, {}, {}).and_hms({}, {}, {})",
+            datetime.month(),
+            datetime.day(),
+            datetime.year(),
+            datetime.hour(),
+            datetime.minute(),
+            datetime.second()
+        ),
         IRExpr::Now => format!("DateTime.now()"),
         IRExpr::IntConst(i) => format!("{}", i),
         IRExpr::FloatConst(f) => format!("{}", f),
@@ -227,14 +236,17 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             let mut out = format!("{}! {{", col_id.orig_name.to_ascii_lowercase()).to_string();
             for (field_id, field_expr) in fields.iter() {
                 match field_expr {
-                    Some(expr) =>
+                    Some(expr) => {
                         out += &format!(
                             "{}: {},",
                             field_id.orig_name,
                             translate_queryexpr(schema, expr)
-                        ),
-                    None => panic!("Invariant violated: fields cannot be none \
-                                    when template object is none in object literal")
+                        )
+                    }
+                    None => panic!(
+                        "Invariant violated: fields cannot be none \
+                                    when template object is none in object literal"
+                    ),
                 };
             }
             out += "}";
@@ -250,9 +262,14 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
                 let found_field = fields.iter().find(|(id, _expr)| *id == field.name);
                 out += &format!("{}: ", field.name.orig_name);
                 match found_field {
-                    Some((_id, Some(expr))) => out += &format!("{},", translate_queryexpr(schema, expr)),
+                    Some((_id, Some(expr))) => {
+                        out += &format!("{},", translate_queryexpr(schema, expr))
+                    }
                     Some((_id, None)) => (),
-                    None => panic!("Couldn't find field {} in object initializer", field.name.orig_name),
+                    None => panic!(
+                        "Couldn't find field {} in object initializer",
+                        field.name.orig_name
+                    ),
                 }
             }
             out += "} }";
