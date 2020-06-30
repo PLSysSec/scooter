@@ -22,7 +22,6 @@ pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, 
         .spawn()
         .expect("Unable to spawn z3");
 
-    let mut model = String::new();
     {
         let input = child
             .stdin
@@ -56,7 +55,7 @@ pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, 
             reader.read_line(&mut line).unwrap();
         }
         let mut model = String::new();
-        for (coll_id, var_id) in objects(schema, &verif_problem) {
+        for (coll_id, var_id) in objects(&verif_problem) {
             let coll = &schema[&coll_id];
             if var_id == verif_problem.princ {
                 model += "@principle\n"
@@ -82,16 +81,16 @@ pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, 
     }
 }
 
-fn objects<'a>(schema: &'a Schema, vp: &'a VerifProblem) -> impl Iterator<Item=(Ident<Collection>, Ident<SMTVar>)> + 'a {
+fn objects<'a>(vp: &'a VerifProblem) -> impl Iterator<Item=(Ident<Collection>, Ident<SMTVar>)> + 'a {
     vp.stmts.iter().filter_map(move |stmt| {
         match stmt {
             Statement::DeclFun { id, params, typ: ExprType::Object(ref coll)} if params.is_empty() => {
                 Some((coll.clone(), id.clone()))
             }
-            Statement::DeclFun { id, params, typ: ExprType::Id(ref coll)} if *id == vp.princ => {
+            Statement::DeclFun { id, params:_ , typ: ExprType::Id(ref coll)} if *id == vp.princ => {
                 Some((coll.clone(), id.clone()))
             },
             _ => None
-        }   
+        }
     })
 }

@@ -16,7 +16,7 @@ pub(crate) struct VerifProblem {
 }
 
 lazy_static! {
-    static ref now_ident: Ident<SMTVar> = Ident::new("datetime_now");
+    static ref NOW_IDENT: Ident<SMTVar> = Ident::new("datetime_now");
 }
 
 pub(crate) fn gen_assert(
@@ -39,7 +39,7 @@ pub(crate) fn gen_assert(
     // Declare the principle and record
     let princ = declare(princ_id.clone(), &[], princ_type);
     let rec = declare(rec_id.clone(), &[], ExprType::Object(coll.clone()));
-    let now = declare(now_ident.clone(), &[], ExprType::DateTime);
+    let now = declare(NOW_IDENT.clone(), &[], ExprType::DateTime);
 
     // Lower the functions
     let mut before = lower_policy(&princ_id, &rec_id, coll, before);
@@ -89,10 +89,9 @@ impl SMTResult {
 fn lower_policy(
     princ: &Ident<SMTVar>,
     rec: &Ident<SMTVar>,
-    coll: &Ident<Collection>,
+    _coll: &Ident<Collection>,
     pol: &Policy,
 ) -> SMTResult {
-    let typ = ExprType::list(ExprType::Object(coll.clone()));
     let id = Ident::new("policy");
     let stmts = match pol {
         Policy::None => vec![define(id.clone(), &[], ExprType::Bool, false)],
@@ -119,25 +118,25 @@ fn lower_expr(target: &Ident<SMTVar>, body: &IRExpr) -> SMTResult {
     debug_assert!(!contains_unknown(&body.type_of()));
 
     match body {
-        IRExpr::AppendS(l, r) => simple_nary_op("str.++", target, body.type_of(), &[l, r]),
+        IRExpr::AppendS(l, r) => simple_nary_op("str.++", target, &[l, r]),
         IRExpr::AddI(l, r) | IRExpr::AddF(l, r) | IRExpr::AddD(l, r) => {
-            simple_nary_op("+", target, body.type_of(), &[l, r])
+            simple_nary_op("+", target, &[l, r])
         }
         IRExpr::SubI(l, r) | IRExpr::SubF(l, r) | IRExpr::SubD(l, r) => {
-            simple_nary_op("-", target, body.type_of(), &[l, r])
+            simple_nary_op("-", target, &[l, r])
         }
         // In policylang, equality is not defined for lists so no special handling is needed
-        IRExpr::IsEq(_, l, r) => simple_nary_op("=", target, body.type_of(), &[l, r]),
-        IRExpr::Not(b) => simple_nary_op("not", target, body.type_of(), &[b]),
+        IRExpr::IsEq(_, l, r) => simple_nary_op("=", target, &[l, r]),
+        IRExpr::Not(b) => simple_nary_op("not", target, &[b]),
         IRExpr::IsLessI(l, r) | IRExpr::IsLessF(l, r) | IRExpr::IsLessD(l, r) => {
-            simple_nary_op("<", target, body.type_of(), &[l, r])
+            simple_nary_op("<", target, &[l, r])
         }
-        IRExpr::IntToFloat(b) => simple_nary_op("to-real", target, body.type_of(), &[b]),
-        IRExpr::Path(_, obj, f) => simple_nary_op(&ident(f), target, body.type_of(), &[obj]),
+        IRExpr::IntToFloat(b) => simple_nary_op("to-real", target, &[b]),
+        IRExpr::Path(_, obj, f) => simple_nary_op(&ident(f), target, &[obj]),
         IRExpr::Var(_, i) => SMTResult::expr(ident(i)),
         // Because id's and object types are the same, find is a no-op
         IRExpr::LookupById(_, b) => lower_expr(target, b),
-        IRExpr::Now => SMTResult::expr(ident(&now_ident)),
+        IRExpr::Now => SMTResult::expr(ident(&NOW_IDENT)),
         IRExpr::DateTimeConst(datetime) => {
             SMTResult::expr(datetime.timestamp())
         }
@@ -172,7 +171,7 @@ fn lower_expr(target: &Ident<SMTVar>, body: &IRExpr) -> SMTResult {
 
             let mut stmts = vec![obj];
             let mut exprs = vec![];
-            for (f_id, f_expr) in fields.iter() {
+            for (_f_id, f_expr) in fields.iter() {
                 if let Some(e) = f_expr {
                     let low_e = lower_expr(target, e);
                     exprs.push(format!("(= {} {})", ident(&obj_id), &low_e.expr));
@@ -228,7 +227,7 @@ fn lower_expr(target: &Ident<SMTVar>, body: &IRExpr) -> SMTResult {
             let expr = format!("(or {} false)", spaced(equalities.into_iter()));
             SMTResult::new(stmts, expr)
         }
-        IRExpr::If(_, c, t, e) => simple_nary_op("ite", target, body.type_of(), &[c, t, e]),
+        IRExpr::If(_, c, t, e) => simple_nary_op("ite", target, &[c, t, e]),
     }
 }
 
@@ -306,7 +305,7 @@ fn contains_unknown(typ: &ExprType) -> bool {
     }
 }
 
-fn simple_nary_op(op: &str, target: &Ident<SMTVar>, typ: ExprType, exprs: &[&IRExpr]) -> SMTResult {
+fn simple_nary_op(op: &str, target: &Ident<SMTVar>, exprs: &[&IRExpr]) -> SMTResult {
     let (stmts, exprs): (Vec<Vec<Statement>>, Vec<String>) = exprs
         .into_iter()
         .map(|e| lower_expr(target, e))
