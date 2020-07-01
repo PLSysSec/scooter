@@ -679,7 +679,7 @@ fn get_policy_from_initializer(
 fn field_lookups_in_expr(expr: &Box<IRExpr>) -> Vec<Ident<Field>> {
     expr.subexprs_preorder()
         .flat_map(|se| match se {
-            IRExpr::Path(_, _, def) => vec![def.clone()],
+            IRExpr::Path(_, _, def) => if def.is_id() { vec![] } else { vec![def.clone()]} ,
             IRExpr::Object(_coll, field_exprs, _template_expr) => field_exprs
                 .iter()
                 .flat_map(|(k, e)| match e {
