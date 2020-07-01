@@ -91,10 +91,15 @@ pub struct Field {
 
 impl Field {
     pub fn is_id(&self) -> bool {
-        self.name.eq_str("id")
+        self.name.is_id()
     }
 }
 
+impl Ident<Field> {
+    pub fn is_id(&self) -> bool {
+        self.eq_str("id")
+    }
+}
 
 pub fn extract_schema(gp: &ast::GlobalPolicy) -> Schema {
     let result = ExtractionContext::new(gp, Vec::new()).extract_schema(gp);
