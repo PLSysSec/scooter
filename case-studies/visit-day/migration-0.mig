@@ -1,0 +1,29 @@
+User::AddField(invitation_token: String {
+    read: public,
+    write: _ -> User::Find({}).map(u -> u.id),
+}, _ -> "")
+
+User::AddField(invitation_created_at: DateTime {
+    read: public,
+    write: _ -> User::Find({}).map(u -> u.id),
+}, _ -> now())
+
+User::AddField(invitation_sent_at: DateTime {
+    read: public,
+    write: _ -> User::Find({}).map(u -> u.id),
+}, _ -> now())
+
+User::AddField(invitation_accepted_at: DateTime {
+    read: none,
+    write: u -> [u.id],
+}, _ -> now())
+
+User::AddField(invitation_accepted: Bool {
+    read: public,
+    write: u -> [u.id],
+}, _ -> true)
+
+User::AddField(invited_by: Id(User) {
+    read: u -> [u.id],
+    write: none
+}, u -> u.id)

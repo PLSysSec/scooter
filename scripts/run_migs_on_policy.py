@@ -27,6 +27,7 @@ def main() -> None:
     for idx, mig in enumerate(args.migrations):
         new_migpath = args.outdir / f"migration-{idx}.mig"
         copyfile(mig, new_migpath)
+
         result = subprocess.run(
             ["cargo", "run", "--bin",
              "migrate", "dry-run", f"migration-{idx}.mig"],
@@ -45,4 +46,9 @@ def main() -> None:
                                         f"policy.{len(args.migrations)}.txt")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except subprocess.CalledProcessError as error:
+        print('Exception:')
+        print('output : ' + error.output)
+        print('stderr : ' + error.stderr)

@@ -15,7 +15,7 @@ pub struct Project {
 impl Project {
     pub fn find_from_cwd() -> io::Result<Project> {
         let mut dir = current_dir()?;
-        while !contains_cargo_toml(&dir)? {
+        while !contains_policy_txt(&dir)? {
             if !dir.pop() {
                 return Err(io::Error::new(io::ErrorKind::NotFound, "Could not find a Cargo.toml in your current file hierarchy. Make sure to run init from within the project"));
             }
@@ -118,10 +118,10 @@ impl Migration {
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Timestamp(u64);
 
-fn contains_cargo_toml(dir: &PathBuf) -> io::Result<bool> {
+fn contains_policy_txt(dir: &PathBuf) -> io::Result<bool> {
     for entry in read_dir(dir)? {
         let entry = entry?;
-        if entry.file_name() == "Cargo.toml" {
+        if entry.file_name() == "policy.txt" {
             return Ok(true);
         }
     }

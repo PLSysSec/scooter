@@ -131,7 +131,7 @@ QueryExpr2: Box<QueryExpr> = {
 }
 
 Ident: String = {
-    <s:r"[a-zA-Z]\w*"> => s.to_string()
+    <s:r"[_a-zA-Z]\w*"> => s.to_string()
 }
 
 Var: String = {

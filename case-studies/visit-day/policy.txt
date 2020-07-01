@@ -1,0 +1,25 @@
+@principle
+User {
+    create: public,
+    delete: u -> [u.id],
+
+    email: String {
+        read: u -> [u.id],
+        write: u -> [u.id],
+    },
+
+    encrypted_password: String {
+        read: u -> [u.id],
+        write: u -> [u.id],
+    },
+
+    reset_password_token: String {
+        read: public,
+        write: public,
+    },
+
+    reset_password_token_sent_at: DateTime {
+        read: public,
+        write: public,
+    },
+}
