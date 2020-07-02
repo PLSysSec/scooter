@@ -382,6 +382,9 @@ fn interpret_migration_on_policy(
                 let coll_pol = pol.collection_policies[&collection.name].clone();
                 result_policy.add_collection_policy(collection.name.clone(), coll_pol);
                 for field in collection.fields() {
+                    if field.is_id() {
+                        continue;
+                    }
                     let field_pol = pol.field_policies[&field.name].clone();
                     result_policy.add_field_policy(field.name.clone(), field_pol);
                 }
@@ -1031,5 +1034,60 @@ User {
 }
 ";
         assert_eq!(expected_result_text, out_text);
+    }
+    #[test]
+    fn add_collections() {
+        let before_policy =
+            r#"
+        @principle
+        User {
+            create: public,
+            delete: none,
+
+            name: String {
+                read: none,
+                write: none,
+            },
+        }
+    "#;
+        let migration =
+            r#"
+        CreateCollection(Phone {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
+        CreateCollection(Laptop {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
+        "#;
+
+        let after_policy = migrate_policy(before_policy, migration).expect("Couldn't migrate!");
+
+        let expected_after_policy =
+            r#"@principle
+User {
+    create: public,
+    delete: none,
+
+    name : String {
+        read: none,
+        write: none,
+    },
+}
+Phone {
+    create: public,
+    delete: public,
+
+    owner : Id(User) {
+        read: public,
+        write: none,
+    },
+}
+Laptop {
+    create: public,
+    delete: public,
+
+    owner : Id(User) {
+        read: public,
+        write: none,
+    },
+}
+"#;
+        assert_eq!(expected_after_policy, after_policy);
     }
 }
