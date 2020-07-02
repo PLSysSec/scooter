@@ -311,9 +311,12 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
             }
         }
         ast::MigrationCommand::Create { collection } => {
-            let pol = extract_partial_schema_policy(&ast::GlobalPolicy {
-                collections: vec![collection],
-            }, schema);
+            let pol = extract_partial_schema_policy(
+                &ast::GlobalPolicy {
+                    collections: vec![collection],
+                },
+                schema,
+            );
 
             MigrationCommand::Create { pol }
         }
@@ -362,7 +365,12 @@ fn extract_data_command(schema: &Schema, def_map: DefMap, oc: ast::ObjectCommand
                 "Unable to create `{}` because it does not exist.",
                 &collection
             ));
-            let value = extract_ir_expr(schema, def_map.clone(), &value, Some(ExprType::Object(coll.name.clone())));
+            let value = extract_ir_expr(
+                schema,
+                def_map.clone(),
+                &value,
+                Some(ExprType::Object(coll.name.clone())),
+            );
 
             DataCommand::CreateObject {
                 collection: coll.name.clone(),
@@ -377,7 +385,12 @@ fn extract_data_command(schema: &Schema, def_map: DefMap, oc: ast::ObjectCommand
                 "Unable to create `{}` because it does not exist.",
                 &collection
             ));
-            let value = extract_ir_expr(schema, def_map.clone(), &id_expr, Some(ExprType::Id(coll.name.clone())));
+            let value = extract_ir_expr(
+                schema,
+                def_map.clone(),
+                &id_expr,
+                Some(ExprType::Id(coll.name.clone())),
+            );
 
             DataCommand::DeleteObject {
                 collection: coll.name.clone(),
