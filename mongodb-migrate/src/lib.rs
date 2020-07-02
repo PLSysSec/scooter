@@ -838,4 +838,90 @@ mod tests {
             _ => panic!("result wasn't the right type!")
         };
     }
+    #[test]
+    fn add_field_self_reference_policy() {
+        // The name of the collection
+        let col_name = "User".to_string();
+        // Create a connection to the database
+        let db_name = "add_field_self_reference_policy_test".to_string();
+        let db_conn = get_dbconn(&db_name);
+
+        // Two user objects, to be inserted into the database. Note
+        // that these users have a "num_followers" field.
+        let users: Vec<_> = vec![
+            user! {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+                num_followers: 0,
+            },
+            user! {
+                username: "John".to_string(),
+                pass_hash: "john_hash".to_string(),
+                num_followers: 0,
+            },
+        ];
+        // Insert the users into the database, and get back their ids
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let (uid_alex, uid_john) = match uids.as_slice() {
+            [id1, id2] => (id1, id2),
+            _ => panic!("Not the right number of returned ids"),
+        };
+        assert_eq!(
+            db_conn
+                .mongo_conn
+                .collection(&col_name)
+                .count_documents(None, None)
+                .unwrap(),
+            2
+        );
+
+        // Perform a migration, the contents of the policy file, and
+        // this migration string. The string removes the num_followers
+        // column from the schema.
+        migrate(
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
+            &read_to_string(
+                Path::new(&std::env::current_dir().unwrap()).join("policy.txt".to_string()),
+            )
+            .unwrap(),
+            r#"User::AddField(is_admin: Bool {
+                              read: _ -> User::Find({}).map(u -> u.id),
+                              write: _ -> User::Find({is_admin: true}).map(u -> u.id),
+                              }, _ -> false)
+                "#,
+            "test_migration",
+        ).expect("migration failed");
+        // Pull out the resulting docs, using the ids we got when we
+        // inserted the originals.
+        let alex_result_doc = db_conn
+            .mongo_conn
+            .collection(&col_name)
+            .find_one(Some(doc! {"_id": uid_alex.clone()}), None)
+            .unwrap()
+            .unwrap();
+        let john_result_doc = db_conn
+            .mongo_conn
+            .collection(&col_name)
+            .find_one(Some(doc! {"_id": uid_john.clone()}), None)
+            .unwrap()
+            .unwrap();
+
+        // Make sure the added fields got added with the right values
+        assert_eq!(
+            alex_result_doc
+                .get_bool("is_admin")
+                .expect("Couldn't find is_admin key after migration"),
+            false
+        );
+        assert_eq!(
+            john_result_doc
+                .get_bool("is_admin")
+                .expect("Couldn't find is_admin key after migration"),
+            false
+        );
+    }
 }
