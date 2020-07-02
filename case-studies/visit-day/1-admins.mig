@@ -1,0 +1,12 @@
+User::AddField(is_admin: Bool {
+    read: _ -> User::Find({}).map(u -> u.id),
+    write: _ -> User::Find({is_admin: true}).map(u -> u.id),
+}, _ -> false)
+
+User::TightenCollectionPolicy(create, u -> User::Find({is_admin: true}).map(u -> u.id))
+User::LoosenCollectionPolicy(delete, u -> [u.id] + User::Find({is_admin: true}).map(u -> u.id))
+
+User::TightenFieldPolicy(invitation_token, write, _ -> User::Find({is_admin: true}).map(u -> u.id))
+User::TightenFieldPolicy(invitation_created_at, write, _ -> User::Find({is_admin: true}).map(u -> u.id))
+User::TightenFieldPolicy(invitation_sent_at, write, _ -> User::Find({is_admin: true}).map(u -> u.id))
+User::TightenFieldPolicy(invited_by, write, _ -> User::Find({is_admin: true}).map(u -> u.id))

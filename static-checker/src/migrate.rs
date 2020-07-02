@@ -162,7 +162,7 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
             format!("{}::ById({})", coll.orig_name, expr_to_string(e_id))
         }
         IRExpr::Find(coll, query_fields) => format!(
-            "{}::Find({})",
+            "{}::Find({{{}}})",
             coll.orig_name,
             query_fields
                 .iter()
@@ -247,7 +247,7 @@ fn interpret_migration_on_policy(
                                 is tight enough for the values that flow into it."
                         .to_string());
                 }
-                println!("Adding new field policy {:?}", pol);
+                eprintln!("Adding new field policy {:?}", pol);
                 result_policy.add_field_policy(field, pol)
             }
             // For removing fields, remove the policy data, and
@@ -307,17 +307,18 @@ fn interpret_migration_on_policy(
                 new_policy,
             } => {
                 let old_policy = result_policy.field_policies[&field].clone();
-                if match kind {
+                let res = match kind {
                     FieldPolicyKind::Read => {
-                        !is_as_strict(&schema, &coll, &old_policy.read, &new_policy).is_ok()
+                        is_as_strict(&schema, &coll, &old_policy.read, &new_policy)
                     }
                     FieldPolicyKind::Edit => {
-                        !is_as_strict(&schema, &coll, &new_policy, &old_policy.edit).is_ok()
+                        is_as_strict(&schema, &coll, &old_policy.edit, &new_policy)
                     }
-                } {
+                };
+                if let Err(model) = res {
+                    eprintln!("{}", model);
                     return Err(
-                        "Cannot determine that the new field policy is tighter than the old one"
-                            .to_string(),
+                        format!("Cannot determine that the new field policy for {} is tighter than the old one. Counterexample:\n{}", &field.orig_name, model)
                     );
                 }
                 let new_policy = field_policy_lens_set(old_policy.clone(), kind, new_policy);

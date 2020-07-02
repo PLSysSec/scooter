@@ -25,5 +25,7 @@ User::AddField(invitation_accepted: Bool {
 
 User::AddField(invited_by: Id(User) {
     read: u -> [u.id],
-    write: u -> User::Find({}).map(u -> u.id)
+    write: u -> User::Find({}).map(u -> u.id),
 }, u -> u.id)
+
+User::TightenCollectionPolicy(create, u -> User::Find({}).map(u -> u.id))
