@@ -275,12 +275,14 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             out += "} }";
             out
         }
+        IRExpr::Public => "Principle::Public".to_string(),
     }
 }
 
 fn lower_ty(ty: &ExprType) -> String {
     match ty {
         ExprType::Id(coll) => format!("TypedRecordId<{}>", coll.orig_name).to_string(),
+        ExprType::Principle => "Principle".to_string(),
         ExprType::String => "String".to_string(),
         ExprType::I64 => "i64".to_string(),
         ExprType::F64 => "f64".to_string(),
