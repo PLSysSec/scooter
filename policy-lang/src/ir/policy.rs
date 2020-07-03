@@ -157,7 +157,7 @@ pub fn extract_policy(
         ast::Policy::Func(e) => Policy::Func(extract_func(
             schema,
             ExprType::Object(coll.clone()),
-            &ExprType::list(ExprType::id(schema.principle.clone().unwrap())),
+            &ExprType::list(ExprType::Principle),
             e,
         )),
     }

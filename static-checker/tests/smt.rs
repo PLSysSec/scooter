@@ -35,8 +35,34 @@ fn foo() {
     let before = func(&schema, "u -> []", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
     let after = func(&schema, "u -> [u.id]", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
 
-    assert!(!is_as_strict(&schema, &user.name, &before, &after).is_ok());
+    eprintln!("{}", is_as_strict(&schema, &user.name, &before, &after).expect_err("strictness check should fail"));
     assert!(is_as_strict(&schema, &user.name, &before, &Policy::None).is_ok());
+}
+
+#[test]
+fn unauth() {
+    let before_policy = schema_policy(
+        r#"
+        @principle
+        User {
+            create: public,
+            delete: none,
+
+            name: String {
+                read: none,
+                write: none, 
+            },
+        }
+
+    "#,
+    );
+
+    let schema = before_policy.schema;
+    let user = schema.find_collection("User").unwrap();
+    let before = func(&schema, "u -> User::Find({}).map(u -> u.id)", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
+    let after = Policy::Anyone;
+
+    eprintln!("{}", is_as_strict(&schema, &user.name, &before, &after).expect_err("strictness check should fail"));
 }
 
 #[test]
@@ -59,7 +85,7 @@ fn find() {
 
     let schema = before_policy.schema;
     let user = schema.find_collection("User").unwrap();
-    let before = func(&schema, "u -> User::Find({ name: \"John\" })", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Object(user.name.clone())));
+    let before = func(&schema, "u -> User::Find({ name: \"John\" }).map(u -> u.id)", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
     let after = func(&schema, "u -> (if u.name == (\"Jo\" + \"hn\") then [u.id] else [])", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
 
     assert!(is_as_strict(&schema, &user.name, &before, &after).is_ok());

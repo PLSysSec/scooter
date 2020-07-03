@@ -27,7 +27,7 @@ pub enum QueryExpr {
 
     DateTimeConst(u32, u32, u32, u32, u32, u32),
     Now,
-
+    Public,
     IntConst(i64),
     FloatConst(f64),
     StringConst(String),

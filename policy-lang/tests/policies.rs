@@ -18,7 +18,7 @@ fn simple_valid() {
             delete: none,
 
             name: String {
-                read: u -> [u.id] + [u.id],
+                read: u -> [u.id] + public,
                 write: none, 
             },
         }

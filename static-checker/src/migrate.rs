@@ -202,6 +202,7 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
         IRExpr::FloatConst(f) => format!("{}", f),
         IRExpr::StringConst(s) => format!("\"{}\"", s),
         IRExpr::BoolConst(b) => format!("{}", b),
+        IRExpr::Public => "public".to_string(),
     }
 }
 

@@ -1,19 +1,20 @@
 use policy_lang::ir::{
     policy::Policy,
-    schema::{Collection, Schema},
+    schema::{Collection, Schema, Field},
     Ident, expr::ExprType,
 };
 use std::{
     io::{BufReader, BufRead, Write},
-    process::{Command, Stdio},
+    process::{Command, Stdio}, fmt::Display,
 };
 
 use translate::*;
 mod translate;
 
-pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, after: &Policy) -> Result<(), String> {
+pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, after: &Policy) -> Result<(), Model> {
     let verif_problem = gen_assert(schema, coll, before, after);
     let assertion = verif_problem.stmts.iter().map(Statement::to_string).collect::<Vec<_>>().join("");
+    eprintln!("{}", assertion);
     let mut child = Command::new("z3")
         .arg("-smt2")
         .arg("-in")
@@ -54,43 +55,105 @@ pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, 
             line = String::new();
             reader.read_line(&mut line).unwrap();
         }
-        let mut model = String::new();
-        for (coll_id, var_id) in objects(&verif_problem) {
+        input.write_all(format!("(eval {})\n", ident(&verif_problem.princ)).as_bytes()).unwrap();
+        line = String::new();
+        reader.read_line(&mut line).unwrap();
+        let princ = line.trim().to_owned();
+
+        let mut model = Model {princ, objects: vec![]};
+        for (coll_id, var_id) in db_objects(&verif_problem) {
+            let mut fields = vec![];
             let coll = &schema[&coll_id];
-            if var_id == verif_problem.princ {
-                model += "@principle\n"
-            }
-            if var_id == verif_problem.rec {
-                model += "@record\n"
-            }
-            model += &coll.name.orig_name;
-            model += "{\n";
             for field in coll.fields() {
                 input.write_all(format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id)).as_bytes()).unwrap();
                 line = String::new();
                 reader.read_line(&mut line).unwrap();
-                model += "\t";
-                model += &field.name.orig_name;
-                model += ": ";
-                model += &line;
+                fields.push((field.name.clone(), line.trim().to_owned()));
             }
-            model += "}\n\n"
+            let obj = ModelObject {coll: coll.name.clone(), fields, is_record: var_id == verif_problem.rec};
+            model.add_obj(obj);
         }
 
         Err(model)
     }
 }
 
-fn objects<'a>(vp: &'a VerifProblem) -> impl Iterator<Item=(Ident<Collection>, Ident<SMTVar>)> + 'a {
+fn db_objects<'a>(vp: &'a VerifProblem) -> impl Iterator<Item=(Ident<Collection>, Ident<SMTVar>)> + 'a {
     vp.stmts.iter().filter_map(move |stmt| {
         match stmt {
             Statement::DeclFun { id, params, typ: ExprType::Object(ref coll)} if params.is_empty() => {
                 Some((coll.clone(), id.clone()))
             }
-            Statement::DeclFun { id, params:_ , typ: ExprType::Id(ref coll)} if *id == vp.princ => {
-                Some((coll.clone(), id.clone()))
-            },
             _ => None
         }
     })
+}
+
+#[derive(Debug)]
+pub struct Model {
+    princ: String,
+    objects: Vec<ModelObject>,
+}
+
+impl Model {
+    fn add_obj(&mut self, m: ModelObject) {
+        for obj in self.objects.iter_mut() {
+            if *obj == m {
+                obj.is_record = obj.is_record || m.is_record;
+                return;
+            }
+        }
+        self.objects.push(m);
+    }
+
+    fn rec(&self) -> &ModelObject {
+        self.objects.iter().find(|obj| obj.is_record).unwrap()
+    }
+}
+
+impl Display for Model {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let rec = self.rec();
+        write!(f, "Model:\nprinc: {}\nrec: {}\n", self.princ, rec)?;
+
+        for obj in self.objects.iter() {
+            if obj != rec {
+                write!(f, "{}\n", obj)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Eq)]
+pub struct ModelObject {
+    coll: Ident<Collection>,
+    fields: Vec<(Ident<Field>, String)>,
+    is_record: bool,
+}
+
+impl PartialEq for ModelObject {
+    fn eq(&self, other: &Self) -> bool {
+        if self.coll != other.coll {
+            return false;
+        }
+
+        for (l,r) in self.fields.iter().zip(other.fields.iter()) {
+            if l != r {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+impl Display for ModelObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut dbug_struct = f.debug_struct(&self.coll.orig_name);
+        for (f_id, val) in self.fields.iter() {
+            dbug_struct.field(&f_id.orig_name, val);
+        }
+        dbug_struct.finish()
+    }
 }

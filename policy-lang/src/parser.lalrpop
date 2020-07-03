@@ -124,6 +124,7 @@ QueryExpr2: Box<QueryExpr> = {
     Object => Box::new(QueryExpr::Object(<>)),
     ConditionalExpr => <>,
     CollectionExpr => <>,
+    "public" => Box::new(QueryExpr::Public),
     List => Box::new(QueryExpr::List(<>)),
     "(" <e:QueryExpr> ")" => e,
     <le: QueryExpr2> "." "map" "(" <f: Func> ")" => Box::new(QueryExpr::Map(le, f)),
