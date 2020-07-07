@@ -509,9 +509,9 @@ impl LoweringContext {
                 let (then, els) = self.align_types(schema, then, els);
 
                 let typ = if self.is_subtype(schema, &then.type_of(), &els.type_of()) {
-                    then.type_of()
-                } else {
                     els.type_of()
+                } else {
+                    then.type_of()
                 };
 
                 IRExpr::If(typ, cond, then, els)
