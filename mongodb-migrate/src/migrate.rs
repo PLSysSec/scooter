@@ -256,14 +256,6 @@ fn interpret_data_command(db_conn: &Database, schema: &Schema, evaluator: &mut E
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-enum Principle {
-    /// ID's of the principle object
-    Id(ObjectId),
-    /// Public, meaning any user, or unauthenticated users.
-    Public,
-}
-
 /// Possible value types in our languages
 #[derive(Clone, Debug, PartialEq)]
 enum Value {
@@ -281,9 +273,6 @@ enum Value {
     /// but not all valid MongoDocuments contain valid values, so be
     /// careful.
     Object(Document),
-    /// Principle values. These can either ID's of the principle
-    /// object, or the special value "Public"
-    Principle(Principle),
     /// An object ID in the database.
     Id(ObjectId),
     /// A list of possibly heterogenous values
@@ -299,7 +288,6 @@ impl From<Value> for Bson {
             Value::Float(f) => Bson::FloatingPoint(f),
             Value::String(s) => Bson::String(s),
             Value::Object(_) => panic!("Cannot return an object where a value is expected"),
-            Value::Principle(_) => panic!("Cannot return a principle directly where a value is expected!"),
             Value::Id(i) => Bson::ObjectId(i),
             Value::List(vs) => Bson::Array(vs.into_iter().map(|v| v.into()).collect()),
             Value::Bool(b) => Bson::Boolean(b),
@@ -605,7 +593,7 @@ impl Evaluator<'_> {
             IRExpr::FloatConst(f) => Value::Float(f.clone()),
             IRExpr::StringConst(s) => Value::String(s.clone()),
             IRExpr::BoolConst(b) => Value::Bool(b.clone()),
-            IRExpr::Public => Value::Principle(Principle::Public),
+            IRExpr::Public => panic!("We can't run value expressions with `public` in the body")
         }
     }
 }
