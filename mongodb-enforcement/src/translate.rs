@@ -284,13 +284,16 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
 fn lower_ty(ty: &ExprType) -> String {
     match ty {
         ExprType::Id(coll) => format!("TypedRecordId<{}>", coll.orig_name).to_string(),
-        ExprType::Principle => "Principle".to_string(),
+        ExprType::Principle => panic!("Cannot convert a principle directly to a rust type"),
         ExprType::String => "String".to_string(),
         ExprType::I64 => "i64".to_string(),
         ExprType::F64 => "f64".to_string(),
         ExprType::Bool => "bool".to_string(),
         ExprType::DateTime => "DateTime".to_string(),
-        ExprType::List(inner_ty) => format!("Vec<{}>", lower_ty(inner_ty)).to_string(),
+        ExprType::List(inner_ty) => match inner_ty.as_ref() {
+            ExprType::Principle => format!("PolicyValue"),
+            _ => format!("Vec::<{}>", lower_ty(inner_ty)).to_string(),
+        }
         ExprType::Unknown(_id) => "_".to_string(),
         ExprType::Object(coll) => coll.orig_name.clone(),
     }
