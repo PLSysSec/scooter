@@ -48,7 +48,7 @@ fn gen_policy_body(schema: &Schema, policy: &Policy) -> String {
         Policy::Anyone => "        PolicyValue::Public\n    }\n".to_string(),
         Policy::None => "        PolicyValue::Ids(vec![])\n    }\n".to_string(),
         Policy::Func(Func { body, .. }) => format!(
-            "        PolicyValue::Ids({})\n    }}\n",
+            "        {}.into()\n    }}\n",
             translate_queryexpr_to_idlist(schema, body)
         ),
     }
@@ -138,7 +138,7 @@ macro_rules! {} {{
 }
 fn translate_queryexpr_to_idlist(schema: &Schema, expr: &IRExpr) -> String {
     let expr_str = translate_queryexpr(schema, expr);
-    format!("{}.to_record_id_vec()", expr_str).to_string()
+    format!("{}", expr_str).to_string()
 }
 fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
     match expr {
@@ -212,11 +212,13 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             out += "]";
             out
         }
-        IRExpr::If(_ty, cond, e1, e2) => format!(
-            "(if {} {{ {} }} else {{ {} }})",
+        IRExpr::If(ty, cond, e1, e2) => format!(
+            "(if {} {{ {}::from({}) }} else {{ {}::from({}) }})",
             translate_queryexpr(schema, cond),
+            lower_ty(ty),
             translate_queryexpr(schema, e1),
-            translate_queryexpr(schema, e2)
+            lower_ty(ty),
+            translate_queryexpr(schema, e2),
         ),
         IRExpr::DateTimeConst(datetime) => format!(
             "DateTime(Utc.ymd({}, {}, {}).and_hms({}, {}, {})",
@@ -275,7 +277,7 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             out += "} }";
             out
         }
-        IRExpr::Public => "Principle::Public".to_string(),
+        IRExpr::Public => "PolicyValue::Public".to_string(),
     }
 }
 

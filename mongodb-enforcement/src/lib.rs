@@ -34,6 +34,25 @@ pub enum PolicyValue {
     Public,
     Ids(Vec<RecordId>),
 }
+
+impl From<Vec<RecordId>> for PolicyValue {
+    fn from(ids: Vec<RecordId>) -> PolicyValue{
+        PolicyValue::Ids(ids)
+    }
+}
+impl <T> From<Vec<TypedRecordId<T>>> for PolicyValue
+where T: DBCollection {
+    fn from(ids: Vec<TypedRecordId<T>>) -> PolicyValue {
+        PolicyValue::Ids(ids.iter().map(|v| v.clone().into()).collect())
+    }
+}
+impl <T> From<Vec<Option<TypedRecordId<T>>>> for PolicyValue
+where T: DBCollection {
+    fn from(ids: Vec<Option<TypedRecordId<T>>>) -> PolicyValue {
+        PolicyValue::Ids(ids.iter().map(|v| v.clone().unwrap().into()).collect())
+    }
+}
+
 impl PolicyValue {
     pub fn accessible_by(&self, user: &Principle) -> bool {
         match (self, user) {
