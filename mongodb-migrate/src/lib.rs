@@ -54,7 +54,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -173,7 +173,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -263,7 +263,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         assert_eq!(
             db_conn
                 .mongo_conn
@@ -335,7 +335,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         assert_eq!(
             db_conn
                 .mongo_conn
@@ -391,7 +391,7 @@ mod tests {
                 num_followers: 0,
             },
         ];
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -470,7 +470,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -555,7 +555,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -623,7 +623,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -693,7 +693,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -800,7 +800,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -861,7 +861,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Public), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),

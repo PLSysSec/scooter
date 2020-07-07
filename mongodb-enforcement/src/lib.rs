@@ -26,7 +26,7 @@ pub mod gen_prelude {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Principle {
     Id(RecordId),
-    Public,
+    Unauthenticated,
 }
 
 #[derive(Debug)]
