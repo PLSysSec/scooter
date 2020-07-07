@@ -168,7 +168,8 @@ mod test {
             message! {
                 from: uid_alex.clone(),
                 to: uid_john.clone(),
-                text: "Hey, how's it hanging dude?".to_string()
+                text: "Hey, how's it hanging dude?".to_string(),
+                is_public: false,
             },
         )
         .expect("Couldn't insert message from alex");
@@ -178,7 +179,8 @@ mod test {
             message! {
                 from: uid_john.clone(),
                 to: uid_alex.clone(),
-                text: "Not too bad, how about yourself?".to_string()
+                text: "Not too bad, how about yourself?".to_string(),
+                is_public: false,
             },
         )
         .expect("Couldn't insert message from john");
@@ -188,6 +190,7 @@ mod test {
             from: uid_john.clone(),
             to: uid_john.clone(),
             text: "Blah blah blah, I'm a John and I know things".to_string(),
+            is_public: false,
         };
         assert!(Message::insert_many(alex_conn, vec![impersonator_message]).is_none());
 
@@ -244,5 +247,68 @@ mod test {
         for id in uids {
             assert!(all.contains(&Some(id)))
         }
+    }
+
+    #[test]
+    fn read_public_message() {
+        let db_conn = get_dbconn();
+
+        // Add two users, alex and john, where alex has a
+        // trustworthyness above ten, and john has one below ten.
+        let users: Vec<_> = vec![
+            user! {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+                num_followers: 0,
+                trustworthyness: 15,
+            },
+            user! {
+                username: "John".to_string(),
+                pass_hash: "john_hash".to_string(),
+                num_followers: 0,
+                trustworthyness: 5,
+            },
+            user! {
+                username: "Deian".to_string(),
+                pass_hash: "deian_hash".to_string(),
+                num_followers: 100,
+                trustworthyness: 0,
+            }
+        ];
+
+        let unauthenticated_conn = &db_conn.clone().as_princ(Principle::Unauthenticated);
+        // Insert the users, and get their ids
+        let uids = User::insert_many(unauthenticated_conn, users).unwrap();
+        let (uid_alex, uid_john, uid_deian) = match uids.as_slice() {
+            [id1, id2, id3] => (id1, id2, id3),
+            _ => panic!("Not the right number of returned ids"),
+        };
+        // Make connection objects for all users
+        let alex_conn = &db_conn.clone().as_princ(Principle::Id(uid_alex.clone().into()));
+        let _john_conn = &db_conn.clone().as_princ(Principle::Id(uid_john.clone().into()));
+        let deian_conn = &db_conn.clone().as_princ(Principle::Id(uid_deian.clone().into()));
+
+        // Insert a message from alex to john, and get its id
+        let mid_public_update = Message::insert_one(
+            alex_conn,
+            message! {
+                from: uid_alex.clone(),
+                to: uid_john.clone(),
+                text: "Update: I wrote a test for `public` appearing in IR Exprs!".to_string(),
+                is_public: true,
+            },
+        )
+        .expect("Couldn't insert message from alex");
+        // Retrieve the message as john (alex should no longer be able to read it)
+        let retreived_as_deian_message = Message::find_by_id(deian_conn, mid_public_update.clone().into())
+            .expect("Couldn't retreive message as deian");
+        // Make sure the message text is readable
+        assert!(retreived_as_deian_message.text.is_some());
+        // Retrieve the message as john (alex should no longer be able to read it)
+        let retreived_as_unauth_message = Message::find_by_id(unauthenticated_conn,
+                                                              mid_public_update.clone().into())
+            .expect("Couldn't retreive message as unauthenticated");
+        // Make sure the message text is readable
+        assert!(retreived_as_unauth_message.text.is_some());
     }
 }

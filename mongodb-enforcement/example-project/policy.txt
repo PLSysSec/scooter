@@ -26,17 +26,22 @@ Message {
     create: m -> [m.from],
     delete: none,
     from : Id(User) {
-        read: m -> [m.from, m.to],
+        read: m -> (if m.is_public then public else [m.from, m.to]),
         write: m -> (if User::ById(m.from).trustworthyness > 10 then [m.from] else []),
     },
 
     to : Id(User) {
-        read: m -> [m.to, m.from],
+        read: m -> (if m.is_public then public else [m.from, m.to]) ,
         write: none,
     },
 
     text : String {
-        read: m -> [m.from],
+        read: m -> (if m.is_public then public else [m.from, m.to]),
         write: none,
+    },
+
+    is_public : Bool {
+        read: public,
+        write: m -> [m.from],
     },
 }
