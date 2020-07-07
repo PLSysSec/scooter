@@ -699,7 +699,8 @@ impl LoweringContext {
                     self.is_subtype(schema, l, &self.type_map[&id].clone())
                 }
             }
-            (ExprType::Id(coll), ExprType::Principle) => schema.principle.as_ref().unwrap() == coll,
+            (ExprType::Id(coll), ExprType::Principle) =>
+                schema.principle.as_ref().unwrap() == coll,
             _ => typ1 == typ2,
         }
     }
