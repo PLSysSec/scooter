@@ -660,7 +660,7 @@ impl LoweringContext {
             }
             ast::QueryExpr::List(elems) => {
                 if elems.len() == 0 {
-                    IRExpr::List(ExprType::list(ExprType::new_unknown()), vec![])
+                    IRExpr::List(ExprType::new_unknown(), vec![])
                 } else {
                     let lowered_elems: Vec<_> = elems
                         .iter()
@@ -679,7 +679,7 @@ impl LoweringContext {
                         .map(|expr| self.coerce(schema, &most_general_type, expr))
                         .collect();
 
-                    IRExpr::List(ExprType::list(most_general_type.clone()), lowered_elems)
+                    IRExpr::List(most_general_type.clone(), lowered_elems)
                 }
             }
             ast::QueryExpr::Public => IRExpr::Public,
@@ -771,8 +771,8 @@ impl IRExpr {
 
             IRExpr::Var(typ, ..)
             | IRExpr::AppendL(typ, ..)
-            | IRExpr::List(typ, ..)
             | IRExpr::If(typ, ..) => typ.clone(),
+            IRExpr::List(typ, ..) => ExprType::list(typ.clone()),
         }
     }
     pub fn map(&self, f: &dyn Fn(IRExpr) -> IRExpr) -> IRExpr {
