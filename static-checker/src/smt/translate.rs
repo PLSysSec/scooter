@@ -1,5 +1,5 @@
 use policy_lang::ir::{
-    expr::{ExprType, IRExpr, Var, Func},
+    expr::{ExprType, IRExpr, Var},
     policy::Policy,
     schema::{Collection, Schema},
     Ident,
