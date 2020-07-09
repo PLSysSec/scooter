@@ -1,0 +1,4 @@
+ScheduleItem::AddField(link: String {
+    read: public,
+    write: _ -> User::Find({}).map(u -> u.id),
+}, _ -> "")

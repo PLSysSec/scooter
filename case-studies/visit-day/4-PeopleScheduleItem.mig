@@ -1,0 +1,16 @@
+CreateCollection(
+    PeopleScheduleItem {
+        create: _ -> User::Find({}).map(u -> u.id),
+        delete: _ -> User::Find({}).map(u -> u.id),
+
+        person: Id(Person) {
+            read: public,
+            write: none,
+        },
+
+        item: Id(ScheduleItem) {
+            read: public,
+            write: none,
+        },
+    }
+)

@@ -1,0 +1,21 @@
+CreateCollection(
+    ScheduleItem {
+        create: _ -> User::Find({}).map(u -> u.id),
+        delete: _ -> User::Find({}).map(u -> u.id),
+
+        name: String {
+            read: public,
+            write: _ -> User::Find({}).map(u -> u.id),
+        },
+
+        starts_at: DateTime {
+            read: public,
+            write: _ -> User::Find({}).map(u -> u.id),
+        },
+
+        ends_at: DateTime {
+            read: public,
+            write: _ -> User::Find({}).map(u -> u.id),
+        },
+    }
+)

@@ -1,0 +1,4 @@
+Person::AddField(kind: I64 {
+    read: public,
+    write: _ -> User::Find({}).map(u -> u.id),
+}, _ -> 0)

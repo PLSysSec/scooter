@@ -1,0 +1,4 @@
+ScheduleItem::AddField(is_group_event: Bool {
+    read: public,
+    write: _ -> User::Find({}).map(u -> u.id),
+}, _ -> false)

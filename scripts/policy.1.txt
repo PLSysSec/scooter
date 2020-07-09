@@ -1,0 +1,48 @@
+@principle
+User {
+    create: u -> User::Find({}).map(u -> u.id),
+    delete: u -> [u.id],
+
+    email : String {
+        read: u -> [u.id],
+        write: u -> [u.id],
+    },
+    encrypted_password : String {
+        read: u -> [u.id],
+        write: u -> [u.id],
+    },
+    reset_password_token : String {
+        read: public,
+        write: public,
+    },
+    reset_password_token_sent_at : DateTime {
+        read: public,
+        write: public,
+    },
+    invitation_accepted_at : DateTime {
+        read: none,
+        write: u -> [u.id],
+    },
+    invitation_accepted : Bool {
+        read: public,
+        write: u -> [u.id],
+    },
+    invitation_token : String {
+        read: public,
+        write: u -> (if !(u.invitation_accepted) then User::Find({}).map(u -> u.id) else []),
+    },
+    invitation_created_at : DateTime {
+        read: public,
+        write: u -> (if !(u.invitation_accepted) then User::Find({}).map(u -> u.id) else []),
+    },
+    invitation_sent_at : DateTime {
+        read: public,
+        write: u -> (if !(u.invitation_accepted) then User::Find({}).map(u -> u.id) else []),
+    },
+    invited_by : Id(User) {
+        read: u -> [u.id],
+        write: u -> (if !(u.invitation_accepted) then User::Find({}).map(u -> u.id) else []),
+    },
+}
+
+
