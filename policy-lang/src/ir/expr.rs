@@ -47,7 +47,7 @@ impl DefMap {
 
 /// Describes a type that can exist during execution of the policy.
 /// This is a superset of the types available in the database
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExprType {
     Id(Ident<Collection>),
     Principle,

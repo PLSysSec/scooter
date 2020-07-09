@@ -78,6 +78,11 @@ fn find() {
                 read: none,
                 write: none, 
             },
+
+            age: I64 {
+                read: none,
+                write: none,
+            },
         }
 
     "#,
@@ -86,10 +91,14 @@ fn find() {
     let schema = before_policy.schema;
     let user = schema.find_collection("User").unwrap();
     let before = func(&schema, "u -> User::Find({ name: \"John\" }).map(u -> u.id)", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
+    let after1 = func(&schema, "u -> User::Find({ name: \"John\", age: 7 }).map(u -> u.id)", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
     let after = func(&schema, "u -> (if u.name == (\"Jo\" + \"hn\") then [u.id] else [])", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
 
-    assert!(is_as_strict(&schema, &user.name, &before, &after).is_ok());
+    is_as_strict(&schema, &user.name, &before, &after).unwrap();
     eprintln!("{}", is_as_strict(&schema, &user.name, &after, &before).expect_err("strictness check should fail"));
+
+    is_as_strict(&schema, &user.name, &before, &after1).unwrap();
+    eprintln!("{}", is_as_strict(&schema, &user.name, &after1, &before).expect_err("strictness check should fail"));
 }
 
 #[test]
@@ -127,7 +136,9 @@ fn friends() {
     let user = schema.find_collection("User").unwrap();
     let before = func(&schema, "u -> [u.id] + (Friendship::Find({ from: u.id }).map(f -> f.to))", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
     let after = func(&schema, "u -> [u.id]", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
+    let after1 = func(&schema, "u -> [u.id] + (Friendship::Find({ from: u.id }).map(f -> f.to).map(u -> User::ById(u)).map(u -> u.id))", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
 
-    assert!(is_as_strict(&schema, &user.name, &before, &after).is_ok());
+    is_as_strict(&schema, &user.name, &before, &after).unwrap();
+    is_as_strict(&schema, &user.name, &before, &after1).unwrap();
     eprintln!("{}", is_as_strict(&schema, &user.name, &after, &before).expect_err("strictness check should fail"));
 }

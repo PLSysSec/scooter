@@ -11,7 +11,7 @@ pub mod schema;
 /// This includes variables, collections, field names, etc.
 /// They consist of the original name and a unique index,
 /// and are created during lowering.
-#[derive(Debug, Clone, Eq)]
+#[derive(Debug, Clone)]
 pub struct Ident<T> {
     pub index: u32,
     pub orig_name: String,
@@ -55,4 +55,6 @@ impl<T> PartialEq for Ident<T> {
     fn eq(&self, other: &Self) -> bool {
         self.index == other.index
     }
+}
+impl<T> Eq for Ident<T> {
 }
