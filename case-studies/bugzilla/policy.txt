@@ -1,0 +1,20 @@
+@principle
+User {
+    create: public,
+    delete: u -> [u.id],
+}
+
+Bug {
+    create: public,
+    delete: none,
+}
+
+Product {
+    create: public,
+    delete: none,
+}
+
+Component {
+    create: public,
+    delete: none,
+}
