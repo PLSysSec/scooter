@@ -9,9 +9,9 @@ lalrpop_mod!(parser);
 
 pub type GlobalPolicyParseTree = ast::GlobalPolicy;
 pub fn parse_policy<'a>(input: &'a str) -> Result<GlobalPolicyParseTree, String> {
-    let stripped_input = input.lines().map(
+    let stripped_input = input.lines().filter(
         |line|
-        line.split("#").next().unwrap()).collect::<Vec<&str>>().join("\n");
+        line.split("#").next().unwrap().trim() != "").collect::<Vec<&str>>().join("\n");
     parser::GlobalPolicyParser::new()
         .parse(&stripped_input)
         .map_err::<String, _>(|e| format!("{}", e))
@@ -38,7 +38,7 @@ mod tests {
         let p = parse_policy(
             r#"
             # This is the user principle, and a full line comment
-            @principle # Let's also try commenting inline
+            @principle
             User {
                 create: public,
                 delete: none,
