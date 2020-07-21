@@ -8,10 +8,13 @@ use std::error::Error;
 lalrpop_mod!(parser);
 
 pub type GlobalPolicyParseTree = ast::GlobalPolicy;
-pub fn parse_policy<'a>(input: &'a str) -> Result<GlobalPolicyParseTree, Box<dyn Error + 'a>> {
+pub fn parse_policy<'a>(input: &'a str) -> Result<GlobalPolicyParseTree, String> {
+    let stripped_input = input.lines().map(
+        |line|
+        line.split("#").next().unwrap()).collect::<Vec<&str>>().join("\n");
     parser::GlobalPolicyParser::new()
-        .parse(input)
-        .map_err::<Box<dyn Error>, _>(|e| Box::new(e))
+        .parse(&stripped_input)
+        .map_err::<String, _>(|e| format!("{}", e))
 }
 pub fn parse_migration<'a>(input: &'a str) -> Result<ast::Migration, Box<dyn Error + 'a>> {
     parser::MigrationParser::new()
@@ -34,7 +37,8 @@ mod tests {
     fn simple_policy() {
         let p = parse_policy(
             r#"
-            @principle
+            # This is the user principle, and a full line comment
+            @principle # Let's also try commenting inline
             User {
                 create: public,
                 delete: none,
