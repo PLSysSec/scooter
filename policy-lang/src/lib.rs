@@ -2,7 +2,6 @@ pub mod ast;
 pub mod ir;
 
 use lalrpop_util::lalrpop_mod;
-use std::error::Error;
 
 #[allow(dead_code, unused_parens)]
 lalrpop_mod!(parser);
@@ -16,16 +15,22 @@ pub fn parse_policy<'a>(input: &'a str) -> Result<GlobalPolicyParseTree, String>
         .parse(&stripped_input)
         .map_err::<String, _>(|e| format!("{}", e))
 }
-pub fn parse_migration<'a>(input: &'a str) -> Result<ast::Migration, Box<dyn Error + 'a>> {
+pub fn parse_migration<'a>(input: &'a str) -> Result<ast::Migration, String> {
+    let stripped_input = input.lines().filter(
+        |line|
+        line.split("#").next().unwrap().trim() != "").collect::<Vec<&str>>().join("\n");
     parser::MigrationParser::new()
-        .parse(input)
-        .map_err::<Box<dyn Error>, _>(|e| Box::new(e))
+        .parse(&stripped_input)
+        .map_err::<String, _>(|e| format!("{}", e))
 }
 
-pub fn parse_func<'a>(input: &'a str) -> Result<ast::Func, Box<dyn Error + 'a>> {
+pub fn parse_func<'a>(input: &'a str) -> Result<ast::Func, String> {
+    let stripped_input = input.lines().filter(
+        |line|
+        line.split("#").next().unwrap().trim() != "").collect::<Vec<&str>>().join("\n");
     parser::FuncParser::new()
-        .parse(input)
-        .map_err::<Box<dyn Error>, _>(|e| Box::new(e))
+        .parse(&stripped_input)
+        .map_err::<String, _>(|e| format!("{}", e))
 }
 
 #[cfg(test)]
