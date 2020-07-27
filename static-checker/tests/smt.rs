@@ -35,8 +35,8 @@ fn foo() {
     let before = func(&schema, "u -> []", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
     let after = func(&schema, "u -> [u.id]", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
 
-    eprintln!("{}", is_as_strict(&schema, &user.name, &before, &after).expect_err("strictness check should fail"));
-    assert!(is_as_strict(&schema, &user.name, &before, &Policy::None).is_ok());
+    eprintln!("{}", is_as_strict(&schema, &vec![], &user.name, &before, &after).expect_err("strictness check should fail"));
+    assert!(is_as_strict(&schema, &vec![], &user.name, &before, &Policy::None).is_ok());
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn unauth() {
     let before = func(&schema, "u -> User::Find({}).map(u -> u.id)", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
     let after = Policy::Anyone;
 
-    eprintln!("{}", is_as_strict(&schema, &user.name, &before, &after).expect_err("strictness check should fail"));
+    eprintln!("{}", is_as_strict(&schema, &vec![], &user.name, &before, &after).expect_err("strictness check should fail"));
 }
 
 #[test]
@@ -94,11 +94,11 @@ fn find() {
     let after1 = func(&schema, "u -> User::Find({ name: \"John\", age: 7 }).map(u -> u.id)", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
     let after = func(&schema, "u -> (if u.name == (\"Jo\" + \"hn\") then [u.id] else [])", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
 
-    is_as_strict(&schema, &user.name, &before, &after).unwrap();
-    eprintln!("{}", is_as_strict(&schema, &user.name, &after, &before).expect_err("strictness check should fail"));
+    is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
+    eprintln!("{}", is_as_strict(&schema, &vec![], &user.name, &after, &before).expect_err("strictness check should fail"));
 
-    is_as_strict(&schema, &user.name, &before, &after1).unwrap();
-    eprintln!("{}", is_as_strict(&schema, &user.name, &after1, &before).expect_err("strictness check should fail"));
+    is_as_strict(&schema, &vec![], &user.name, &before, &after1).unwrap();
+    eprintln!("{}", is_as_strict(&schema, &vec![], &user.name, &after1, &before).expect_err("strictness check should fail"));
 }
 
 #[test]
@@ -138,7 +138,7 @@ fn friends() {
     let after = func(&schema, "u -> [u.id]", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
     let after1 = func(&schema, "u -> [u.id] + (Friendship::Find({ from: u.id }).map(f -> f.to).map(u -> User::ById(u)).map(u -> u.id))", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
 
-    is_as_strict(&schema, &user.name, &before, &after).unwrap();
-    is_as_strict(&schema, &user.name, &before, &after1).unwrap();
-    eprintln!("{}", is_as_strict(&schema, &user.name, &after, &before).expect_err("strictness check should fail"));
+    is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
+    is_as_strict(&schema, &vec![], &user.name, &before, &after1).unwrap();
+    eprintln!("{}", is_as_strict(&schema, &vec![], &user.name, &after, &before).expect_err("strictness check should fail"));
 }

@@ -1,7 +1,7 @@
 use policy_lang::ir::{
     policy::Policy,
     schema::{Collection, Schema, Field},
-    Ident, expr::ExprType,
+    Ident, expr::{Func, ExprType},
 };
 use std::{
     io::{BufReader, BufRead, Write},
@@ -11,8 +11,10 @@ use std::{
 use translate::*;
 mod translate;
 
-pub fn is_as_strict(schema: &Schema, coll: &Ident<Collection>, before: &Policy, after: &Policy) -> Result<(), Model> {
-    let verif_problem = gen_assert(schema, coll, before, after);
+pub struct Equiv(pub Ident<Field>, pub Func);
+
+pub fn is_as_strict(schema: &Schema, eqs: &[Equiv], coll: &Ident<Collection>, before: &Policy, after: &Policy) -> Result<(), Model> {
+    let verif_problem = gen_assert(schema, &eqs, coll, before, after);
     let assertion = verif_problem.stmts.iter().map(Statement::to_string).collect::<Vec<_>>().join("");
     eprintln!("{}", assertion);
     let mut child = Command::new("z3")

@@ -1,4 +1,4 @@
-use crate::smt::is_as_strict;
+use crate::smt::{Equiv, is_as_strict};
 use policy_lang::ir::expr::{ExprType, Func, IRExpr};
 use policy_lang::ir::migration::{
     extract_migration_steps, CollectionPolicyKind, DataCommand, FieldPolicyKind, MigrationCommand,
@@ -167,12 +167,12 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
             query_fields
                 .iter()
                 .map(|(f_id, f_expr)| format!(
-                    "{}: {},",
+                    "{}: {}",
                     f_id.orig_name,
                     expr_to_string(f_expr.clone())
                 ))
                 .collect::<Vec<String>>()
-                .join("")
+                .join(",")
         ),
         IRExpr::List(_ty, exprs) => format!(
             "[{}]",
@@ -227,6 +227,8 @@ fn interpret_migration_on_policy(
     // Keep track of fields that are renamed, for repairing
     // expressions that referenced the old name.
     let mut renamed_fields: HashMap<Ident<Field>, Ident<Field>> = HashMap::new();
+    // Keep track of field definitions that will be useful during policy verification
+    let mut equivs = Vec::new();
 
     // Go over the migration commands (consuming them)
     for (schema, cmd) in migration_steps.into_iter() {
@@ -240,9 +242,10 @@ fn interpret_migration_on_policy(
                 init,
                 pol,
             } => {
-                let inferred_policy = get_policy_from_initializer(&schema, field.clone(), init);
+                equivs.push(Equiv(field.clone(), init.clone()));
+                let inferred_policy = get_policy_from_initializer(&schema, field.clone(), init.clone());
                 let new_read_fine =
-                    is_as_strict(&schema, &coll, &inferred_policy.read, &pol.read).is_ok();
+                    is_as_strict(&schema, &equivs, &coll, &inferred_policy.read, &pol.read).is_ok();
                 if !new_read_fine {
                     return Err("Cannot determine that the given field policy \
                                 is tight enough for the values that flow into it."
@@ -271,6 +274,8 @@ fn interpret_migration_on_policy(
                 new_ty: _,
                 new_init,
             } => {
+                equivs = vec![];
+
                 result_policy.remove_field_policy(field.clone());
                 result_policy.add_field_policy(
                     field.clone(),
@@ -310,10 +315,10 @@ fn interpret_migration_on_policy(
                 let old_policy = result_policy.field_policies[&field].clone();
                 let res = match kind {
                     FieldPolicyKind::Read => {
-                        is_as_strict(&schema, &coll, &old_policy.read, &new_policy)
+                        is_as_strict(&schema, &equivs, &coll, &old_policy.read, &new_policy)
                     }
                     FieldPolicyKind::Edit => {
-                        is_as_strict(&schema, &coll, &old_policy.edit, &new_policy)
+                        is_as_strict(&schema, &equivs, &coll, &old_policy.edit, &new_policy)
                     }
                 };
                 if let Err(model) = res {
@@ -348,10 +353,10 @@ fn interpret_migration_on_policy(
                     // afterwards, which would be a problem except
                     // this command doesb't modify the schema.
                     CollectionPolicyKind::Create => {
-                        !is_as_strict(&schema, &coll, &old_policy.create, &new_policy).is_ok()
+                        !is_as_strict(&schema, &equivs, &coll, &old_policy.create, &new_policy).is_ok()
                     }
                     CollectionPolicyKind::Delete => {
-                        !is_as_strict(&schema, &coll, &old_policy.delete, &new_policy).is_ok()
+                        !is_as_strict(&schema, &equivs, &coll, &old_policy.delete, &new_policy).is_ok()
                     }
                 } {
                     return Err("Cannot determine that the new collection policy is tighter than the old one"
@@ -1093,6 +1098,7 @@ Laptop {
     }
 
     #[test]
+    #[ignore = "Waiting on IFC checking to support this"]
     fn to_privilege() {
         let before_policy =
             r#"@principle
@@ -1113,7 +1119,7 @@ User {
             r#"
             User::AddField(privilege: I64 {read: public, write: none,},
                            p -> (if p.is_admin then 3 else 1))
-            User::TightenFieldPolicy(name, write, p -> User::Find({privilege: 3}).map(u -> u.id))
+            User::TightenFieldPolicy(name, write, u -> User::Find({privilege: 3}).map(u -> u.id))
             User::RemoveField(is_admin)
             "#;
         let after_policy = migrate_policy(before_policy, migration).unwrap();
@@ -1130,8 +1136,9 @@ User {
     privilege : I64 {
         read: public,
         write: none,
-    }
-}"#;
+    },
+}
+"#;
         assert_eq!(expected_after_policy, after_policy);
     }
 
