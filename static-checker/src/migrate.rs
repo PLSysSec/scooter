@@ -1091,4 +1091,48 @@ Laptop {
 "#;
         assert_eq!(expected_after_policy, after_policy);
     }
+
+    #[test]
+    fn to_privilege() {
+        let before_policy =
+            r#"@principle
+User {
+    create: public,
+    delete: none,
+
+    name : String {
+        read: public,
+        write: u -> User::Find({is_admin: true}).map(u -> u.id),
+    },
+    is_admin : Bool {
+        read: public,
+        write: none,
+    },
+}"#;
+        let migration =
+            r#"
+            User::AddField(privilege: I64 {read: public, write: none,},
+                           p -> (if p.is_admin then 3 else 1))
+            User::TightenFieldPolicy(name, write, p -> User::Find({privilege: 3}).map(u -> u.id))
+            User::RemoveField(is_admin)
+            "#;
+        let after_policy = migrate_policy(before_policy, migration).unwrap();
+        let expected_after_policy =
+            r#"@principle
+User {
+    create: public,
+    delete: none,
+
+    name : String {
+        read: public,
+        write: u -> User::Find({privilege: 3}).map(u -> u.id),
+    },
+    privilege : I64 {
+        read: public,
+        write: none,
+    }
+}"#;
+        assert_eq!(expected_after_policy, after_policy);
+    }
+
 }
