@@ -604,7 +604,8 @@ impl LoweringContext {
             ast::QueryExpr::Map(list_expr, func) => {
                 let param_ty = ExprType::Unknown(Ident::new("map_param"));
                 let list_ir_expr = self.extract_ir_expr(schema, def_map.clone(), list_expr);
-                let list_ir_expr = self.coerce(schema, &ExprType::list(param_ty.clone()), list_ir_expr);
+                let list_ir_expr =
+                    self.coerce(schema, &ExprType::list(param_ty.clone()), list_ir_expr);
                 let param_ty = match list_ir_expr.type_of() {
                     ExprType::List(p) => *p,
                     _ => unreachable!("We just set the type"),
@@ -699,8 +700,7 @@ impl LoweringContext {
                     self.is_subtype(schema, l, &self.type_map[&id].clone())
                 }
             }
-            (ExprType::Id(coll), ExprType::Principle) =>
-                schema.principle.as_ref().unwrap() == coll,
+            (ExprType::Id(coll), ExprType::Principle) => schema.principle.as_ref().unwrap() == coll,
             _ => typ1 == typ2,
         }
     }
@@ -710,14 +710,19 @@ impl LoweringContext {
         if self.is_subtype(schema, &expr_typ, typ) {
             return expr;
         }
-        match (typ, expr_typ) {
+        match (typ, &expr_typ) {
             (ExprType::F64, ExprType::I64) => Box::new(IRExpr::IntToFloat(expr)),
-            _ => panic!("Unable to coerce to type {}\n expr {:#?}", typ, expr),
+            _ => panic!("Unable to coerce to type {}\n expr {:#?}\nexpr_type {:?}", typ, expr, expr_typ),
         }
     }
 
     /// Handles coercions favoring Int->Float conversion and List<Unknown> -> List<Foo>
-    fn align_types(&mut self, schema: &Schema, left: Box<IRExpr>, right: Box<IRExpr>) -> (Box<IRExpr>, Box<IRExpr>) {
+    fn align_types(
+        &mut self,
+        schema: &Schema,
+        left: Box<IRExpr>,
+        right: Box<IRExpr>,
+    ) -> (Box<IRExpr>, Box<IRExpr>) {
         // They already match
         if self.is_subtype(schema, &left.type_of(), &right.type_of())
             || self.is_subtype(schema, &right.type_of(), &left.type_of())
@@ -729,9 +734,10 @@ impl LoweringContext {
 
         match (left.type_of(), right.type_of()) {
             // Upgrade the non-float expr to an expr
-            (ExprType::F64, ExprType::I64) | (ExprType::I64, ExprType::F64) => {
-                (self.coerce(schema, &float, left), self.coerce(schema, &float, right))
-            }
+            (ExprType::F64, ExprType::I64) | (ExprType::I64, ExprType::F64) => (
+                self.coerce(schema, &float, left),
+                self.coerce(schema, &float, right),
+            ),
             (l_typ, r_typ) => panic!("Unable to reconcile types {}, {}", l_typ, r_typ),
         }
     }

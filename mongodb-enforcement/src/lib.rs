@@ -9,13 +9,13 @@ mod from_bson;
 pub use from_bson::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub mod translate;
+use chrono;
+use chrono::TimeZone;
 use std::fmt;
 use std::fs::read_to_string;
 use std::marker::PhantomData;
-use std::path::Path;
 use std::ops::{Add, Sub};
-use chrono;
-use chrono::TimeZone;
+use std::path::Path;
 
 pub mod gen_prelude {
     pub use ::bson::{self, bson, doc};
@@ -36,18 +36,22 @@ pub enum PolicyValue {
 }
 
 impl From<Vec<RecordId>> for PolicyValue {
-    fn from(ids: Vec<RecordId>) -> PolicyValue{
+    fn from(ids: Vec<RecordId>) -> PolicyValue {
         PolicyValue::Ids(ids)
     }
 }
-impl <T> From<Vec<TypedRecordId<T>>> for PolicyValue
-where T: DBCollection {
+impl<T> From<Vec<TypedRecordId<T>>> for PolicyValue
+where
+    T: DBCollection,
+{
     fn from(ids: Vec<TypedRecordId<T>>) -> PolicyValue {
         PolicyValue::Ids(ids.iter().map(|v| v.clone().into()).collect())
     }
 }
-impl <T> From<Vec<Option<TypedRecordId<T>>>> for PolicyValue
-where T: DBCollection {
+impl<T> From<Vec<Option<TypedRecordId<T>>>> for PolicyValue
+where
+    T: DBCollection,
+{
     fn from(ids: Vec<Option<TypedRecordId<T>>>) -> PolicyValue {
         PolicyValue::Ids(ids.iter().map(|v| v.clone().unwrap().into()).collect())
     }
@@ -72,14 +76,14 @@ impl DateTime {
     }
 }
 impl Add for DateTime {
-    type Output=DateTime;
+    type Output = DateTime;
 
     fn add(self, other: DateTime) -> DateTime {
         DateTime(self.0 + (chrono::Utc.ymd(0, 0, 0).and_hms(0, 0, 0) - other.0))
     }
 }
 impl Sub for DateTime {
-    type Output=DateTime;
+    type Output = DateTime;
 
     fn sub(self, other: DateTime) -> DateTime {
         DateTime(self.0 - (chrono::Utc.ymd(0, 0, 0).and_hms(0, 0, 0) - other.0))
@@ -178,7 +182,9 @@ pub trait ToRecordIdVec {
 }
 
 impl<T> ToRecordIdVec for Vec<Option<TypedRecordId<T>>>
-where T: DBCollection {
+where
+    T: DBCollection,
+{
     fn to_record_id_vec(&self) -> Vec<RecordId> {
         self.iter().map(|id| id.clone().unwrap().into()).collect()
     }

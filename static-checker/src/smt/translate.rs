@@ -363,13 +363,18 @@ impl SMTContext {
                         f.typ.clone(),
                     ),
                     Some(lambda) => {
-                        let varmap = VarMap::default().extend(lambda.param.clone(), lambda.param.coerce());
-                        let body = self.lower_expr((&Ident::new("bogus"), &ExprType::Bool), &lambda.body, &varmap);
+                        let varmap =
+                            VarMap::default().extend(lambda.param.clone(), lambda.param.coerce());
+                        let body = self.lower_expr(
+                            (&Ident::new("bogus"), &ExprType::Bool),
+                            &lambda.body,
+                            &varmap,
+                        );
                         define(
                             f.name.coerce(),
                             &[(lambda.param.coerce(), ExprType::Object(coll.name.clone()))],
                             f.typ.clone(),
-                            body.expr
+                            body.expr,
                         )
                     }
                 }

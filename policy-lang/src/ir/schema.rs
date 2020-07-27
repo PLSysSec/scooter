@@ -20,11 +20,17 @@ impl Schema {
             (None, None) => None,
             (Some(p), None) => Some(p.clone()),
             (None, Some(p)) => Some(p.clone()),
-            (Some(_), Some(_)) => panic!("Cannot merge two schemas that both have principles")
+            (Some(_), Some(_)) => panic!("Cannot merge two schemas that both have principles"),
         };
-        Schema{collections: s1.collections.clone().into_iter()
-               .chain(s2.collections.clone().into_iter()).collect(),
-               principle: merged_principle}
+        Schema {
+            collections: s1
+                .collections
+                .clone()
+                .into_iter()
+                .chain(s2.collections.clone().into_iter())
+                .collect(),
+            principle: merged_principle,
+        }
     }
 }
 
@@ -103,11 +109,17 @@ impl Ident<Field> {
 
 pub fn extract_schema(gp: &ast::GlobalPolicy) -> Schema {
     let result = ExtractionContext::new(gp, Vec::new()).extract_schema(gp);
-    assert!(result.principle.is_some(), "No `@principle` found in policy.");
+    assert!(
+        result.principle.is_some(),
+        "No `@principle` found in policy."
+    );
     result
 }
 
-pub fn extract_partial_schema(gp: &ast::GlobalPolicy, existing_colls: Vec<Ident<Collection>>) -> Schema {
+pub fn extract_partial_schema(
+    gp: &ast::GlobalPolicy,
+    existing_colls: Vec<Ident<Collection>>,
+) -> Schema {
     ExtractionContext::new(gp, existing_colls).extract_schema(gp)
 }
 
@@ -148,20 +160,25 @@ impl ExtractionContext {
                     &cp.name
                 ),
             }
-        };
+        }
         principle
     }
 
     fn extract_schema(&mut self, gp: &ast::GlobalPolicy) -> Schema {
-        let colls : Vec<_> = gp
+        let colls: Vec<_> = gp
             .collections
             .iter()
             .map(|cp| self.extract_collection(cp))
             .collect();
         let principle_name = Self::find_principle(gp);
-        let principle_id = principle_name.map(|name|
-                                              colls.iter().find(|coll| coll.name.orig_name == name)
-                                              .unwrap().name.clone());
+        let principle_id = principle_name.map(|name| {
+            colls
+                .iter()
+                .find(|coll| coll.name.orig_name == name)
+                .unwrap()
+                .name
+                .clone()
+        });
         Schema {
             collections: colls,
             principle: principle_id,
@@ -213,12 +230,16 @@ impl ExtractionContext {
             FieldType::Bool => ExprType::Bool,
             FieldType::DateTime => ExprType::DateTime,
             FieldType::Id(ref name) => ExprType::Id(
-                self.coll_idents.get(name).expect(
-                    &format!("Bad type Id({}): couldn't find collection {}; collections are {:?}",
-                             name, name, self.coll_idents))
-                    .clone()),
+                self.coll_idents
+                    .get(name)
+                    .expect(&format!(
+                        "Bad type Id({}): couldn't find collection {}; collections are {:?}",
+                        name, name, self.coll_idents
+                    ))
+                    .clone(),
+            ),
             FieldType::List(ty) => {
-                if let FieldType::List(_)  = **ty {
+                if let FieldType::List(_) = **ty {
                     panic!("Schemas may not contain nested lists")
                 };
 

@@ -1,4 +1,4 @@
-use crate::smt::{Equiv, is_as_strict};
+use crate::smt::{is_as_strict, Equiv};
 use policy_lang::ir::expr::{ExprType, Func, IRExpr};
 use policy_lang::ir::migration::{
     extract_migration_steps, CollectionPolicyKind, DataCommand, FieldPolicyKind, MigrationCommand,
@@ -353,10 +353,12 @@ fn interpret_migration_on_policy(
                     // afterwards, which would be a problem except
                     // this command doesb't modify the schema.
                     CollectionPolicyKind::Create => {
-                        !is_as_strict(&schema, &equivs, &coll, &old_policy.create, &new_policy).is_ok()
+                        !is_as_strict(&schema, &equivs, &coll, &old_policy.create, &new_policy)
+                            .is_ok()
                     }
                     CollectionPolicyKind::Delete => {
-                        !is_as_strict(&schema, &equivs, &coll, &old_policy.delete, &new_policy).is_ok()
+                        !is_as_strict(&schema, &equivs, &coll, &old_policy.delete, &new_policy)
+                            .is_ok()
                     }
                 } {
                     return Err("Cannot determine that the new collection policy is tighter than the old one"
@@ -689,7 +691,13 @@ fn get_policy_from_initializer(
 fn field_lookups_in_expr(expr: &Box<IRExpr>) -> Vec<Ident<Field>> {
     expr.subexprs_preorder()
         .flat_map(|se| match se {
-            IRExpr::Path(_, _, def) => if def.is_id() { vec![] } else { vec![def.clone()]} ,
+            IRExpr::Path(_, _, def) => {
+                if def.is_id() {
+                    vec![]
+                } else {
+                    vec![def.clone()]
+                }
+            }
             IRExpr::Object(_coll, field_exprs, _template_expr) => field_exprs
                 .iter()
                 .flat_map(|(k, e)| match e {
@@ -1043,8 +1051,7 @@ User {
     }
     #[test]
     fn add_collections() {
-        let before_policy =
-            r#"
+        let before_policy = r#"
         @principle
         User {
             create: public,
@@ -1056,16 +1063,14 @@ User {
             },
         }
     "#;
-        let migration =
-            r#"
+        let migration = r#"
         CreateCollection(Phone {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
         CreateCollection(Laptop {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
         "#;
 
         let after_policy = migrate_policy(before_policy, migration).expect("Couldn't migrate!");
 
-        let expected_after_policy =
-            r#"@principle
+        let expected_after_policy = r#"@principle
 User {
     create: public,
     delete: none,
@@ -1100,8 +1105,7 @@ Laptop {
     #[test]
     #[ignore = "Waiting on IFC checking to support this"]
     fn to_privilege() {
-        let before_policy =
-            r#"@principle
+        let before_policy = r#"@principle
 User {
     create: public,
     delete: none,
@@ -1115,16 +1119,14 @@ User {
         write: none,
     },
 }"#;
-        let migration =
-            r#"
+        let migration = r#"
             User::AddField(privilege: I64 {read: public, write: none,},
                            p -> (if p.is_admin then 3 else 1))
             User::TightenFieldPolicy(name, write, u -> User::Find({privilege: 3}).map(u -> u.id))
             User::RemoveField(is_admin)
             "#;
         let after_policy = migrate_policy(before_policy, migration).unwrap();
-        let expected_after_policy =
-            r#"@principle
+        let expected_after_policy = r#"@principle
 User {
     create: public,
     delete: none,

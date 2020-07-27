@@ -1,16 +1,16 @@
 use policy_lang;
 use std::iter;
 
-use policy_lang::ir::*;
-use policy_lang::ir::migration::{extract_migration_steps, MigrationCommand, DataCommand};
+use policy_lang::ir::expr::{Func, IRExpr, Var};
+use policy_lang::ir::migration::{extract_migration_steps, DataCommand, MigrationCommand};
 use policy_lang::ir::policy::{extract_schema_policy, SchemaPolicy};
-use policy_lang::ir::schema::{Schema, Collection};
-use policy_lang::ir::expr::{Var, IRExpr, Func};
+use policy_lang::ir::schema::{Collection, Schema};
+use policy_lang::ir::*;
 
 use bson::{doc, oid::ObjectId, Bson, Document};
-use mongodb::{Client, Database};
 use chrono;
-use chrono::{TimeZone};
+use chrono::TimeZone;
+use mongodb::{Client, Database};
 
 /// Descriptor for the mongodb database a migration would operate on
 pub struct DbConf {
@@ -85,10 +85,10 @@ fn interpret_migration(
         .expect("Failed to initialize client.")
         .database(&db_conf.db_name);
     // Loop over the migration commands in sequence
-    for (schema_before, (_schema_after, cmd)) in
-        iter::once(&initial_schema_policy.schema)
+    for (schema_before, (_schema_after, cmd)) in iter::once(&initial_schema_policy.schema)
         .chain(migration_steps.iter().map(|(schema, _cmd)| schema))
-        .zip(migration_steps.iter()) {
+        .zip(migration_steps.iter())
+    {
         match cmd {
             // Remove field command. Removes a field from all records in the collection.
             MigrationCommand::RemoveField { coll, field } => {
@@ -104,7 +104,13 @@ fn interpret_migration(
                 }
             }
             // Add a field to all records in the collection
-            MigrationCommand::AddField { coll, field, ty:_, init, pol:_ } => {
+            MigrationCommand::AddField {
+                coll,
+                field,
+                ty: _,
+                init,
+                pol: _,
+            } => {
                 let coll = &schema_before[coll];
                 // Loop over the records
                 for item in coll_docs(&db_conn, &coll).into_iter() {
@@ -166,7 +172,7 @@ fn interpret_migration(
             MigrationCommand::RenameField {
                 coll,
                 field,
-                new_name
+                new_name,
             } => {
                 let coll = &schema_before[coll];
                 // Loop over the records
@@ -181,7 +187,9 @@ fn interpret_migration(
                     // Insert the new field, making sure there didn't
                     // already exist a field with that name.
                     assert!(
-                        result.insert(new_name.orig_name.clone(), field_value).is_none(),
+                        result
+                            .insert(new_name.orig_name.clone(), field_value)
+                            .is_none(),
                         format!(
                             "Document already contains a field with the name \"{}\"",
                             new_name.orig_name
@@ -196,18 +204,28 @@ fn interpret_migration(
                 let mut evaluator = Evaluator::new(&schema_before);
                 interpret_data_command(&db_conn, &schema_before, &mut evaluator, &cmd);
             }
-            MigrationCommand::TightenFieldPolicy{..} | MigrationCommand::LoosenFieldPolicy{..} |
-            MigrationCommand::TightenCollectionPolicy{..} | MigrationCommand::LoosenCollectionPolicy{..} => {},
+            MigrationCommand::TightenFieldPolicy { .. }
+            | MigrationCommand::LoosenFieldPolicy { .. }
+            | MigrationCommand::TightenCollectionPolicy { .. }
+            | MigrationCommand::LoosenCollectionPolicy { .. } => {}
             // Creates and deletes actually only operate at the type system level
             MigrationCommand::Create { .. } | MigrationCommand::Delete { .. } => {}
         }
     }
 }
 
-fn interpret_data_command(db_conn: &Database, schema: &Schema, evaluator: &mut Evaluator,
-                          cmd: &DataCommand) {
+fn interpret_data_command(
+    db_conn: &Database,
+    schema: &Schema,
+    evaluator: &mut Evaluator,
+    cmd: &DataCommand,
+) {
     match cmd {
-        DataCommand::ForEach { param, coll: coll_name, body } => {
+        DataCommand::ForEach {
+            param,
+            coll: coll_name,
+            body,
+        } => {
             let coll = &schema[coll_name];
             for item in coll_docs(&db_conn, &coll).into_iter() {
                 // Push the document parameter to the variable stack
@@ -229,9 +247,7 @@ fn interpret_data_command(db_conn: &Database, schema: &Schema, evaluator: &mut E
             } else {
                 // If it's not, something must have gone
                 // wrong with static checking.
-                panic!(
-                    "Can't insert these kinds of values; typechecking must have failed"
-                );
+                panic!("Can't insert these kinds of values; typechecking must have failed");
             }
         }
         // Delete an object from a collectino by it's id.
@@ -515,13 +531,16 @@ impl Evaluator<'_> {
                         match expr {
                             Some(e) => self.eval_expr(db_conn, e.clone()),
                             None => match &template_obj_val {
-                                Some(Value::Object(template_obj)) =>
-                                    template_obj.get(&field.orig_name).unwrap().clone().into(),
+                                Some(Value::Object(template_obj)) => {
+                                    template_obj.get(&field.orig_name).unwrap().clone().into()
+                                }
                                 Some(_) => panic!("Type system error: template is not an object"),
-                                None => panic!("Missing field {} but didn't provide a template object",
-                                               field.orig_name)
-                            }
-                        }
+                                None => panic!(
+                                    "Missing field {} but didn't provide a template object",
+                                    field.orig_name
+                                ),
+                            },
+                        },
                     );
                 }
                 Value::Object(result_object)
@@ -529,13 +548,17 @@ impl Evaluator<'_> {
             IRExpr::Map(list_expr, func) => {
                 let list_val = self.eval_expr(db_conn, list_expr.clone());
                 if let Value::List(subvals) = list_val {
-                    Value::List(subvals.into_iter().map(
-                        |subval| {
-                            self.push_scope(&func.param, subval);
-                            let result = self.eval_expr(db_conn, func.body.clone());
-                            self.pop_scope(&func.param);
-                            result
-                        }).collect())
+                    Value::List(
+                        subvals
+                            .into_iter()
+                            .map(|subval| {
+                                self.push_scope(&func.param, subval);
+                                let result = self.eval_expr(db_conn, func.body.clone());
+                                self.pop_scope(&func.param);
+                                result
+                            })
+                            .collect(),
+                    )
                 } else {
                     panic!("Runtime type error: value mapped over is not a list");
                 }
@@ -545,16 +568,20 @@ impl Evaluator<'_> {
                 for (field, val) in query_fields {
                     doc.insert(field.orig_name, self.eval_expr(db_conn, val));
                 }
-                match db_conn.collection(&self.schema[&coll].name.orig_name)
+                match db_conn
+                    .collection(&self.schema[&coll].name.orig_name)
                     .find(Some(doc), None)
                 {
                     Result::Ok(cursor) => Value::List(
-                        cursor.collect::<Vec<_>>()
+                        cursor
+                            .collect::<Vec<_>>()
                             .into_iter()
-                            .map(|res_bson|
-                                 Value::Object(res_bson.expect("Failed to fetch document")))
-                            .collect()),
-                    _ => panic!("Failed to fetch documents")
+                            .map(|res_bson| {
+                                Value::Object(res_bson.expect("Failed to fetch document"))
+                            })
+                            .collect(),
+                    ),
+                    _ => panic!("Failed to fetch documents"),
                 }
             }
             IRExpr::LookupById(coll_id, expr) => match self.eval_expr(db_conn, expr) {
@@ -593,7 +620,7 @@ impl Evaluator<'_> {
             IRExpr::FloatConst(f) => Value::Float(f.clone()),
             IRExpr::StringConst(s) => Value::String(s.clone()),
             IRExpr::BoolConst(b) => Value::Bool(b.clone()),
-            IRExpr::Public => panic!("We can't run value expressions with `public` in the body")
+            IRExpr::Public => panic!("We can't run value expressions with `public` in the body"),
         }
     }
 }
