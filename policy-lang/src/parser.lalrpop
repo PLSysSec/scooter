@@ -43,6 +43,7 @@ FieldType: FieldType = {
     "Id" "(" <coll:Ident> ")" => FieldType::Id(coll),
     "DateTime" => FieldType::DateTime,
     "[" <ft:FieldType> "]" => FieldType::List(Box::new(ft)),
+    "Option" "(" <ft:FieldType> ")" => FieldType::Option(Box::new(ft)),
 }
 
 Policy: Policy = {
@@ -70,6 +71,8 @@ List: Vec<Box<QueryExpr>> = {
 }
 ConditionalExpr: Box<QueryExpr> = {
     "(" "if" <cond:QueryExpr> "then" <e1:QueryExpr> "else" <e2:QueryExpr> ")" => Box::new(QueryExpr::If(cond, e1, e2)),
+    "(" "match" <optional:QueryExpr> "as" <i:Ident> "in" <e_some:QueryExpr> "else" <e_none:QueryExpr> ")"
+    => Box::new(QueryExpr::Match(optional, i, e_some, e_none)),
 }
 Comma<T>: Vec<T> = { // (1)
     <v:(<T> ",")*> <e:T?> => match e { // (2)
@@ -129,6 +132,8 @@ QueryExpr2: Box<QueryExpr> = {
     "(" <e:QueryExpr> ")" => e,
     <le: QueryExpr2> "." "map" "(" <f: Func> ")" => Box::new(QueryExpr::Map(le, f)),
     <o: QueryExpr2> "." <f: Ident> => Box::new(QueryExpr::FieldAccess(o, f)),
+    "None" => Box::new(QueryExpr::None),
+    "Some" "(" <e: QueryExpr> ")" => Box::new(QueryExpr::Some(e)),
 }
 
 Ident: String = {

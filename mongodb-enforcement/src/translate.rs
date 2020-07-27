@@ -220,6 +220,18 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             lower_ty(ty),
             translate_queryexpr(schema, e2),
         ),
+        IRExpr::Match(ty, opt_expr, var, some_expr, none_expr) => format!(
+            "(match {} {{ Some({}) => {}::from({}), None => {}::from({}) }})",
+            translate_queryexpr(schema, opt_expr),
+            var.orig_name,
+            lower_ty(ty),
+            translate_queryexpr(schema, some_expr),
+            lower_ty(ty),
+            translate_queryexpr(schema, none_expr)),
+        IRExpr::None(_ty) => format!("Poption::None"),
+        IRExpr::Some(_ty, e) => format!(
+            "Poption::Some({})",
+            translate_queryexpr(schema, e)),
         IRExpr::DateTimeConst(datetime) => format!(
             "DateTime(Utc.ymd({}, {}, {}).and_hms({}, {}, {})",
             datetime.month(),
@@ -294,6 +306,7 @@ fn lower_ty(ty: &ExprType) -> String {
             ExprType::Principle => format!("PolicyValue"),
             _ => format!("Vec::<{}>", lower_ty(inner_ty)).to_string(),
         }
+        ExprType::Option(inner_ty) => format!("POption::<{}>", lower_ty(inner_ty)).to_string(),
         ExprType::Unknown(_id) => "_".to_string(),
         ExprType::Object(coll) => coll.orig_name.clone(),
     }

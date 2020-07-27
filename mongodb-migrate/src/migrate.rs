@@ -293,6 +293,8 @@ enum Value {
     Id(ObjectId),
     /// A list of possibly heterogenous values
     List(Vec<Value>),
+    /// An optional value
+    Option(Option<Box<Value>>),
 }
 //  Converts our values to bson and back. Currently only operates on
 //  primitives, ids, and lists; object values are assumed not to need
@@ -308,6 +310,8 @@ impl From<Value> for Bson {
             Value::List(vs) => Bson::Array(vs.into_iter().map(|v| v.into()).collect()),
             Value::Bool(b) => Bson::Boolean(b),
             Value::DateTime(datetime) => Bson::UtcDatetime(datetime),
+            Value::Option(Some(val)) => Bson::Document(doc! {"val": Bson::from(*val)}),
+            Value::Option(None) => Bson::Null,
         }
     }
 }
@@ -320,6 +324,13 @@ impl From<Bson> for Value {
             Bson::ObjectId(i) => Value::Id(i),
             Bson::Boolean(b) => Value::Bool(b),
             Bson::Array(l) => Value::List(l.into_iter().map(|v| v.into()).collect()),
+            Bson::Null => Value::Option(None),
+            Bson::Document(d) => Value::Option(Some(Box::new(
+                d.get("val")
+                    .expect("Invalid document in database.")
+                    .clone()
+                    .into(),
+            ))),
             _ => panic!("These kinds of bson objects shouldn't exist"),
         }
     }
@@ -613,6 +624,29 @@ impl Evaluator<'_> {
                     panic!("Runtime type error: condition of if doesn't evaluate to a bool")
                 }
             }
+            IRExpr::Match(_ty, opt_expr, var, some_expr, none_expr) => {
+                let opt_val = self.eval_expr(db_conn, opt_expr);
+                if let Value::Option(oval) = opt_val {
+                    match oval {
+                        Some(v) => {
+                            self.push_scope(&var, *v);
+                            let result = self.eval_expr(db_conn, some_expr);
+                            self.pop_scope(&var);
+                            result
+                        }
+                        None => self.eval_expr(db_conn, none_expr),
+                    }
+                } else {
+                    panic!(
+                        "Runtime type error: scrutinee of match isn't an option.\n{:?}",
+                        opt_val
+                    );
+                }
+            }
+            IRExpr::Some(_ty, inner_expr) => {
+                Value::Option(Some(Box::new(self.eval_expr(db_conn, inner_expr))))
+            }
+            IRExpr::None(_ty) => Value::Option(None),
             IRExpr::DateTimeConst(datetime) => Value::DateTime(datetime.clone()),
             IRExpr::Now => Value::DateTime(chrono::Utc::now()),
             // Constants evaluate to the constant value

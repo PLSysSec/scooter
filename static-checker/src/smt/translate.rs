@@ -36,7 +36,14 @@ pub(crate) fn gen_assert(
     let princ = ctx.declare_in_domain(ExprType::Principle, princ_id.clone());
     let rec = ctx.declare_in_domain(ExprType::Object(coll.clone()), rec_id.clone());
 
+    // Declare the now constant for datetimes
     let now = declare(NOW_IDENT.clone(), &[], ExprType::DateTime);
+
+    // Declare the option datatype
+    let option_datatype =
+        Statement::Hack("(declare-datatypes (T) ((Option none (some (v T)))))".to_string());
+
+    // Predeclare the functions
     let mut before_decl = ctx.predeclare(before);
     let mut after_decl = ctx.predeclare(after);
 
@@ -47,6 +54,7 @@ pub(crate) fn gen_assert(
     let safety_assertion =
         Statement::Assert(format!("(and {} (not {}))", &after.expr, &before.expr,));
     let mut out = low_schema;
+    out.insert(0, option_datatype);
     out.append(&mut before_decl);
     out.append(&mut after_decl);
     out.push(princ);
@@ -92,7 +100,10 @@ struct VarMap(HashMap<Ident<Var>, Ident<SMTVar>>);
 
 impl VarMap {
     fn lookup(&self, var: &Ident<Var>) -> Ident<SMTVar> {
-        self.0[var].clone()
+        self.0
+            .get(var)
+            .expect(&format!("Couldn't find var {:?}", var))
+            .clone()
     }
 
     fn extend(&self, var: Ident<Var>, smtvar: Ident<SMTVar>) -> Self {
@@ -301,6 +312,42 @@ impl SMTContext {
             }
             IRExpr::If(_, c, t, e) => self.simple_nary_op("ite", target, &[c, t, e], vm),
             IRExpr::Public => SMTResult::expr(true),
+            IRExpr::None(_ty) => SMTResult::expr("none"),
+            IRExpr::Some(_ty, inner_expr) => {
+                let elem_expr = self.lower_expr(target, inner_expr, vm);
+                SMTResult::new(elem_expr.stmts, format!("(some {})", &elem_expr.expr))
+            }
+            IRExpr::Match(_ty, opt_expr, var, some_expr, none_expr) => {
+                let mut stmts = Vec::new();
+                let match_smt_var = Ident::new("match_var");
+                stmts.push(declare(
+                    match_smt_var.clone(),
+                    &[],
+                    match opt_expr.type_of() {
+                        ExprType::Option(t) => t.as_ref().clone(),
+                        _ => panic!("Type error"),
+                    },
+                ));
+                let opt_expr = self.lower_expr(target, opt_expr, vm);
+                let some_expr = self.lower_expr(
+                    target,
+                    some_expr,
+                    &vm.extend(var.clone(), match_smt_var.clone()),
+                );
+                let none_expr = self.lower_expr(target, none_expr, vm);
+                stmts.extend(opt_expr.stmts);
+                stmts.extend(some_expr.stmts);
+                stmts.extend(none_expr.stmts);
+
+                let expr = format!(
+                    "(match {} (((some {}) {}) (none {})))",
+                    &opt_expr.expr,
+                    ident(&match_smt_var),
+                    &some_expr.expr,
+                    none_expr.expr
+                );
+                SMTResult::new(stmts, expr)
+            }
         }
     }
 
@@ -459,6 +506,7 @@ pub fn type_name(typ: &ExprType) -> String {
         ExprType::Bool => "Bool".to_owned(),
         ExprType::DateTime => "Int".to_owned(),
         ExprType::List(t) => format!("(Array {} Bool)", type_name(t)),
+        ExprType::Option(t) => format!("(Option {})", type_name(t)),
         ExprType::Unknown(_) => panic!("ListUnknowns should never be serialized"),
 
         // Ids and objects are the same in SMT land
@@ -481,7 +529,7 @@ fn contains_unknown(typ: &ExprType) -> bool {
         | ExprType::Principle
         | ExprType::Bool => false,
         ExprType::Unknown(_) => true,
-        ExprType::List(t) => contains_unknown(t),
+        ExprType::List(t) | ExprType::Option(t) => contains_unknown(t),
     }
 }
 

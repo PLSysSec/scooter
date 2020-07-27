@@ -188,6 +188,15 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
             expr_to_string(iftrue),
             expr_to_string(iffalse)
         ),
+        IRExpr::Match(_, opt_expr, var, some_expr, none_expr) => format!(
+            "(match {} as {} in {} else {})",
+            expr_to_string(opt_expr),
+            var.orig_name,
+            expr_to_string(some_expr),
+            expr_to_string(none_expr)
+        ),
+        IRExpr::None(_ty) => "None".to_string(),
+        IRExpr::Some(_ty, inner_expr) => format!("Some({})", expr_to_string(inner_expr)),
         IRExpr::Now => "now()".to_string(),
         IRExpr::DateTimeConst(datetime) => format!(
             "d<{}-{}-{}-{}:{}:{}>",
@@ -232,6 +241,11 @@ fn interpret_migration_on_policy(
 
     // Go over the migration commands (consuming them)
     for (schema, cmd) in migration_steps.into_iter() {
+        let cur_schema_policy = SchemaPolicy {
+            schema: schema.clone(),
+            collection_policies: result_policy.collection_policies.clone(),
+            field_policies: result_policy.field_policies.clone(),
+        };
         match cmd {
             // For adding fields, just add new policies based on
             // the initializer function
@@ -243,7 +257,8 @@ fn interpret_migration_on_policy(
                 pol,
             } => {
                 equivs.push(Equiv(field.clone(), init.clone()));
-                let inferred_policy = get_policy_from_initializer(&schema, field.clone(), init.clone());
+                let inferred_policy =
+                    get_policy_from_initializer(&cur_schema_policy, field.clone(), init);
                 let new_read_fine =
                     is_as_strict(&schema, &equivs, &coll, &inferred_policy.read, &pol.read).is_ok();
                 if !new_read_fine {
@@ -279,7 +294,7 @@ fn interpret_migration_on_policy(
                 result_policy.remove_field_policy(field.clone());
                 result_policy.add_field_policy(
                     field.clone(),
-                    get_policy_from_initializer(&schema, field.clone(), new_init),
+                    get_policy_from_initializer(&cur_schema_policy, field.clone(), new_init),
                 );
                 // Anything that referred to it's old value as a
                 // policy isn't going to work anymore.
@@ -670,7 +685,7 @@ fn remove_invalidated_policies(
 }
 
 fn get_policy_from_initializer(
-    _old_schema: &Schema,
+    old_schema: &SchemaPolicy,
     _field_id: Ident<Field>,
     init: Func,
 ) -> FieldPolicy {
@@ -680,6 +695,8 @@ fn get_policy_from_initializer(
             read: Policy::Anyone,
             edit: Policy::None,
         }
+    } else if sources.len() == 1 {
+        old_schema.field_policies[&sources[0]].clone()
     } else {
         FieldPolicy {
             read: Policy::None,
@@ -1103,7 +1120,6 @@ Laptop {
     }
 
     #[test]
-    #[ignore = "Waiting on IFC checking to support this"]
     fn to_privilege() {
         let before_policy = r#"@principle
 User {
@@ -1144,4 +1160,65 @@ User {
         assert_eq!(expected_after_policy, after_policy);
     }
 
+    #[test]
+    fn to_optional() {
+        let before_policy = r#"@principle
+User {
+    create: public,
+    delete: none,
+
+    name : String {
+        read: none,
+        write: none,
+    },
+}
+Phone {
+    create: public,
+    delete: none,
+
+    owner : Id(User) {
+        read: public,
+        write: none,
+    },
+    secret : String {
+        read: p -> [p.owner],
+        write: none,
+    },
+}"#;
+        let migration = r#"
+            # Allow for the possibility of phone liberation
+            Phone::AddField(owner_1: Option(Id(User)) {read: public, write: none,},
+                            p -> Some(p.owner))
+            Phone::TightenFieldPolicy(secret, read, p -> (match p.owner_1 as o in
+                                                          [o] else []))
+            Phone::RemoveField(owner)
+            Phone::RenameField(owner_1, owner)
+            "#;
+        let after_policy = migrate_policy(before_policy, migration).unwrap();
+        let expected_after_policy = r#"@principle
+User {
+    create: public,
+    delete: none,
+
+    name : String {
+        read: none,
+        write: none,
+    },
+}
+Phone {
+    create: public,
+    delete: none,
+
+    secret : String {
+        read: p -> (match p.owner as o in [o] else []),
+        write: none,
+    },
+    owner : Option(Id(User)) {
+        read: public,
+        write: none,
+    },
+}
+"#;
+        assert_eq!(expected_after_policy, after_policy);
+    }
 }

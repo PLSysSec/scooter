@@ -53,3 +53,22 @@ MultiMessage {
         write: none,
     },
 }
+
+InvitedUser {
+    create: public,
+    delete: none,
+    username : String {
+        read: public,
+        write: none,
+    },
+
+    pass_hash : String {
+        read: none,
+        write: none,
+    },
+
+    inviter : Option(Id(InvitedUser)) {
+        read: public,
+        write: none,
+    },
+}

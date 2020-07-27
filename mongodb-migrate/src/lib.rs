@@ -3,7 +3,7 @@ pub use crate::migrate::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bson::{bson, doc, Document, Bson};
+    use bson::{bson, doc, Bson, Document};
     use std::fs::read_to_string;
 
     mod types;
@@ -23,6 +23,7 @@ mod tests {
         let db_conn = DBConn::new(&db_conf.host, db_conf.port, &db_conf.db_name);
         db_conn.mongo_conn.collection("User").drop(None).ok();
         db_conn.mongo_conn.collection("Message").drop(None).ok();
+        db_conn.mongo_conn.collection("InvitedUser").drop(None).ok();
         reset_migration_history(db_conf);
         db_conn
             .mongo_conn
@@ -54,7 +55,8 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -88,7 +90,8 @@ mod tests {
                 User::RemoveField(num_roomates)
                 "#,
             "test_migration",
-        ).expect("migration failed");
+        )
+        .expect("migration failed");
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
         let alex_result_doc = db_conn
@@ -173,7 +176,8 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -263,7 +267,8 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         assert_eq!(
             db_conn
                 .mongo_conn
@@ -287,7 +292,8 @@ mod tests {
                                                       ...u}))
                 "#,
             "test_migration",
-        ).expect("migration failed");
+        )
+        .expect("migration failed");
         // Make sure there are now double the users.
         assert_eq!(
             db_conn
@@ -335,7 +341,8 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         assert_eq!(
             db_conn
                 .mongo_conn
@@ -358,7 +365,8 @@ mod tests {
                 User::ForEach(u -> User::Delete(u.id))
                 "#,
             "test_migration",
-        ).expect("migration failed");
+        )
+        .expect("migration failed");
         // Make sure there are now double the users.
         assert_eq!(
             db_conn
@@ -391,7 +399,8 @@ mod tests {
                 num_followers: 0,
             },
         ];
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -418,7 +427,8 @@ mod tests {
                 User::ChangeField(num_followers, F64, u -> u.num_followers - 0.5)
                 "#,
             "test_migration",
-        ).expect("migration failed");
+        )
+        .expect("migration failed");
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
         let alex_result_doc = db_conn
@@ -470,7 +480,8 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -498,7 +509,8 @@ mod tests {
                 User::RenameField(num_followers, num_friends)
                 "#,
             "test_migration",
-        ).expect("migration failed");
+        )
+        .expect("migration failed");
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
         let alex_result_doc = db_conn
@@ -555,7 +567,8 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -623,7 +636,8 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -651,7 +665,8 @@ mod tests {
                 User::ChangeField(username, [String], u -> [u.username, u.username + "_alias"])
                 "#,
             "test_migration",
-        ).expect("migration failed");
+        )
+        .expect("migration failed");
         // Pull out one of the resulting docs, using the ids we got when we
         // inserted the originals.
         let alex_result_doc = db_conn
@@ -693,7 +708,8 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -800,7 +816,8 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -811,17 +828,23 @@ mod tests {
         let m_id = MultiMessage::insert_one(
             alex_conn,
             multimessage! { from: uid_alex.clone(),
-                            to: vec![uid_john.clone(), uid_alex.clone()],
-                            text: "Suuuup everyone".to_string() },
+            to: vec![uid_john.clone(), uid_alex.clone()],
+            text: "Suuuup everyone".to_string() },
         )
         .unwrap();
-        migrate(DbConf {host: "localhost".to_string(), port: 27017, db_name},
-                &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
-                r#"
+        migrate(
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
+            &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
+            r#"
                      MultiMessage::ChangeField(to, [Id(User)], u -> u.to.map(id -> id))
                      "#,
-                "test_migration")
-            .expect("migration failed");
+            "test_migration",
+        )
+        .expect("migration failed");
         let m_doc = db_conn
             .mongo_conn
             .collection(&mcol_name)
@@ -835,7 +858,7 @@ mod tests {
                 assert_eq!(TypedRecordId::<User>::from(first.clone()), *uid_john);
                 assert_eq!(TypedRecordId::<User>::from(second.clone()), *uid_alex);
             }
-            _ => panic!("result wasn't the right type!")
+            _ => panic!("result wasn't the right type!"),
         };
     }
     #[test]
@@ -861,7 +884,8 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
@@ -894,7 +918,8 @@ mod tests {
                               }, _ -> false)
                 "#,
             "test_migration",
-        ).expect("migration failed");
+        )
+        .expect("migration failed");
         // Pull out the resulting docs, using the ids we got when we
         // inserted the originals.
         let alex_result_doc = db_conn
@@ -922,6 +947,82 @@ mod tests {
                 .get_bool("is_admin")
                 .expect("Couldn't find is_admin key after migration"),
             false
+        );
+    }
+    #[test]
+    fn add_field_self_reference_id() {
+        // The name of the collection
+        let col_name = "InvitedUser".to_string();
+        // Create a connection to the database
+        let db_name = "add_field_self_reference_id".to_string();
+        let db_conn = get_dbconn(&db_name);
+
+        let alex_uid = InvitedUser::insert_one(
+            &db_conn.clone().as_princ(Principle::Unauthenticated),
+            inviteduser! {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+                inviter: POption::None,
+            },
+        )
+        .unwrap();
+
+        let john_uid = InvitedUser::insert_one(
+            &db_conn.clone().as_princ(Principle::Unauthenticated),
+            inviteduser! {
+                username: "John".to_string(),
+                pass_hash: "john_hash".to_string(),
+                inviter: POption::Some(alex_uid.clone()),
+            },
+        )
+        .unwrap();
+        // Perform a migration, the contents of the policy file, and
+        // this migration string. The string removes the num_followers
+        // column from the schema.
+        migrate(
+            DbConf {
+                host: "localhost".to_string(),
+                port: 27017,
+                db_name,
+            },
+            &read_to_string(
+                Path::new(&std::env::current_dir().unwrap()).join("policy.txt".to_string()),
+            )
+            .unwrap(),
+            r#"InvitedUser::AddField(inviter_name: String {
+                                        read: public,
+                                        write: none,
+                                     }, u -> (match u.inviter as x in InvitedUser::ById(x).username else ""))
+                "#,
+            "test_migration",
+        ).expect("migration failed");
+        // Pull out the resulting docs, using the ids we got when we
+        // inserted the originals.
+        let alex_result_doc = db_conn
+            .mongo_conn
+            .collection(&col_name)
+            .find_one(Some(doc! {"_id": alex_uid.clone()}), None)
+            .unwrap()
+            .unwrap();
+        let john_result_doc = db_conn
+            .mongo_conn
+            .collection(&col_name)
+            .find_one(Some(doc! {"_id": john_uid.clone()}), None)
+            .unwrap()
+            .unwrap();
+
+        // Make sure the added fields got added with the right values
+        assert_eq!(
+            alex_result_doc
+                .get_str("inviter_name")
+                .expect("Couldn't find inviter key after migration"),
+            ""
+        );
+        assert_eq!(
+            john_result_doc
+                .get_str("inviter_name")
+                .expect("Couldn't find inviter key after migration"),
+            "Alex"
         );
     }
 }

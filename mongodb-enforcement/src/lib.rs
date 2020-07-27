@@ -1,5 +1,5 @@
 use bson::oid::ObjectId;
-use bson::{Bson, Document};
+use bson::{doc, Bson, Document};
 pub use enforcement_macros::collection;
 use mongodb::{
     options::{ClientOptions, StreamAddress},
@@ -33,6 +33,37 @@ pub enum Principle {
 pub enum PolicyValue {
     Public,
     Ids(Vec<RecordId>),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum POption<T> {
+    Some(T),
+    None,
+}
+
+impl<T> ToBson for POption<T>
+where
+    T: ToBson,
+{
+    fn to_bson(&self) -> Bson {
+        match self {
+            POption::Some(val) => Bson::Document(doc! {"val": val.to_bson()}),
+            POption::None => Bson::Null,
+        }
+    }
+}
+
+impl<T> FromBson for POption<T>
+where
+    T: FromBson,
+{
+    fn from_bson(bson: Bson) -> Self {
+        match bson {
+            Bson::Document(d) => POption::Some(T::from_bson(d.get("val").unwrap().clone())),
+            Bson::Null => POption::None,
+            _ => panic!("Ahh!"),
+        }
+    }
 }
 
 impl From<Vec<RecordId>> for PolicyValue {
@@ -228,6 +259,17 @@ where
 {
     fn from(id: TypedRecordId<T>) -> Bson {
         id.0.into()
+    }
+}
+impl<T> From<POption<T>> for Bson
+where
+    T: Into<Bson>,
+{
+    fn from(optional_val: POption<T>) -> Bson {
+        match optional_val {
+            POption::Some(val) => Bson::Document(doc! {"val": val.into()}),
+            POption::None => Bson::Null,
+        }
     }
 }
 

@@ -24,6 +24,7 @@ pub enum QueryExpr {
 
     List(Vec<Box<QueryExpr>>),
     If(Box<QueryExpr>, Box<QueryExpr>, Box<QueryExpr>),
+    Match(Box<QueryExpr>, String, Box<QueryExpr>, Box<QueryExpr>),
 
     DateTimeConst(u32, u32, u32, u32, u32, u32),
     Now,
@@ -32,6 +33,8 @@ pub enum QueryExpr {
     FloatConst(f64),
     StringConst(String),
     BoolConst(bool),
+    None,
+    Some(Box<QueryExpr>),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub struct ObjectLiteral {
@@ -88,6 +91,7 @@ pub enum FieldType {
     DateTime,
     Id(String),
     List(Box<FieldType>),
+    Option(Box<FieldType>),
 }
 
 impl fmt::Display for FieldType {
@@ -100,6 +104,7 @@ impl fmt::Display for FieldType {
             FieldType::Id(coll) => write!(f, "Id({})", coll),
             FieldType::Bool => write!(f, "bool"),
             FieldType::List(inner_type) => write!(f, "[{}]", inner_type),
+            FieldType::Option(inner_type) => write!(f, "Option({})", inner_type),
         }
     }
 }
