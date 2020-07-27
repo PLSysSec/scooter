@@ -200,7 +200,7 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
         IRExpr::Map(list_expr, func) => format!(
             "{}.into_iter().map(|{}| {})",
             translate_queryexpr(schema, list_expr),
-            func.param.orig_name,
+            mangled_ident(&func.param),
             translate_queryexpr(schema, &func.body)
         ),
         IRExpr::List(_ty, exprs) => {
@@ -223,7 +223,7 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
         IRExpr::Match(ty, opt_expr, var, some_expr, none_expr) => format!(
             "(match {} {{ Some({}) => {}::from({}), None => {}::from({}) }})",
             translate_queryexpr(schema, opt_expr),
-            var.orig_name,
+            mangled_ident(var),
             lower_ty(ty),
             translate_queryexpr(schema, some_expr),
             lower_ty(ty),
