@@ -1,6 +1,4 @@
-use policy_lang::{
-    parse_migration
-};
+use policy_lang::parse_migration;
 
 #[test]
 fn simple_valid() {
@@ -11,5 +9,6 @@ fn simple_valid() {
         User::TightenFieldPolicy(name, read, public)
         User::LoosenFieldPolicy(age, write, a_ -> [])
     "#,
-    ).unwrap();
+    )
+    .unwrap();
 }

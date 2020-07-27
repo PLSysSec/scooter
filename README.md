@@ -10,7 +10,7 @@
 
 - [`static-checker`] - Implements SMT-based checking of policies and policy functions to ensure that new policies are stricter than old policies.
 
-- [`policy-lang`] - Implements parser, name resolution, and type-checker for the policy language (including migration). 
+- [`policy-lang`] - Implements parser, name resolution, and type-checker for the policy language (including migration).
 
 [`cli`]: ./cli
 [`mongodb-enforcement`]: ./mongodb-enforcement

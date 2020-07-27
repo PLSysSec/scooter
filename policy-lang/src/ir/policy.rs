@@ -19,15 +19,23 @@ impl SchemaPolicy {
         self.field_policies.insert(field_id, field_policy);
     }
     pub fn remove_field_policy(&mut self, field_id: Ident<Field>) -> FieldPolicy {
-        self.field_policies.remove(&field_id).expect(
-            &format!("Couldn't remove policy for {} because it doesn't exist", field_id.orig_name))
+        self.field_policies.remove(&field_id).expect(&format!(
+            "Couldn't remove policy for {} because it doesn't exist",
+            field_id.orig_name
+        ))
     }
-    pub fn add_collection_policy(&mut self, coll_id: Ident<Collection>, coll_policy: CollectionPolicy) {
+    pub fn add_collection_policy(
+        &mut self,
+        coll_id: Ident<Collection>,
+        coll_policy: CollectionPolicy,
+    ) {
         self.collection_policies.insert(coll_id, coll_policy);
     }
     pub fn remove_collection_policy(&mut self, coll_id: Ident<Collection>) -> CollectionPolicy {
-        self.collection_policies.remove(&coll_id).expect(
-            &format!("Couldn't remove policy for {} because it doesn't exist", coll_id.orig_name))
+        self.collection_policies.remove(&coll_id).expect(&format!(
+            "Couldn't remove policy for {} because it doesn't exist",
+            coll_id.orig_name
+        ))
     }
 }
 
@@ -59,10 +67,13 @@ pub fn extract_partial_schema_policy(
     gp: &ast::GlobalPolicy,
     outer_schema: &Schema,
 ) -> SchemaPolicy {
-    let outer_schema_coll_idents = outer_schema.collections.iter().map(|col| col.name.clone()).collect();
+    let outer_schema_coll_idents = outer_schema
+        .collections
+        .iter()
+        .map(|col| col.name.clone())
+        .collect();
     let schema = super::schema::extract_partial_schema(gp, outer_schema_coll_idents);
-    ExtractionContext::new(schema, Some(outer_schema))
-    .extract_schema_policy(gp)
+    ExtractionContext::new(schema, Some(outer_schema)).extract_schema_policy(gp)
 }
 
 struct ExtractionContext {
@@ -80,7 +91,7 @@ impl ExtractionContext {
         };
         Self {
             schema,
-            total_schema
+            total_schema,
         }
     }
 
@@ -112,16 +123,8 @@ impl ExtractionContext {
         let coll = self.schema.find_collection(&cp.name).unwrap();
 
         CollectionPolicy {
-            create: extract_policy(
-                &self.total_schema,
-                &coll.name,
-                &cp.create,
-            ),
-            delete: extract_policy(
-                &self.total_schema,
-                &coll.name,
-                &cp.delete,
-            ),
+            create: extract_policy(&self.total_schema, &coll.name, &cp.create),
+            delete: extract_policy(&self.total_schema, &coll.name, &cp.delete),
         }
     }
 
@@ -130,27 +133,15 @@ impl ExtractionContext {
 
         FieldPolicy {
             // TODO: Bring AST names inline
-            edit: extract_policy(
-                &self.total_schema,
-                &coll.name,
-                &fp.write,
-            ),
-            read: extract_policy(
-                &self.total_schema,
-                &coll.name,
-                &fp.read,
-            ),
+            edit: extract_policy(&self.total_schema, &coll.name, &fp.write),
+            read: extract_policy(&self.total_schema, &coll.name, &fp.read),
         }
     }
 }
 
 /// Extracs a policy for the specified collection. The collection ident is used
 /// to set the expected type of the policy function (if present)
-pub fn extract_policy(
-    schema: &Schema,
-    coll: &Ident<Collection>,
-    p: &ast::Policy,
-) -> Policy {
+pub fn extract_policy(schema: &Schema, coll: &Ident<Collection>, p: &ast::Policy) -> Policy {
     match p {
         ast::Policy::Public => Policy::Anyone,
         ast::Policy::None => Policy::None,

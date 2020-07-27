@@ -8,26 +8,32 @@ lalrpop_mod!(parser);
 
 pub type GlobalPolicyParseTree = ast::GlobalPolicy;
 pub fn parse_policy<'a>(input: &'a str) -> Result<GlobalPolicyParseTree, String> {
-    let stripped_input = input.lines().filter(
-        |line|
-        line.split("#").next().unwrap().trim() != "").collect::<Vec<&str>>().join("\n");
+    let stripped_input = input
+        .lines()
+        .filter(|line| line.split("#").next().unwrap().trim() != "")
+        .collect::<Vec<&str>>()
+        .join("\n");
     parser::GlobalPolicyParser::new()
         .parse(&stripped_input)
         .map_err::<String, _>(|e| format!("{}", e))
 }
 pub fn parse_migration<'a>(input: &'a str) -> Result<ast::Migration, String> {
-    let stripped_input = input.lines().filter(
-        |line|
-        line.split("#").next().unwrap().trim() != "").collect::<Vec<&str>>().join("\n");
+    let stripped_input = input
+        .lines()
+        .filter(|line| line.split("#").next().unwrap().trim() != "")
+        .collect::<Vec<&str>>()
+        .join("\n");
     parser::MigrationParser::new()
         .parse(&stripped_input)
         .map_err::<String, _>(|e| format!("{}", e))
 }
 
 pub fn parse_func<'a>(input: &'a str) -> Result<ast::Func, String> {
-    let stripped_input = input.lines().filter(
-        |line|
-        line.split("#").next().unwrap().trim() != "").collect::<Vec<&str>>().join("\n");
+    let stripped_input = input
+        .lines()
+        .filter(|line| line.split("#").next().unwrap().trim() != "")
+        .collect::<Vec<&str>>()
+        .join("\n");
     parser::FuncParser::new()
         .parse(&stripped_input)
         .map_err::<String, _>(|e| format!("{}", e))

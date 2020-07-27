@@ -42,13 +42,14 @@ impl Project {
         Ok(iter)
     }
 
-    pub fn dry_run_migration(&self, file_path: impl AsRef<Path>) -> Result<String, String>{
+    pub fn dry_run_migration(&self, file_path: impl AsRef<Path>) -> Result<String, String> {
         static_checker::migrate::migrate_policy_from_files(self.policy_file(), file_path)
     }
 
-
     pub fn run_migration(&self, file_path: impl AsRef<Path>) -> Result<(), String> {
-        fn stringify(err: io::Error) -> String { format!("{}", err) }
+        fn stringify(err: io::Error) -> String {
+            format!("{}", err)
+        }
         let fp_ref = file_path.as_ref();
         let policy = read_to_string(self.policy_file()).map_err(stringify)?;
         let migration = read_to_string(fp_ref).map_err(stringify)?;
@@ -60,7 +61,12 @@ impl Project {
         // It's important that we try to generate the new policy first, in case the migration is invalid
         let new_policy = self.dry_run_migration(fp_ref)?;
         // Then do the actual data migration
-        migrate(self.db_conf().map_err(stringify)?, &policy, &migration, &migration_name)?;
+        migrate(
+            self.db_conf().map_err(stringify)?,
+            &policy,
+            &migration,
+            &migration_name,
+        )?;
 
         // Finally, write the new policy to disk
         write(self.policy_file(), new_policy).map_err(stringify)?;

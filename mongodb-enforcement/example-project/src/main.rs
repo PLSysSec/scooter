@@ -6,8 +6,8 @@ fn main() {
 
 #[cfg(test)]
 mod test {
-    use enforcement::*;
     use crate::*;
+    use enforcement::*;
     use types::*;
 
     #[test]
@@ -29,14 +29,17 @@ mod test {
             },
         ];
 
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
 
         let retrieved_alex = User::find_by_id(
-            &db_conn.clone().as_princ(Principle::Id(uid_alex.clone().into())),
+            &db_conn
+                .clone()
+                .as_princ(Principle::Id(uid_alex.clone().into())),
             uid_alex.clone().into(),
         )
         .unwrap();
@@ -73,28 +76,40 @@ mod test {
         assert!(!alex_obj.save(&db_conn.clone().as_princ(Principle::Unauthenticated)));
         {
             let retrieved_alex = User::find_by_id(
-                &db_conn.clone().as_princ(Principle::Id(alex_id.clone().into())),
+                &db_conn
+                    .clone()
+                    .as_princ(Principle::Id(alex_id.clone().into())),
                 alex_id.clone().into(),
             )
             .unwrap();
-            let publicly_retrieved_alex =
-                User::find_by_id(&db_conn.clone().as_princ(Principle::Unauthenticated), alex_id.clone().into())
-                    .unwrap();
+            let publicly_retrieved_alex = User::find_by_id(
+                &db_conn.clone().as_princ(Principle::Unauthenticated),
+                alex_id.clone().into(),
+            )
+            .unwrap();
 
             assert_eq!(Some("alex_hash".to_string()), retrieved_alex.pass_hash);
             assert_eq!(None, publicly_retrieved_alex.pass_hash);
         }
-        assert!(alex_obj.save(&db_conn.clone().as_princ(Principle::Id(alex_id.clone().into()))));
+        assert!(alex_obj.save(
+            &db_conn
+                .clone()
+                .as_princ(Principle::Id(alex_id.clone().into()))
+        ));
 
         {
             let retrieved_alex = User::find_by_id(
-                &db_conn.clone().as_princ(Principle::Id(alex_id.clone().into())),
+                &db_conn
+                    .clone()
+                    .as_princ(Principle::Id(alex_id.clone().into())),
                 alex_id.clone().into(),
             )
             .unwrap();
-            let publicly_retrieved_alex =
-                User::find_by_id(&db_conn.clone().as_princ(Principle::Unauthenticated), alex_id.clone().into())
-                    .unwrap();
+            let publicly_retrieved_alex = User::find_by_id(
+                &db_conn.clone().as_princ(Principle::Unauthenticated),
+                alex_id.clone().into(),
+            )
+            .unwrap();
 
             assert_eq!(Some("monster_mash".to_string()), retrieved_alex.pass_hash);
             assert_eq!(None, publicly_retrieved_alex.pass_hash);
@@ -118,14 +133,16 @@ mod test {
         .expect("Didn't get any ids back!");
 
         let result = User::delete_by_id(
-            &db_conn.clone().as_princ(Principle::Id(alex_id.clone().into())),
+            &db_conn
+                .clone()
+                .as_princ(Principle::Id(alex_id.clone().into())),
             alex_id.clone().into(),
         );
         assert!(!result);
     }
 
     fn get_dbconn() -> DBConn {
-        let db_conn = DBConn::new("localhost", 27017,"test2");
+        let db_conn = DBConn::new("localhost", 27017, "test2");
         db_conn.mongo_conn.collection("User").drop(None).ok();
         db_conn.mongo_conn.collection("Message").drop(None).ok();
         db_conn
@@ -153,14 +170,19 @@ mod test {
         ];
 
         // Insert the users, and get their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
             _ => panic!("Not the right number of returned ids"),
         };
         // Make connection objects for both users
-        let alex_conn = &db_conn.clone().as_princ(Principle::Id(uid_alex.clone().into()));
-        let john_conn = &db_conn.clone().as_princ(Principle::Id(uid_john.clone().into()));
+        let alex_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_alex.clone().into()));
+        let john_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_john.clone().into()));
 
         // Insert a message from alex to john, and get its id
         let mid_fromalex = Message::insert_one(
@@ -242,8 +264,13 @@ mod test {
             },
         ];
 
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
-        let all: Vec<_> = User::find_all(&db_conn.clone().as_princ(Principle::Unauthenticated)).unwrap().iter().map(|obj| obj.id.clone()).collect();
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+            .unwrap();
+        let all: Vec<_> = User::find_all(&db_conn.clone().as_princ(Principle::Unauthenticated))
+            .unwrap()
+            .iter()
+            .map(|obj| obj.id.clone())
+            .collect();
         for id in uids {
             assert!(all.contains(&Some(id)))
         }
@@ -273,7 +300,7 @@ mod test {
                 pass_hash: "deian_hash".to_string(),
                 num_followers: 100,
                 trustworthyness: 0,
-            }
+            },
         ];
 
         let unauthenticated_conn = &db_conn.clone().as_princ(Principle::Unauthenticated);
@@ -284,9 +311,15 @@ mod test {
             _ => panic!("Not the right number of returned ids"),
         };
         // Make connection objects for all users
-        let alex_conn = &db_conn.clone().as_princ(Principle::Id(uid_alex.clone().into()));
-        let _john_conn = &db_conn.clone().as_princ(Principle::Id(uid_john.clone().into()));
-        let deian_conn = &db_conn.clone().as_princ(Principle::Id(uid_deian.clone().into()));
+        let alex_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_alex.clone().into()));
+        let _john_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_john.clone().into()));
+        let deian_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_deian.clone().into()));
 
         // Insert a message from alex to john, and get its id
         let mid_public_update = Message::insert_one(
@@ -300,14 +333,15 @@ mod test {
         )
         .expect("Couldn't insert message from alex");
         // Retrieve the message as john (alex should no longer be able to read it)
-        let retreived_as_deian_message = Message::find_by_id(deian_conn, mid_public_update.clone().into())
-            .expect("Couldn't retreive message as deian");
+        let retreived_as_deian_message =
+            Message::find_by_id(deian_conn, mid_public_update.clone().into())
+                .expect("Couldn't retreive message as deian");
         // Make sure the message text is readable
         assert!(retreived_as_deian_message.text.is_some());
         // Retrieve the message as john (alex should no longer be able to read it)
-        let retreived_as_unauth_message = Message::find_by_id(unauthenticated_conn,
-                                                              mid_public_update.clone().into())
-            .expect("Couldn't retreive message as unauthenticated");
+        let retreived_as_unauth_message =
+            Message::find_by_id(unauthenticated_conn, mid_public_update.clone().into())
+                .expect("Couldn't retreive message as unauthenticated");
         // Make sure the message text is readable
         assert!(retreived_as_unauth_message.text.is_some());
     }

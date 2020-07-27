@@ -56,5 +56,4 @@ impl<T> PartialEq for Ident<T> {
         self.index == other.index
     }
 }
-impl<T> Eq for Ident<T> {
-}
+impl<T> Eq for Ident<T> {}

@@ -210,7 +210,10 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
                         .iter_mut()
                         .find(|mut_coll| mut_coll.name == coll.name)
                         .unwrap();
-                    mut_coll.fields.push(Field{name: field.clone(), typ: ty.clone()});
+                    mut_coll.fields.push(Field {
+                        name: field.clone(),
+                        typ: ty.clone(),
+                    });
                     let pol = FieldPolicy {
                         edit: extract_policy(&policy_context_schema, &coll.name, &pol.write),
                         read: extract_policy(&policy_context_schema, &coll.name, &pol.read),

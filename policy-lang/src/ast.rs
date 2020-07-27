@@ -194,5 +194,5 @@ pub enum FieldPolicyKind {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CollectionPolicyKind {
     Create,
-    Delete
+    Delete,
 }

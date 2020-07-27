@@ -19,7 +19,7 @@ fn simple_valid() {
 
             name: String {
                 read: u -> [u.id] + public,
-                write: none, 
+                write: none,
             },
         }
     "#,
@@ -40,7 +40,7 @@ fn missing_principle() {
 
             name: String {
                 read: public,
-                write: none, 
+                write: none,
             },
         }
     "#,
@@ -55,7 +55,7 @@ fn big() {
     User {
         create: public,
         delete: none,
-    
+
         trustworthyness : I64 {
             read: m -> [m.id],
             write: none,
@@ -68,12 +68,12 @@ fn big() {
             read: m -> [m.from, m.to],
             write: none,
         },
-    
+
         to : Id(User) {
             read: m -> [m.to, m.from],
             write: m -> (if User::ById(m.to).trustworthyness > 20 then [m.to] else []),
         },
-    
+
         text : String {
             read: m -> [(if true then m.from else m.to)],
             write: m -> (if m.to != m.from then [] else [m.to]),

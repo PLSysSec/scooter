@@ -749,8 +749,8 @@ impl LoweringContext {
 
     fn is_subtype(&mut self, schema: &Schema, typ1: &ExprType, typ2: &ExprType) -> bool {
         match (typ1, typ2) {
-            (ExprType::List(inner1), ExprType::List(inner2)) |
-            (ExprType::Option(inner1), ExprType::Option(inner2)) => {
+            (ExprType::List(inner1), ExprType::List(inner2))
+            | (ExprType::Option(inner1), ExprType::Option(inner2)) => {
                 self.is_subtype(schema, inner1, inner2)
             }
             (ExprType::Unknown(id), l) | (l, ExprType::Unknown(id)) => {
@@ -773,7 +773,10 @@ impl LoweringContext {
         }
         match (typ, &expr_typ) {
             (ExprType::F64, ExprType::I64) => Box::new(IRExpr::IntToFloat(expr)),
-            _ => panic!("Unable to coerce to type {}\n expr {:#?}\nexpr_type {:?}", typ, expr, expr_typ),
+            _ => panic!(
+                "Unable to coerce to type {}\n expr {:#?}\nexpr_type {:?}",
+                typ, expr, expr_typ
+            ),
         }
     }
 

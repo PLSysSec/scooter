@@ -85,7 +85,7 @@ so for example:
 let x: User::Partial = User::find_by_id(conn, some_id).unwrap();
 ```
 
-Will fetch the user associated with `some_id`, on behalf of the authenticated user. 
+Will fetch the user associated with `some_id`, on behalf of the authenticated user.
 Every `DBCollection` has an associated `Partial` type which is the same as the underlying struct except every field is `pub` and optional. So `User::Partial` looks like this:
 
 ```rust
@@ -110,9 +110,3 @@ let x: User = user! {
     name: "Foo"
 };
 ```
-
-
-
-
-
-
