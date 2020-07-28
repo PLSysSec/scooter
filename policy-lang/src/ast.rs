@@ -58,7 +58,13 @@ pub struct Func {
 
 #[derive(Debug, PartialEq)]
 pub struct GlobalPolicy {
+    pub static_principles: Vec<StaticPrinciple>,
     pub collections: Vec<CollectionPolicy>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StaticPrinciple {
+    pub name: String,
 }
 
 #[derive(Debug, PartialEq)]

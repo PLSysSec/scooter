@@ -48,7 +48,10 @@ mod tests {
     fn simple_policy() {
         let p = parse_policy(
             r#"
-            # This is the user principle, and a full line comment
+            # This is a static principle for authentication
+            @static-principle
+            Authenticator
+            # This is the user principle
             @principle
             User {
                 create: public,
@@ -70,6 +73,9 @@ mod tests {
         assert_eq!(
             p,
             GlobalPolicy {
+                static_principles: vec![StaticPrinciple {
+                    name: "Authenticator".to_string()
+                }],
                 collections: vec![CollectionPolicy {
                     name: "User".to_string(),
                     create: Policy::Public,

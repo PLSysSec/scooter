@@ -3,7 +3,11 @@ use std::str::FromStr;
 grammar;
 
 pub GlobalPolicy: GlobalPolicy = {
-    <cp:CollectionPolicy*> => GlobalPolicy { collections: cp}
+    <sp:StaticPrinciple*> <cp:CollectionPolicy*> => GlobalPolicy { static_principles: sp, collections: cp}
+}
+
+StaticPrinciple: StaticPrinciple = {
+    "@static-principle" <i:Ident> => StaticPrinciple{name: i}
 }
 
 CollectionPolicy: CollectionPolicy = {

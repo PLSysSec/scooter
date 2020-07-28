@@ -316,6 +316,7 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
         ast::MigrationCommand::Create { collection } => {
             let pol = extract_partial_schema_policy(
                 &ast::GlobalPolicy {
+                    static_principles: vec![],
                     collections: vec![collection],
                 },
                 schema,
