@@ -46,7 +46,7 @@ fn mangled_ident<T>(ident: &Ident<T>) -> String {
 fn gen_policy_body(schema: &Schema, policy: &Policy) -> String {
     match policy {
         Policy::Anyone => "        PolicyValue::Public\n    }\n".to_string(),
-        Policy::None => "        PolicyValue::Ids(vec![])\n    }\n".to_string(),
+        Policy::None => "        PolicyValue::List(vec![])\n    }\n".to_string(),
         Policy::Func(Func { body, .. }) => format!(
             "        {}.into()\n    }}\n",
             translate_queryexpr_to_idlist(schema, body)
@@ -177,7 +177,10 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
         IRExpr::Path(_, e, f) => {
             format!("{}.{}.clone()", translate_queryexpr(schema, e), f.orig_name)
         }
-        IRExpr::Var(_ty, id) => format!("{}", mangled_ident(id)),
+        IRExpr::Var(_ty, id) => match schema.static_principles.iter().find(|sp| *sp == id) {
+            Some(sp) => format!("Principle::Static(\"{}\")", sp.orig_name),
+            None => format!("{}", mangled_ident(id)),
+        },
         IRExpr::LookupById(_, id_expr) => format!(
             "{}.lookup(conn).expect(\"Couldn't find user\")",
             translate_queryexpr(schema, id_expr)

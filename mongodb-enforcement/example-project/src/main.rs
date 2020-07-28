@@ -36,7 +36,12 @@ mod test {
             _ => panic!("Not the right number of returned ids"),
         };
 
-        let retrieved_alex = User::find_by_id(
+        let authenticator_retrieved_alex = User::find_by_id(
+            &db_conn.clone().as_princ(Principle::Static("Authenticator")),
+            uid_alex.clone().into(),
+        )
+        .unwrap();
+        let alex_retrieved_alex = User::find_by_id(
             &db_conn
                 .clone()
                 .as_princ(Principle::Id(uid_alex.clone().into())),
@@ -49,7 +54,13 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(Some("alex_hash".to_string()), retrieved_alex.pass_hash);
+        assert_eq!(
+            Some("alex_hash".to_string()),
+            authenticator_retrieved_alex.pass_hash
+        );
+        assert_eq!(None, authenticator_retrieved_alex.trustworthyness);
+        assert_eq!(None, alex_retrieved_alex.pass_hash);
+        assert_eq!(Some(15), alex_retrieved_alex.trustworthyness);
         assert_eq!(None, publicly_retrieved_alex.pass_hash);
     }
 
@@ -75,10 +86,8 @@ mod test {
 
         assert!(!alex_obj.save(&db_conn.clone().as_princ(Principle::Unauthenticated)));
         {
-            let retrieved_alex = User::find_by_id(
-                &db_conn
-                    .clone()
-                    .as_princ(Principle::Id(alex_id.clone().into())),
+            let auth_retrieved_alex = User::find_by_id(
+                &db_conn.clone().as_princ(Principle::Static("Authenticator")),
                 alex_id.clone().into(),
             )
             .unwrap();
@@ -88,7 +97,7 @@ mod test {
             )
             .unwrap();
 
-            assert_eq!(Some("alex_hash".to_string()), retrieved_alex.pass_hash);
+            assert_eq!(Some("alex_hash".to_string()), auth_retrieved_alex.pass_hash);
             assert_eq!(None, publicly_retrieved_alex.pass_hash);
         }
         assert!(alex_obj.save(
@@ -98,10 +107,8 @@ mod test {
         ));
 
         {
-            let retrieved_alex = User::find_by_id(
-                &db_conn
-                    .clone()
-                    .as_princ(Principle::Id(alex_id.clone().into())),
+            let auth_retrieved_alex = User::find_by_id(
+                &db_conn.clone().as_princ(Principle::Static("Authenticator")),
                 alex_id.clone().into(),
             )
             .unwrap();
@@ -111,7 +118,10 @@ mod test {
             )
             .unwrap();
 
-            assert_eq!(Some("monster_mash".to_string()), retrieved_alex.pass_hash);
+            assert_eq!(
+                Some("monster_mash".to_string()),
+                auth_retrieved_alex.pass_hash
+            );
             assert_eq!(None, publicly_retrieved_alex.pass_hash);
         }
     }

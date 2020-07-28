@@ -1,3 +1,6 @@
+@static-principle
+Authenticator
+
 @principle
 User {
     create: public,
@@ -8,7 +11,7 @@ User {
     },
 
     pass_hash : String {
-        read: r -> [r.id],
+        read: r -> [Authenticator],
         write: r -> [r.id],
     },
 
