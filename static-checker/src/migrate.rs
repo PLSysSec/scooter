@@ -1221,4 +1221,42 @@ Phone {
 "#;
         assert_eq!(expected_after_policy, after_policy);
     }
+    #[test]
+    fn pass_read_to_authenticator() {
+        let before_policy = r#"@static-principle
+Authenticator
+
+@principle
+User {
+    create: public,
+    delete: none,
+
+    pass_hash : String {
+        read: none,
+        write: u -> [u.id],
+    },
+
+    name : String {
+        read: none,
+        write: none,
+    },
+}"#;
+        let migration = r#"User::LoosenFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
+        let after_policy = migrate_policy(before_policy, migration);
+        let expected_after_policy = r#"@principle
+User {
+    create: public,
+    delete: none,
+
+    pass_hash : String {
+        read: u -> [Authenticator],
+        write: u -> [u.id],
+    },
+
+    name : String {
+        read: none,
+        write: none,
+    },
+}"#;
+    }
 }
