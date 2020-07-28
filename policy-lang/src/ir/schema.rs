@@ -1,4 +1,4 @@
-use super::{expr::ExprType, Ident};
+use super::{expr::ExprType, expr::Var, Ident};
 use crate::ast;
 use std::{
     collections::{HashMap, HashSet},
@@ -7,6 +7,7 @@ use std::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schema {
+    pub static_principles: Vec<Ident<Var>>,
     pub collections: Vec<Collection>,
     pub principle: Option<Ident<Collection>>,
 }
@@ -23,6 +24,12 @@ impl Schema {
             (Some(_), Some(_)) => panic!("Cannot merge two schemas that both have principles"),
         };
         Schema {
+            static_principles: s1
+                .static_principles
+                .clone()
+                .into_iter()
+                .chain(s2.static_principles.clone().into_iter())
+                .collect(),
             collections: s1
                 .collections
                 .clone()
@@ -165,6 +172,11 @@ impl ExtractionContext {
     }
 
     fn extract_schema(&mut self, gp: &ast::GlobalPolicy) -> Schema {
+        let static_principles = gp
+            .static_principles
+            .iter()
+            .map(|sp| Ident::new(&sp.name))
+            .collect();
         let colls: Vec<_> = gp
             .collections
             .iter()
@@ -180,6 +192,7 @@ impl ExtractionContext {
                 .clone()
         });
         Schema {
+            static_principles: static_principles,
             collections: colls,
             principle: principle_id,
         }

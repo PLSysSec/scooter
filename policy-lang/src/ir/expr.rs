@@ -515,6 +515,13 @@ impl LoweringContext {
             ast::QueryExpr::Var(v) => {
                 let (ident, typ) = def_map
                     .lookup(v)
+                    .or_else(|| {
+                        schema
+                            .static_principles
+                            .iter()
+                            .find(|sp| sp.orig_name == *v)
+                            .map(|sp| (sp.clone(), ExprType::Principle))
+                    })
                     .expect(&format!("Use of undefined variable: {}", v));
                 IRExpr::Var(typ, ident)
             }
