@@ -153,25 +153,6 @@ impl SMTContext {
         vm: &VarMap,
     ) -> SMTResult {
         debug_assert!(!contains_unknown(&body.type_of()));
-        eprintln!("{:?}", body.type_of());
-        match body.type_of() {
-            ExprType::List(id) if *target.1 == ExprType::Principle => {
-                eprintln!("SHIFT!");
-                if let ExprType::Id(ref id) = *id {
-                    let new_target = (&self.princ_casts[id].1, &ExprType::Object(id.clone()));
-                    let low = self.lower_expr(new_target, body, vm);
-                    let expr = format!(
-                        "(and (= {} ({} {})) {})",
-                        ident(&target.0),
-                        ident(&self.princ_casts[id].0),
-                        ident(new_target.0),
-                        &low.expr
-                    );
-                    return SMTResult::new(low.stmts, expr);
-                }
-            }
-            _ => eprintln!("{:?}", body.type_of()),
-        };
 
         match body {
             IRExpr::AppendS(l, r) => self.simple_nary_op("str.++", target, &[l, r], vm),
@@ -266,26 +247,44 @@ impl SMTContext {
                     }
                 };
                 for id in ids {
-                    let mut list_expr = self.lower_expr(
-                        (&id, &func.param_type),
-                        &list_expr,
-                        &vm.extend(func.param.clone(), id.clone()),
-                    );
-                    let mut func_expr = self.lower_expr(
-                        (&id, &func.param_type),
-                        &func.body,
-                        &vm.extend(func.param.clone(), id.clone()),
-                    );
-
-                    let elem = format!(
-                        "(and {} (= {} {}))",
-                        &list_expr.expr,
-                        &func_expr.expr,
-                        ident(target.0)
-                    );
+                    let list_expr = self.lower_expr((&id, &func.param_type), &list_expr, &vm);
+                    preamble.extend(list_expr.stmts);
+                    let elem = match &func.return_type {
+                        ExprType::Id(coll) if *target.1 == ExprType::Principle => {
+                            let new_target =
+                                (&self.princ_casts[&coll].1, &ExprType::Object(coll.clone()));
+                            let func_expr = self.lower_expr(
+                                new_target,
+                                &func.body,
+                                &vm.extend(func.param.clone(), id.clone()),
+                            );
+                            preamble.extend(func_expr.stmts);
+                            format!(
+                                "(and {} (= {} ({} {})) (= {} {}))",
+                                list_expr.expr,
+                                ident(&target.0),
+                                ident(&self.princ_casts[&coll].0),
+                                ident(new_target.0),
+                                func_expr.expr,
+                                ident(new_target.0)
+                            )
+                        }
+                        _ => {
+                            let func_expr = self.lower_expr(
+                                target,
+                                &func.body,
+                                &vm.extend(func.param.clone(), id.clone()),
+                            );
+                            preamble.extend(func_expr.stmts);
+                            format!(
+                                "(and {} (= {} {}))",
+                                &list_expr.expr,
+                                &func_expr.expr,
+                                ident(target.0)
+                            )
+                        }
+                    };
                     elems.push(elem);
-                    preamble.append(&mut list_expr.stmts);
-                    preamble.append(&mut func_expr.stmts);
                 }
 
                 let expr = format!("(or {})", spaced(elems.into_iter()));
@@ -304,11 +303,30 @@ impl SMTContext {
                 let mut stmts = vec![];
                 let mut equalities = vec![];
                 for expr in exprs.iter() {
-                    let elem_expr = self.lower_expr(target, expr, vm);
+                    let elem_expr = match expr.type_of() {
+                        ExprType::Id(coll) if *target.1 == ExprType::Principle => {
+                            let new_target =
+                                (&self.princ_casts[&coll].1, &ExprType::Object(coll.clone()));
+                            let low = self.lower_expr(new_target, expr, vm);
+                            stmts.extend(low.stmts);
+                            format!(
+                                "(and (= {} ({} {})) (= {} {}))",
+                                ident(&target.0),
+                                ident(&self.princ_casts[&coll].0),
+                                ident(new_target.0),
+                                ident(new_target.0),
+                                &low.expr
+                            )
+                        }
+                        ExprType::Principle => {
+                            let low = self.lower_expr(target, expr, vm);
+                            stmts.extend(low.stmts);
+                            format!("(= {} {})", ident(target.0), low.expr)
+                        }
+                        _ => panic!("Runtime type error"),
+                    };
 
-                    equalities.push(format!("(= {} {})\n", ident(target.0), &elem_expr.expr));
-
-                    stmts.extend(elem_expr.stmts)
+                    equalities.push(elem_expr)
                 }
 
                 let expr = if equalities.len() == 0 {
