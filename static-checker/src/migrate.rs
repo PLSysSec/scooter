@@ -1232,7 +1232,7 @@ User {
     delete: none,
 
     pass_hash : String {
-        read: none,
+        read: u -> [u.id, Authenticator],
         write: u -> [u.id],
     },
 
@@ -1241,8 +1241,8 @@ User {
         write: none,
     },
 }"#;
-        let migration = r#"User::LoosenFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
-        let after_policy = migrate_policy(before_policy, migration);
+        let migration = r#"User::TightenFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
+        let after_policy = migrate_policy(before_policy, migration).unwrap();
         let expected_after_policy = r#"@principle
 User {
     create: public,
@@ -1252,11 +1252,12 @@ User {
         read: u -> [Authenticator],
         write: u -> [u.id],
     },
-
     name : String {
         read: none,
         write: none,
     },
-}"#;
+}
+"#;
+        assert_eq!(expected_after_policy, after_policy);
     }
 }
