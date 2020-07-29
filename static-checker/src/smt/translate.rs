@@ -100,10 +100,12 @@ struct VarMap(HashMap<Ident<Var>, Ident<SMTVar>>);
 
 impl VarMap {
     fn lookup(&self, var: &Ident<Var>) -> Ident<SMTVar> {
-        self.0
-            .get(var)
-            .expect(&format!("Couldn't find var {:?}", var))
+        self.lookup_maybe(var)
+            .expect(&format!("Couldn't find var {:?}", *var))
             .clone()
+    }
+    fn lookup_maybe(&self, var: &Ident<Var>) -> Option<&Ident<SMTVar>> {
+        self.0.get(var)
     }
 
     fn extend(&self, var: Ident<Var>, smtvar: Ident<SMTVar>) -> Self {
@@ -170,7 +172,11 @@ impl SMTContext {
             }
             IRExpr::IntToFloat(b) => self.simple_nary_op("to-real", target, &[b], vm),
             IRExpr::Path(_, obj, f) => self.simple_nary_op(&ident(f), target, &[obj], vm),
-            IRExpr::Var(_, i) => SMTResult::expr(ident(&vm.lookup(i))),
+            IRExpr::Var(_, i) => SMTResult::expr(match vm.lookup_maybe(i) {
+                Some(id) => ident(&id),
+                // This case should trigger when using a static principle
+                None => i.orig_name.clone(),
+            }),
             // Because id's and object types are the same, find is a no-op
             IRExpr::LookupById(_, b) => self.lower_expr(target, b, vm),
             IRExpr::Now => SMTResult::expr(ident(&NOW_IDENT)),
@@ -383,7 +389,13 @@ impl SMTContext {
         let princ_cons = Ident::new(format!("princ_{}", &princ.orig_name));
         let princ_obj = Ident::new(format!("princ_{}", &princ.orig_name));
         let princ_decl = Statement::Hack(format!(
-            "(declare-datatypes () ((Principle unauth ({} ({0} {})))))",
+            "(declare-datatypes () ((Principle unauth {} ({} ({1} {})))))",
+            schema
+                .static_principles
+                .iter()
+                .map(|sp| sp.orig_name.clone())
+                .collect::<Vec<_>>()
+                .join(" "),
             ident(&princ_cons),
             ident(princ)
         ));
