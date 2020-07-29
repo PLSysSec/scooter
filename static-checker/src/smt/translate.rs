@@ -214,7 +214,11 @@ impl SMTContext {
                     stmts.extend(field_expr.stmts)
                 }
 
-                let anded_eqs = format!("(and {} true)", spaced(equalities.into_iter()));
+                let anded_eqs = if equalities.len() == 0 {
+                    "false".to_string()
+                } else {
+                    format!("(and {})", spaced(equalities.into_iter()))
+                };
 
                 SMTResult::new(stmts, anded_eqs)
             }
@@ -307,7 +311,11 @@ impl SMTContext {
                     stmts.extend(elem_expr.stmts)
                 }
 
-                let expr = format!("(or {} false)", spaced(equalities.into_iter()));
+                let expr = if equalities.len() == 0 {
+                    "false".to_string()
+                } else {
+                    format!("(or {})", spaced(equalities.into_iter()))
+                };
                 SMTResult::new(stmts, expr)
             }
             IRExpr::If(_, c, t, e) => self.simple_nary_op("ite", target, &[c, t, e], vm),
