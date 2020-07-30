@@ -28,25 +28,6 @@ fn simple_valid() {
     assert_eq!(policy.schema.collections[0].name.orig_name, "User");
     assert_eq!(policy.schema.principle.unwrap().orig_name, "User");
 }
-
-#[test]
-#[should_panic(expected = "No `@principle` found in policy.")]
-fn missing_principle() {
-    test_policy(
-        r#"
-        User {
-            create: public,
-            delete: none,
-
-            name: String {
-                read: public,
-                write: none,
-            },
-        }
-    "#,
-    );
-}
-
 #[test]
 fn big() {
     test_policy(

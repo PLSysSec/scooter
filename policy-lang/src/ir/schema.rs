@@ -116,10 +116,6 @@ impl Ident<Field> {
 
 pub fn extract_schema(gp: &ast::GlobalPolicy) -> Schema {
     let result = ExtractionContext::new(gp, Vec::new()).extract_schema(gp);
-    assert!(
-        result.principle.is_some(),
-        "No `@principle` found in policy."
-    );
     result
 }
 
