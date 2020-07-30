@@ -167,6 +167,26 @@ impl SMTContext {
     ) -> SMTResult {
         debug_assert!(!contains_unknown(&body.type_of()));
 
+        // We need to downcast if target is a Principal and body is a list of concrete type
+        match body.type_of() {
+            ExprType::List(id) if *target.1 == ExprType::Principle => {
+                eprintln!("SHIFT!");
+                if let ExprType::Id(ref id) = *id {
+                    let new_target = (&self.princ_casts[id].1, &ExprType::Object(id.clone()));
+                    let low = self.lower_expr(new_target, body, vm);
+                    let expr = format!(
+                        "(and (= {} ({} {})) {})",
+                        ident(&target.0),
+                        ident(&self.princ_casts[id].0),
+                        ident(new_target.0),
+                        &low.expr
+                    );
+                    return SMTResult::new(low.stmts, expr);
+                }
+            }
+            _ => eprintln!("{:?}", body.type_of()),
+        };
+
         match body {
             IRExpr::AppendS(l, r) => self.simple_nary_op("str.++", target, &[l, r], vm),
             IRExpr::AddI(l, r) | IRExpr::AddF(l, r) | IRExpr::AddD(l, r) => {
@@ -262,41 +282,18 @@ impl SMTContext {
                 for id in ids {
                     let list_expr = self.lower_expr((&id, &func.param_type), &list_expr, &vm);
                     preamble.extend(list_expr.stmts);
-                    let elem = match &func.return_type {
-                        ExprType::Id(coll) if *target.1 == ExprType::Principle => {
-                            let new_target =
-                                (&self.princ_casts[&coll].1, &ExprType::Object(coll.clone()));
-                            let func_expr = self.lower_expr(
-                                new_target,
-                                &func.body,
-                                &vm.extend(func.param.clone(), id.clone()),
-                            );
-                            preamble.extend(func_expr.stmts);
-                            format!(
-                                "(and {} (= {} ({} {})) (= {} {}))",
-                                list_expr.expr,
-                                ident(&target.0),
-                                ident(&self.princ_casts[&coll].0),
-                                ident(new_target.0),
-                                func_expr.expr,
-                                ident(new_target.0)
-                            )
-                        }
-                        _ => {
-                            let func_expr = self.lower_expr(
-                                target,
-                                &func.body,
-                                &vm.extend(func.param.clone(), id.clone()),
-                            );
-                            preamble.extend(func_expr.stmts);
-                            format!(
-                                "(and {} (= {} {}))",
-                                &list_expr.expr,
-                                &func_expr.expr,
-                                ident(target.0)
-                            )
-                        }
-                    };
+                    let func_expr = self.lower_expr(
+                        target,
+                        &func.body,
+                        &vm.extend(func.param.clone(), id.clone()),
+                    );
+                    preamble.extend(func_expr.stmts);
+                    let elem = format!(
+                        "(and {} (= {} {}))",
+                        &list_expr.expr,
+                        &func_expr.expr,
+                        ident(target.0)
+                    );
                     elems.push(elem);
                 }
 
@@ -331,12 +328,11 @@ impl SMTContext {
                                 &low.expr
                             )
                         }
-                        ExprType::Principle => {
+                        _ => {
                             let low = self.lower_expr(target, expr, vm);
                             stmts.extend(low.stmts);
                             format!("(= {} {})", ident(target.0), low.expr)
                         }
-                        _ => panic!("Runtime type error"),
                     };
 
                     equalities.push(elem_expr)
