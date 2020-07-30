@@ -1,48 +1,43 @@
 
-User::AddField(invitation_accepted_at: DateTime {
+User::AddField(invitation_accepted_at: Option(DateTime) {
     read: none,
     write: u -> [u.id],
-}, _ -> now())
+}, _ -> None)
 
-User::AddField(invitation_accepted: Bool {
-    read: public,
-    write: u -> [u.id],
-}, _ -> true)
-
-User::AddField(invitation_token: String {
+User::AddField(invitation_token: Option(String) {
     read: public,
     write: u -> (
-        if !u.invitation_accepted
-        then User::Find({}).map(u -> u.id)
-        else []
+        match u.invitation_accepted_at as _
+        in []
+        else User::Find({}).map(u -> u.id)
     ),
-}, _ -> "")
+}, _ -> None)
 
-User::AddField(invitation_created_at: DateTime {
+User::AddField(invitation_created_at: Option(DateTime) {
     read: public,
     write: u -> (
-        if !u.invitation_accepted
-        then User::Find({}).map(u -> u.id)
-        else []
+        match u.invitation_accepted_at as _
+        in []
+        else User::Find({}).map(u -> u.id)
     ),
-}, _ -> now())
+}, _ -> None)
 
-User::AddField(invitation_sent_at: DateTime {
+User::AddField(invitation_sent_at: Option(DateTime) {
     read: public,
     write: u -> (
-        if !u.invitation_accepted
-        then User::Find({}).map(u -> u.id)
-        else []
+        match u.invitation_accepted_at as _
+        in []
+        else User::Find({}).map(u -> u.id)
     ),
-}, _ -> now())
+}, _ -> None)
 
-User::AddField(invited_by: Id(User) {
+User::AddField(invited_by: Option(Id(User)) {
     read: u -> [u.id],
     write: u -> (
-        if !u.invitation_accepted
-        then User::Find({}).map(u -> u.id)
-        else []
+        match u.invitation_accepted_at as _
+        in []
+        else User::Find({}).map(u -> u.id)
     ),
-}, u -> u.id)
+}, _ -> None)
 
 User::TightenCollectionPolicy(create, u -> User::Find({}).map(u -> u.id))

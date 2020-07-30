@@ -354,7 +354,7 @@ impl SMTContext {
             }
             IRExpr::If(_, c, t, e) => self.simple_nary_op("ite", target, &[c, t, e], vm),
             IRExpr::Public => SMTResult::expr(true),
-            IRExpr::None(_ty) => SMTResult::expr("none"),
+            IRExpr::None(ty) => SMTResult::expr(format!("(as none (Option {}))", type_name(&ty))),
             IRExpr::Some(_ty, inner_expr) => {
                 let elem_expr = self.lower_expr(target, inner_expr, vm);
                 SMTResult::new(elem_expr.stmts, format!("(some {})", &elem_expr.expr))

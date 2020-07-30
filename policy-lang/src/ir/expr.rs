@@ -180,7 +180,8 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
             resolve_types(type_map, i)
         }
 
-        IRExpr::Var(ty, _) => {
+        IRExpr::Var(ty, _)
+        | IRExpr::None(ty) => {
             *ty = apply_ty(type_map, ty);
         }
         IRExpr::Object(_, fields, _template) => {
@@ -226,15 +227,13 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
             resolve_types(type_map, val);
         }
 
-
         IRExpr::Now
         | IRExpr::DateTimeConst(..)
         | IRExpr::IntConst(_)
         | IRExpr::FloatConst(_)
         | IRExpr::StringConst(_)
         | IRExpr::BoolConst(_)
-        | IRExpr::None(_) => {}
-        IRExpr::Public => {}
+        | IRExpr::Public => {}
     };
 }
 
