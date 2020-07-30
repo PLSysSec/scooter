@@ -205,7 +205,18 @@ impl SMTContext {
             IRExpr::Path(_, obj, f) => self.simple_nary_op(&ident(f), target, &[obj], vm),
             IRExpr::Var(_, i) => SMTResult::expr(ident(&vm.lookup(i))),
             // Because id's and object types are the same, find is a no-op
-            IRExpr::LookupById(_, b) => self.lower_expr(target, b, vm),
+            IRExpr::LookupById(coll, b) => {
+                let lower = self.lower_expr(target, b, vm);
+                let lookup_id = Ident::new("lookup");
+                let assert = format!("(= {} {})", ident(&lookup_id), &lower.expr);
+                let mut stmts = lower.stmts;
+                stmts.append(
+                    &mut self.domain_ident(lookup_id.clone(), ExprType::Object(coll.clone())),
+                );
+                stmts.push(Statement::Assert(assert));
+
+                SMTResult::new(stmts, ident(&lookup_id))
+            }
             IRExpr::Now => SMTResult::expr(ident(&NOW_IDENT)),
             IRExpr::DateTimeConst(datetime) => SMTResult::expr(datetime.timestamp()),
             IRExpr::IntConst(i) => SMTResult::expr(i),
@@ -228,11 +239,7 @@ impl SMTContext {
                     stmts.extend(field_expr.stmts)
                 }
 
-                let anded_eqs = if equalities.len() == 0 {
-                    "false".to_string()
-                } else {
-                    format!("(and {})", spaced(equalities.into_iter()))
-                };
+                let anded_eqs = format!("(and {} true)", spaced(equalities.into_iter()));
 
                 SMTResult::new(stmts, anded_eqs)
             }
@@ -495,7 +502,7 @@ impl SMTContext {
                 let mut out = vec![];
                 for e in f.body.subexprs_preorder() {
                     match e {
-                        IRExpr::Find(coll, ..) => {
+                        IRExpr::LookupById(coll, ..) | IRExpr::Find(coll, ..) => {
                             out.push(self.declare_in_domain(
                                 ExprType::Object(coll.clone()),
                                 Ident::new("domain_var"),

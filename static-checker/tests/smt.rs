@@ -243,3 +243,43 @@ fn static_princ() {
             .expect_err("strictness check should fail")
     );
 }
+
+#[test]
+fn domains() {
+    let before_policy = schema_policy(
+        r#"
+        @principle
+        User {
+            create: public,
+            delete: none,
+
+            other: Id(User) {
+                read: public,
+                write: none,
+            },
+        }
+    "#,
+    );
+
+    let schema = before_policy.schema;
+    let user = schema.find_collection("User").unwrap();
+    let before = func(
+        &schema,
+        "u -> User::Find({}).map(u -> u.id)",
+        ExprType::Object(user.name.clone()),
+        ExprType::list(ExprType::Principle),
+    );
+    let after = func(
+        &schema,
+        "u -> [User::ById(u.other).id]",
+        ExprType::Object(user.name.clone()),
+        ExprType::list(ExprType::Id(user.name.clone())),
+    );
+
+    is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
+    eprintln!(
+        "{}",
+        is_as_strict(&schema, &vec![], &user.name, &after, &before)
+            .expect_err("strictness check should fail")
+    );
+}
