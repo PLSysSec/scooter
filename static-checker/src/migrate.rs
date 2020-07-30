@@ -50,6 +50,11 @@ pub fn migrate_policy(policy_text: &str, migration_text: &str) -> Result<String,
 
 fn policy_to_string(policy: SchemaPolicy) -> String {
     let mut result = "".to_string();
+    for sp in policy.schema.static_principles.iter() {
+        result += "@static-principle\n";
+        result += &sp.orig_name;
+        result += "\n";
+    }
     for coll in policy.schema.collections.iter() {
         let coll_policy = policy.collection_policies[&coll.name].clone();
         if policy.schema.principle == Some(coll.name.clone()) {
@@ -1225,7 +1230,6 @@ Phone {
     fn pass_read_to_authenticator() {
         let before_policy = r#"@static-principle
 Authenticator
-
 @principle
 User {
     create: public,
@@ -1243,7 +1247,9 @@ User {
 }"#;
         let migration = r#"User::TightenFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
         let after_policy = migrate_policy(before_policy, migration).unwrap();
-        let expected_after_policy = r#"@principle
+        let expected_after_policy = r#"@static-principle
+Authenticator
+@principle
 User {
     create: public,
     delete: none,
