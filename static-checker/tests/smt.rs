@@ -199,6 +199,44 @@ fn friends() {
 
     is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
     is_as_strict(&schema, &vec![], &user.name, &before, &after1).unwrap();
+}
+
+#[test]
+fn static_princ() {
+    let before_policy = schema_policy(
+        r#"
+        @static-principle
+        Authenticator
+
+        @principle
+        User {
+            create: public,
+            delete: none,
+
+            pass: String {
+                read: public,
+                write: none,
+            },
+        }
+    "#,
+    );
+
+    let schema = before_policy.schema;
+    let user = schema.find_collection("User").unwrap();
+    let before = func(
+        &schema,
+        "u -> [Authenticator, u.id]",
+        ExprType::Object(user.name.clone()),
+        ExprType::list(ExprType::Principle),
+    );
+    let after = func(
+        &schema,
+        "u -> [u.id]",
+        ExprType::Object(user.name.clone()),
+        ExprType::list(ExprType::Id(user.name.clone())),
+    );
+
+    is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
     eprintln!(
         "{}",
         is_as_strict(&schema, &vec![], &user.name, &after, &before)

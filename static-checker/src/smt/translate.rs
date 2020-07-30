@@ -47,9 +47,12 @@ pub(crate) fn gen_assert(
     let mut before_decl = ctx.predeclare(before);
     let mut after_decl = ctx.predeclare(after);
 
+    // Create initial variable mapping
+    let var_map = VarMap::from_schema(schema);
+
     // Lower the functions
-    let mut before = ctx.lower_policy(&princ_id, &rec_id, coll, before);
-    let mut after = ctx.lower_policy(&princ_id, &rec_id, coll, after);
+    let mut before = ctx.lower_policy(&princ_id, &rec_id, &var_map, before);
+    let mut after = ctx.lower_policy(&princ_id, &rec_id, &var_map, after);
 
     let safety_assertion =
         Statement::Assert(format!("(and {} (not {}))", &after.expr, &before.expr,));
@@ -100,12 +103,20 @@ struct VarMap(HashMap<Ident<Var>, Ident<SMTVar>>);
 
 impl VarMap {
     fn lookup(&self, var: &Ident<Var>) -> Ident<SMTVar> {
-        self.lookup_maybe(var)
+        self.0
+            .get(var)
             .expect(&format!("Couldn't find var {:?}", *var))
             .clone()
     }
-    fn lookup_maybe(&self, var: &Ident<Var>) -> Option<&Ident<SMTVar>> {
-        self.0.get(var)
+
+    fn from_schema(schema: &Schema) -> Self {
+        Self(
+            schema
+                .static_principles
+                .iter()
+                .map(|id| (id.clone(), id.coerce()))
+                .collect(),
+        )
     }
 
     fn extend(&self, var: Ident<Var>, smtvar: Ident<SMTVar>) -> Self {
@@ -126,7 +137,7 @@ impl SMTContext {
         &self,
         princ: &Ident<SMTVar>,
         rec: &Ident<SMTVar>,
-        _coll: &Ident<Collection>,
+        var_map: &VarMap,
         pol: &Policy,
     ) -> SMTResult {
         let id = Ident::new("policy");
@@ -135,7 +146,7 @@ impl SMTContext {
             Policy::None => vec![define(id.clone(), &[], ExprType::Bool, false)],
             Policy::Anyone => vec![define(id.clone(), &[], ExprType::Bool, true)],
             Policy::Func(f) => {
-                let vm = VarMap::default().extend(f.param.clone(), rec.clone());
+                let vm = var_map.extend(f.param.clone(), rec.clone());
                 let f = self.lower_expr((princ, &ExprType::Principle), &f.body, &vm);
                 let func = define(id.clone(), &[], ExprType::Bool, &f.expr);
 
@@ -172,11 +183,7 @@ impl SMTContext {
             }
             IRExpr::IntToFloat(b) => self.simple_nary_op("to-real", target, &[b], vm),
             IRExpr::Path(_, obj, f) => self.simple_nary_op(&ident(f), target, &[obj], vm),
-            IRExpr::Var(_, i) => SMTResult::expr(match vm.lookup_maybe(i) {
-                Some(id) => ident(&id),
-                // This case should trigger when using a static principle
-                None => i.orig_name.clone(),
-            }),
+            IRExpr::Var(_, i) => SMTResult::expr(ident(&vm.lookup(i))),
             // Because id's and object types are the same, find is a no-op
             IRExpr::LookupById(_, b) => self.lower_expr(target, b, vm),
             IRExpr::Now => SMTResult::expr(ident(&NOW_IDENT)),
@@ -393,7 +400,7 @@ impl SMTContext {
             schema
                 .static_principles
                 .iter()
-                .map(|sp| sp.orig_name.clone())
+                .map(ident)
                 .collect::<Vec<_>>()
                 .join(" "),
             ident(&princ_cons),
