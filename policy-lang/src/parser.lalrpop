@@ -163,6 +163,7 @@ MigrationAction: MigrationAction = {
         MigrationAction::ChangeField{field:c, new_ty:ty, new_init:f},
     "RenameField" "(" <f_old:Ident> "," <f_new:Ident> ")" =>
         MigrationAction::RenameField{old_field:f_old, new_field: f_new},
+
     "LoosenFieldPolicy" "(" <f:Ident> "," <k:FieldPolicyKind> "," <p:Policy>")" =>
         MigrationAction::LoosenFieldPolicy{field:f, kind: k, pol: p},
     "TightenFieldPolicy" "(" <f:Ident> "," <k:FieldPolicyKind> "," <p:Policy>")" =>
@@ -176,11 +177,18 @@ MigrationAction: MigrationAction = {
 MigrationCommand: MigrationCommand = {
     <c:Ident> "::" <action: MigrationAction> =>
         MigrationCommand::CollAction{table: c, action },
+
     "CreateCollection" "(" <c:CollectionPolicy> ")" =>
         MigrationCommand::Create{ collection: c },
     "DeleteCollection" "(" <i:Ident> ")" =>
         MigrationCommand::Delete{table_name: i},
-    ObjectCommand => MigrationCommand::ObjectCommand(<>)
+
+    ObjectCommand => MigrationCommand::ObjectCommand(<>),
+
+    "AddStaticPrinciple" "(" <sp:Ident> ")" =>
+        MigrationCommand::AddStaticPrinciple{name: sp},
+    "AddPrinciple" "(" <p:Ident> ")" =>
+        MigrationCommand::AddPrinciple{table_name: p},
 }
 
 ObjectCommand: ObjectCommand = {

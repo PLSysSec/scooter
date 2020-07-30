@@ -71,6 +71,14 @@ pub enum MigrationCommand {
     Delete {
         name: Ident<Collection>,
     },
+
+    AddStaticPrinciple {
+        name: Ident<Var>,
+    },
+
+    AddPrinciple {
+        table_name: Ident<Collection>,
+    },
 }
 
 #[derive(Debug)]
@@ -120,7 +128,6 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
                 .filter(|f| f.name != *field)
                 .cloned()
                 .collect();
-            output
         }
         MigrationCommand::AddField {
             coll, field, ty, ..
@@ -129,7 +136,6 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
                 name: field.clone(),
                 typ: ty.clone(),
             });
-            output
         }
         MigrationCommand::ChangeField {
             coll,
@@ -143,7 +149,6 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
                 .find(|f| f.name != *field)
                 .unwrap();
             old_field.typ = new_ty.clone();
-            output
         }
         MigrationCommand::RenameField {
             coll,
@@ -156,11 +161,9 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
                 .find(|f| f.name == *field)
                 .unwrap();
             old_field.name = new_name.clone();
-            output
         }
         MigrationCommand::Create { pol } => {
             output.collections.push(pol.schema.collections[0].clone());
-            output
         }
         MigrationCommand::Delete { name } => {
             output.collections = output
@@ -168,14 +171,26 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
                 .into_iter()
                 .filter(|c| c.name == *name)
                 .collect();
-            output
+        }
+        MigrationCommand::AddStaticPrinciple { name } => {
+            output.static_principles.push(name.clone());
+        }
+        MigrationCommand::AddPrinciple { table_name } => {
+            assert!(
+                output.principle.is_none(),
+                "Can't add more than one principle!\n \
+                     Existing principle is {:?}",
+                output.principle
+            );
+            output.principle = Some(table_name.clone());
         }
         MigrationCommand::LoosenFieldPolicy { .. }
         | MigrationCommand::TightenFieldPolicy { .. }
         | MigrationCommand::LoosenCollectionPolicy { .. }
         | MigrationCommand::TightenCollectionPolicy { .. }
-        | MigrationCommand::DataCommand(_) => output,
-    }
+        | MigrationCommand::DataCommand(_) => (),
+    };
+    output
 }
 
 /// Converts an ast to the lowered representation where Idents and Types (among other things) are resolved.
@@ -337,6 +352,20 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
 
         ast::MigrationCommand::ObjectCommand(oc) => {
             MigrationCommand::DataCommand(extract_data_command(schema, DefMap::empty(), oc))
+        }
+
+        ast::MigrationCommand::AddStaticPrinciple { name } => {
+            let name = Ident::new(name);
+            MigrationCommand::AddStaticPrinciple { name }
+        }
+        ast::MigrationCommand::AddPrinciple { table_name } => {
+            let coll = schema.find_collection(&table_name).expect(&format!(
+                "Unable to make collection `{}` the principle because it does not exist.",
+                table_name
+            ));
+            MigrationCommand::AddPrinciple {
+                table_name: coll.name.clone(),
+            }
         }
     }
 }

@@ -421,6 +421,10 @@ fn interpret_migration_on_policy(
             MigrationCommand::Delete { name } => {
                 result_policy.remove_collection_policy(name);
             }
+            // The adding of static principles is purely a schema
+            // thing, so it's handled before this step.
+            MigrationCommand::AddStaticPrinciple { name: _ } => (),
+            MigrationCommand::AddPrinciple { table_name: _ } => {}
         }
     }
 
@@ -1265,5 +1269,47 @@ User {
 }
 "#;
         assert_eq!(expected_after_policy, after_policy);
+    }
+
+    #[test]
+    fn add_principles_field() {
+        let policy_text = r"User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: none,
+    },
+    pass_hash : String {
+        read: public,
+        write: none,
+    },
+}
+";
+        let migration_text = r#"AddStaticPrinciple(Authenticator)
+AddPrinciple(User)
+User::LoosenFieldPolicy(pass_hash, write, u -> [u.id])
+User::TightenFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
+
+        let expected_result_text = r"@static-principle
+Authenticator
+@principle
+User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: none,
+    },
+    pass_hash : String {
+        read: u -> [Authenticator],
+        write: u -> [u.id],
+    },
+}
+";
+        assert_eq!(expected_result_text, out_text);
     }
 }

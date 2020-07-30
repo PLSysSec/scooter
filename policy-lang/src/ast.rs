@@ -133,6 +133,13 @@ pub enum MigrationCommand {
         table_name: String,
     },
     ObjectCommand(ObjectCommand),
+
+    AddStaticPrinciple {
+        name: String,
+    },
+    AddPrinciple {
+        table_name: String,
+    },
 }
 
 #[derive(Debug, PartialEq)]
