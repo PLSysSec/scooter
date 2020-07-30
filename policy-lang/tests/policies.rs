@@ -28,6 +28,27 @@ fn simple_valid() {
     assert_eq!(policy.schema.collections[0].name.orig_name, "User");
     assert_eq!(policy.schema.principle.unwrap().orig_name, "User");
 }
+
+#[test]
+#[should_panic(expected = "Type error: unable to coerce List(Id(User)) to List(Principle)")]
+fn wrong_principle() {
+    test_policy(
+        r"User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: none,
+    },
+    pass_hash : String {
+        read: public,
+        write: u -> [u.id],
+    },
+}
+",
+    );
+}
 #[test]
 fn big() {
     test_policy(
