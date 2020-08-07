@@ -1312,4 +1312,69 @@ User {
 ";
         assert_eq!(expected_result_text, out_text);
     }
+
+    #[test]
+    fn domain_constraints() {
+        let policy_text = r"@principle
+User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: none,
+    },
+}
+Message {
+    create: m -> [m.from],
+    delete: none,
+
+    to : Id(User) {
+        read: public,
+        write: none,
+    },
+    from : Id(User) {
+        read: m -> User::Find({}).map(u -> u.id),
+        write: none,
+    },
+    contents : String {
+        read: m -> [m.to, m.from],
+        write: none,
+    },
+}
+";
+        let migration_text =
+            r#"Message::TightenFieldPolicy(from, read, m -> Message::Find({}).map(m -> m.from))"#;
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
+
+        let expected_result_text = r"@principle
+User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: none,
+    },
+}
+Message {
+    create: m -> [m.from],
+    delete: none,
+
+    to : Id(User) {
+        read: public,
+        write: none,
+    },
+    from : Id(User) {
+        read: m -> Message::Find({}).map(m -> m.from),
+        write: none,
+    },
+    contents : String {
+        read: m -> [m.to,m.from],
+        write: none,
+    },
+}
+";
+        assert_eq!(expected_result_text, out_text);
+    }
 }
