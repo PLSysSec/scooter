@@ -1,0 +1,66 @@
+@principle
+User {
+    create: public,
+    delete: u -> [u.id],
+
+    keys: String {
+        read: public,
+        write: u -> [u.id],
+    },
+}
+
+# We can't do multiple dynamic principle collections, so gitstar's "Apps" are hard to express
+# @principle
+# Apps { ... }
+
+Project {
+    create: public,
+    delete: proj -> [proj.owner],
+
+    owner: Id(User) {
+        read: p -> [p.owner] +
+        ProjectReader::Find({proj: p.id}).map(pr -> pr.user) +
+        ProjectCollaborator::Find({proj: p.id}).map(pc -> pc.user),
+        write: proj -> [proj.owner],
+    },
+    name: String {
+        read: p -> [p.owner] +
+        ProjectReader::Find({proj: p.id}).map(pr -> pr.user) +
+        ProjectCollaborator::Find({proj: p.id}).map(pc -> pc.user),
+        write: proj -> [proj.owner],
+    },
+    is_public: Bool {
+        read: p -> [p.owner] +
+        ProjectReader::Find({proj: p.id}).map(pr -> pr.user) +
+        ProjectCollaborator::Find({proj: p.id}).map(pc -> pc.user),
+        write: proj -> [proj.owner],
+    },
+}
+
+ProjectReader {
+    create: pr -> [Project::ById(pr.proj).owner],
+    delete: pr -> [Project::ById(pr.proj).owner, pr.user],
+
+    proj: Id(Project) {
+        read: pr -> [pr.user],
+        write: none,
+    },
+    user: Id(User) {
+        read: pr -> [pr.user],
+        write: none,
+    },
+}
+
+ProjectCollaborator {
+    create: pr -> [Project::ById(pr.proj).owner],
+    delete: pr -> [Project::ById(pr.proj).owner, pr.user],
+
+    proj: Id(Project) {
+        read: pr -> [pr.user],
+        write: none,
+    },
+    user: Id(User) {
+        read: pr -> [pr.user],
+        write: none,
+    },
+}
