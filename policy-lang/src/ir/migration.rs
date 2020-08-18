@@ -198,7 +198,7 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
     match cmd {
         ast::MigrationCommand::CollAction { table, action } => {
             let coll = schema.find_collection(&table).expect(&format!(
-                "Unable to delete collection `{}` because it does not exist.",
+                "Unable to modify collection `{}` because it does not exist.",
                 &table
             ));
 
