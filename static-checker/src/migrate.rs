@@ -57,7 +57,7 @@ fn policy_to_string(policy: SchemaPolicy) -> String {
     }
     for coll in policy.schema.collections.iter() {
         let coll_policy = policy.collection_policies[&coll.name].clone();
-        if policy.schema.principle == Some(coll.name.clone()) {
+        if policy.schema.dynamic_principles.contains(&coll.name) {
             result += &format!("@principle\n")
         }
         result += &format!("{} {{\n", coll.name.orig_name);

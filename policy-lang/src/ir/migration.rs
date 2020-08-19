@@ -176,13 +176,7 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
             output.static_principles.push(name.clone());
         }
         MigrationCommand::AddPrinciple { table_name } => {
-            assert!(
-                output.principle.is_none(),
-                "Can't add more than one principle!\n \
-                     Existing principle is {:?}",
-                output.principle
-            );
-            output.principle = Some(table_name.clone());
+            output.dynamic_principles.push(table_name.clone());
         }
         MigrationCommand::LoosenFieldPolicy { .. }
         | MigrationCommand::TightenFieldPolicy { .. }

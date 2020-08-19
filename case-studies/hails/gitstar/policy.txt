@@ -9,9 +9,21 @@ User {
     },
 }
 
-# We can't do multiple dynamic principle collections, so gitstar's "Apps" are hard to express
-# @principle
-# Apps { ... }
+@principle
+Apps {
+    create: public,
+    delete: a -> [a.owner],
+
+    owner: Id(User) {
+        read: public,
+        write: a -> [a.owner, a.id],
+    },
+
+    name: String {
+        read: public,
+        write: a -> [a.owner, a.id],
+    },
+}
 
 Project {
     create: public,

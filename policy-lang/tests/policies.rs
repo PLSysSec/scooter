@@ -26,7 +26,61 @@ fn simple_valid() {
     );
 
     assert_eq!(policy.schema.collections[0].name.orig_name, "User");
-    assert_eq!(policy.schema.principle.unwrap().orig_name, "User");
+    assert_eq!(
+        policy
+            .schema
+            .dynamic_principles
+            .iter()
+            .map(|dp| dp.orig_name.clone())
+            .collect::<Vec<_>>(),
+        vec!["User"]
+    );
+}
+#[test]
+fn two_principles() {
+    let policy = test_policy(
+        r#"
+        @principle
+        Service {
+            create: public,
+            delete: s -> [s.owner, s.id],
+
+            owner: Id(User) {
+                read: public,
+                write: s -> [s.owner],
+            },
+        }
+        @principle
+        User {
+            create: public,
+            delete: none,
+
+            name: String {
+                read: u -> [u.id] + public,
+                write: none,
+            },
+        }
+    "#,
+    );
+
+    assert_eq!(
+        policy
+            .schema
+            .collections
+            .iter()
+            .map(|coll| coll.name.orig_name.clone())
+            .collect::<Vec<_>>(),
+        vec!["Service", "User"]
+    );
+    assert_eq!(
+        policy
+            .schema
+            .dynamic_principles
+            .iter()
+            .map(|dp| dp.orig_name.clone())
+            .collect::<Vec<_>>(),
+        vec!["Service", "User"]
+    );
 }
 
 #[test]

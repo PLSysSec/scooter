@@ -733,9 +733,24 @@ impl LoweringContext {
                         .collect();
                     let mut most_general_type = lowered_elems[0].type_of();
 
-                    for expr in lowered_elems.iter() {
+                    for (idx, expr) in lowered_elems.iter().enumerate() {
                         if self.is_subtype(schema, &most_general_type, &expr.type_of()) {
                             most_general_type = expr.type_of();
+                        } else if self.is_subtype(schema, &expr.type_of(), &most_general_type) {
+                            continue;
+                        } else if self.is_subtype(schema, &most_general_type, &ExprType::Principle)
+                            && self.is_subtype(schema, &most_general_type, &ExprType::Principle)
+                        {
+                            most_general_type = ExprType::Principle;
+                        } else {
+                            panic!(
+                                "List elements have incompatible types!\n\
+                                    List element {} has type {}, \
+                                    which is incompatible with inferred-so-far type {}",
+                                idx,
+                                expr.type_of(),
+                                most_general_type
+                            );
                         }
                     }
 
@@ -767,10 +782,7 @@ impl LoweringContext {
                     self.is_subtype(schema, l, &self.type_map[&id].clone())
                 }
             }
-            (ExprType::Id(coll), ExprType::Principle) => match &schema.principle {
-                Some(princ) => princ == coll,
-                None => false,
-            },
+            (ExprType::Id(coll), ExprType::Principle) => schema.dynamic_principles.contains(coll),
             _ => typ1 == typ2,
         }
     }

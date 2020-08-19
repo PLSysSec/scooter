@@ -395,25 +395,39 @@ impl SMTContext {
 
     /// Lowers the schema to a String containing an SMT2LIB script
     fn lower_schema(&mut self, equivs: &[Equiv], schema: &Schema) -> Vec<Statement> {
-        let princ = schema.principle.as_ref().unwrap();
-        let princ_cons = Ident::new(format!("princ_{}", &princ.orig_name));
-        let princ_obj = Ident::new(format!("princ_{}", &princ.orig_name));
+        let princ_ids: Vec<_> = schema
+            .dynamic_principles
+            .iter()
+            .map(|princ_coll| {
+                (
+                    Ident::new(format!("princ_{}", &princ_coll.orig_name)),
+                    Ident::new(format!("princ_{}", &princ_coll.orig_name)),
+                    princ_coll.clone(),
+                )
+            })
+            .collect();
         let princ_decl = Statement::Hack(format!(
-            "(declare-datatypes () ((Principle unauth {} ({} ({1} {})))))",
+            "(declare-datatypes () ((Principle unauth {} {})))",
             schema
                 .static_principles
                 .iter()
                 .map(ident)
                 .collect::<Vec<_>>()
                 .join(" "),
-            ident(&princ_cons),
-            ident(princ)
+            princ_ids
+                .iter()
+                .map(|(princ_cons, _princ_obj, princ_coll)| format!(
+                    "({} ({1} {}))",
+                    ident(&princ_cons),
+                    ident(princ_coll)
+                ))
+                .collect::<Vec<_>>()
+                .join(" ")
         ));
-        let princ_obj_decl =
-            self.declare_in_domain(ExprType::Object(princ.clone()), princ_obj.clone());
-
-        self.princ_casts
-            .insert(princ.clone(), (princ_cons, princ_obj));
+        for (princ_cons, princ_obj, princ_coll) in princ_ids.iter() {
+            self.princ_casts
+                .insert(princ_coll.clone(), (princ_cons.clone(), princ_obj.clone()));
+        }
 
         let mut out: Vec<_> = schema
             .collections
@@ -421,7 +435,11 @@ impl SMTContext {
             .flat_map(|c| self.lower_collection(equivs, c))
             .collect();
         out.push(princ_decl);
-        out.push(princ_obj_decl);
+        for (_princ_cons, princ_obj, princ_coll) in princ_ids.iter() {
+            let princ_obj_decl =
+                self.declare_in_domain(ExprType::Object(princ_coll.clone()), princ_obj.clone());
+            out.push(princ_obj_decl);
+        }
         out
     }
 

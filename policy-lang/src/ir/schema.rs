@@ -8,8 +8,8 @@ use std::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schema {
     pub static_principles: Vec<Ident<Var>>,
+    pub dynamic_principles: Vec<Ident<Collection>>,
     pub collections: Vec<Collection>,
-    pub principle: Option<Ident<Collection>>,
 }
 
 impl Schema {
@@ -17,26 +17,25 @@ impl Schema {
         self.collections.iter().find(|c| c.name.eq_str(name))
     }
     pub fn merge(s1: &Self, s2: &Self) -> Self {
-        let merged_principle = match (&s1.principle, &s2.principle) {
-            (None, None) => None,
-            (Some(p), None) => Some(p.clone()),
-            (None, Some(p)) => Some(p.clone()),
-            (Some(_), Some(_)) => panic!("Cannot merge two schemas that both have principles"),
-        };
         Schema {
             static_principles: s1
                 .static_principles
-                .clone()
-                .into_iter()
+                .iter()
+                .cloned()
                 .chain(s2.static_principles.clone().into_iter())
+                .collect(),
+            dynamic_principles: s1
+                .dynamic_principles
+                .iter()
+                .cloned()
+                .chain(s2.dynamic_principles.iter().cloned())
                 .collect(),
             collections: s1
                 .collections
-                .clone()
-                .into_iter()
+                .iter()
+                .cloned()
                 .chain(s2.collections.clone().into_iter())
                 .collect(),
-            principle: merged_principle,
         }
     }
 }
@@ -145,18 +144,11 @@ impl ExtractionContext {
         Self { coll_idents }
     }
 
-    fn find_principle(gp: &ast::GlobalPolicy) -> Option<String> {
-        let mut principle = None;
+    fn find_principles(gp: &ast::GlobalPolicy) -> Vec<String> {
+        let mut principles = Vec::new();
         for cp in gp.collections.iter() {
             match cp.annotations.as_slice() {
-                [ast::Annotation::Principle] => {
-                    if let Some(old) = principle.replace(cp.name.clone()) {
-                        panic!(
-                            "Multiple collections cannot be marked as principles: {}, {}",
-                            old, cp.name
-                        )
-                    }
-                }
+                [ast::Annotation::Principle] => principles.push(cp.name.clone()),
                 [] => {}
                 _ => panic!(
                     "Error on {}. Only a single annotation (`@principle`) is allowed.",
@@ -164,33 +156,35 @@ impl ExtractionContext {
                 ),
             }
         }
-        principle
+        principles
     }
 
     fn extract_schema(&mut self, gp: &ast::GlobalPolicy) -> Schema {
-        let static_principles = gp
-            .static_principles
-            .iter()
-            .map(|sp| Ident::new(&sp.name))
-            .collect();
         let colls: Vec<_> = gp
             .collections
             .iter()
             .map(|cp| self.extract_collection(cp))
             .collect();
-        let principle_name = Self::find_principle(gp);
-        let principle_id = principle_name.map(|name| {
-            colls
-                .iter()
-                .find(|coll| coll.name.orig_name == name)
-                .unwrap()
-                .name
-                .clone()
-        });
+        let static_principles = gp
+            .static_principles
+            .iter()
+            .map(|sp| Ident::new(&sp.name))
+            .collect();
+        let dynamic_principles = Self::find_principles(gp)
+            .iter()
+            .map(|name| {
+                colls
+                    .iter()
+                    .find(|coll| coll.name.orig_name == *name)
+                    .unwrap()
+                    .name
+                    .clone()
+            })
+            .collect();
         Schema {
             static_principles: static_principles,
+            dynamic_principles: dynamic_principles,
             collections: colls,
-            principle: principle_id,
         }
     }
 
