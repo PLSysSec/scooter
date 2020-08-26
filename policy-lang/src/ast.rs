@@ -22,7 +22,7 @@ pub enum QueryExpr {
     LookupById(String, Box<QueryExpr>),
     Find(String, Vec<(String, Box<QueryExpr>)>),
 
-    List(Vec<Box<QueryExpr>>),
+    Set(Vec<Box<QueryExpr>>),
     If(Box<QueryExpr>, Box<QueryExpr>, Box<QueryExpr>),
     Match(Box<QueryExpr>, String, Box<QueryExpr>, Box<QueryExpr>),
 
@@ -96,7 +96,7 @@ pub enum FieldType {
     Bool,
     DateTime,
     Id(String),
-    List(Box<FieldType>),
+    Set(Box<FieldType>),
     Option(Box<FieldType>),
 }
 
@@ -109,7 +109,7 @@ impl fmt::Display for FieldType {
             FieldType::DateTime => write!(f, "DateTime"),
             FieldType::Id(coll) => write!(f, "Id({})", coll),
             FieldType::Bool => write!(f, "bool"),
-            FieldType::List(inner_type) => write!(f, "[{}]", inner_type),
+            FieldType::Set(inner_type) => write!(f, "Set({})", inner_type),
             FieldType::Option(inner_type) => write!(f, "Option({})", inner_type),
         }
     }

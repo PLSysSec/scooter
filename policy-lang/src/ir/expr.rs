@@ -56,7 +56,7 @@ pub enum ExprType {
     F64,
     Bool,
     DateTime,
-    List(Box<ExprType>),
+    Set(Box<ExprType>),
     Option(Box<ExprType>),
     Object(Ident<Collection>),
     /// Represents an unresolved type. These won't exist after lowering
@@ -64,8 +64,8 @@ pub enum ExprType {
 }
 
 impl ExprType {
-    pub fn list(elem: Self) -> Self {
-        Self::List(Box::new(elem))
+    pub fn set(elem: Self) -> Self {
+        Self::Set(Box::new(elem))
     }
     pub fn option(elem: Self) -> Self {
         Self::Option(Box::new(elem))
@@ -93,7 +93,7 @@ impl fmt::Display for ExprType {
             ExprType::F64 => write!(f, "F64"),
             ExprType::Bool => write!(f, "Bool"),
             ExprType::DateTime => write!(f, "DateTime"),
-            ExprType::List(ty) => write!(f, "List({})", ty),
+            ExprType::Set(ty) => write!(f, "Set({})", ty),
             ExprType::Option(ty) => write!(f, "Option({})", ty),
             ExprType::Object(coll) => write!(f, "{}", coll.orig_name),
             ExprType::Unknown(id) => write!(f, "{}_{}", &id.orig_name, id.index),
@@ -202,7 +202,7 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
                 resolve_types(type_map, field);
             }
         }
-        IRExpr::List(ref mut ty, elems) => {
+        IRExpr::Set(ref mut ty, elems) => {
             *ty = apply_ty(type_map, ty);
             for elem in elems.iter_mut() {
                 resolve_types(type_map, elem)
@@ -247,7 +247,7 @@ fn apply_ty(type_map: &HashMap<Ident<ExprType>, ExprType>, ty: &ExprType) -> Exp
         | ExprType::Object(_)
         | ExprType::DateTime
         | ExprType::Bool => ty.clone(),
-        ExprType::List(lty) => ExprType::list(apply_ty(type_map, lty)),
+        ExprType::Set(lty) => ExprType::set(apply_ty(type_map, lty)),
         ExprType::Option(lty) => ExprType::option(apply_ty(type_map, lty)),
         ExprType::Unknown(id) => apply_ty(type_map, &type_map[id]),
     }
@@ -266,7 +266,7 @@ fn apply_ty(type_map: &HashMap<Ident<ExprType>, ExprType>, ty: &ExprType) -> Exp
 pub enum IRExpr {
     /// String append
     AppendS(Box<IRExpr>, Box<IRExpr>),
-    /// List append. The type denotes the unified type from the operation
+    /// Set union. The type denotes the unified type from the operation
     AppendL(ExprType, Box<IRExpr>, Box<IRExpr>),
     /// Adding integers
     AddI(Box<IRExpr>, Box<IRExpr>),
@@ -323,7 +323,7 @@ pub enum IRExpr {
     /// Look up an object in a collection by some template
     Find(Ident<Collection>, Vec<(Ident<Field>, Box<IRExpr>)>),
     /// A list expression
-    List(ExprType, Vec<Box<IRExpr>>),
+    Set(ExprType, Vec<Box<IRExpr>>),
     /// Conditional expression
     If(ExprType, Box<IRExpr>, Box<IRExpr>, Box<IRExpr>),
     /// Matching on option values
@@ -366,7 +366,7 @@ impl LoweringContext {
                     ExprType::I64 => IRExpr::AddI(left, right),
                     ExprType::F64 => IRExpr::AddF(left, right),
                     ExprType::DateTime => IRExpr::AddD(left, right),
-                    ExprType::List(_) => {
+                    ExprType::Set(_) => {
                         let typ = if self.is_subtype(schema, &left.type_of(), &right.type_of()) {
                             right.type_of()
                         } else {
@@ -669,9 +669,9 @@ impl LoweringContext {
                 let param_ty = ExprType::Unknown(Ident::new("map_param"));
                 let list_ir_expr = self.extract_ir_expr(schema, def_map.clone(), list_expr);
                 let list_ir_expr =
-                    self.coerce(schema, &ExprType::list(param_ty.clone()), list_ir_expr);
+                    self.coerce(schema, &ExprType::set(param_ty.clone()), list_ir_expr);
                 let param_ty = match list_ir_expr.type_of() {
-                    ExprType::List(p) => *p,
+                    ExprType::Set(p) => *p,
                     _ => unreachable!("We just set the type"),
                 };
                 let param_ident = Ident::new(func.param.clone());
@@ -723,9 +723,9 @@ impl LoweringContext {
 
                 IRExpr::LookupById(coll.name.clone(), id_expr)
             }
-            ast::QueryExpr::List(elems) => {
+            ast::QueryExpr::Set(elems) => {
                 if elems.len() == 0 {
-                    IRExpr::List(ExprType::new_unknown(), vec![])
+                    IRExpr::Set(ExprType::new_unknown(), vec![])
                 } else {
                     let lowered_elems: Vec<_> = elems
                         .iter()
@@ -744,8 +744,8 @@ impl LoweringContext {
                             most_general_type = ExprType::Principle;
                         } else {
                             panic!(
-                                "List elements have incompatible types!\n\
-                                    List element {} has type {}, \
+                                "Set elements have incompatible types!\n\
+                                    Set element {} has type {}, \
                                     which is incompatible with inferred-so-far type {}",
                                 idx,
                                 expr.type_of(),
@@ -759,7 +759,7 @@ impl LoweringContext {
                         .map(|expr| self.coerce(schema, &most_general_type, expr))
                         .collect();
 
-                    IRExpr::List(most_general_type.clone(), lowered_elems)
+                    IRExpr::Set(most_general_type.clone(), lowered_elems)
                 }
             }
             ast::QueryExpr::Public => IRExpr::Public,
@@ -770,7 +770,7 @@ impl LoweringContext {
 
     fn is_subtype(&mut self, schema: &Schema, typ1: &ExprType, typ2: &ExprType) -> bool {
         match (typ1, typ2) {
-            (ExprType::List(inner1), ExprType::List(inner2))
+            (ExprType::Set(inner1), ExprType::Set(inner2))
             | (ExprType::Option(inner1), ExprType::Option(inner2)) => {
                 self.is_subtype(schema, inner1, inner2)
             }
@@ -798,7 +798,7 @@ impl LoweringContext {
         }
     }
 
-    /// Handles coercions favoring Int->Float conversion and List<Unknown> -> List<Foo>
+    /// Handles coercions favoring Int->Float conversion and Set<Unknown> -> Set<Foo>
     fn align_types(
         &mut self,
         schema: &Schema,
@@ -828,7 +828,7 @@ impl LoweringContext {
 impl IRExpr {
     pub fn type_of(&self) -> ExprType {
         match self {
-            IRExpr::Public => ExprType::list(ExprType::Principle),
+            IRExpr::Public => ExprType::set(ExprType::Principle),
             IRExpr::AddI(..) | IRExpr::SubI(..) | IRExpr::IntConst(_) => ExprType::I64,
 
             IRExpr::IntToFloat(_) | IRExpr::FloatConst(_) | IRExpr::AddF(..) | IRExpr::SubF(..) => {
@@ -853,15 +853,15 @@ impl IRExpr {
             IRExpr::Object(coll, ..) | IRExpr::LookupById(coll, ..) => {
                 ExprType::Object(coll.clone())
             }
-            IRExpr::Map(_list_expr, func) => ExprType::list(func.return_type.clone()),
+            IRExpr::Map(_list_expr, func) => ExprType::set(func.return_type.clone()),
 
-            IRExpr::Find(coll, ..) => ExprType::list(ExprType::Object(coll.clone())),
+            IRExpr::Find(coll, ..) => ExprType::set(ExprType::Object(coll.clone())),
 
             IRExpr::Var(typ, ..)
             | IRExpr::AppendL(typ, ..)
             | IRExpr::If(typ, ..)
             | IRExpr::Match(typ, ..) => typ.clone(),
-            IRExpr::List(typ, ..) => ExprType::list(typ.clone()),
+            IRExpr::Set(typ, ..) => ExprType::set(typ.clone()),
             IRExpr::None(typ) | IRExpr::Some(typ, ..) => ExprType::option(typ.clone()),
         }
     }
@@ -956,7 +956,7 @@ impl IRExpr {
                     .map(|(fld, val)| (fld.clone(), Box::new(val.map(f))))
                     .collect(),
             )),
-            IRExpr::List(ty, items) => f(IRExpr::List(
+            IRExpr::Set(ty, items) => f(IRExpr::Set(
                 ty.clone(),
                 items.iter().map(|item| Box::new(item.map(f))).collect(),
             )),
@@ -1047,7 +1047,7 @@ impl IRExpr {
                 )
                 .collect::<Vec<_>>()
                 .into_iter(),
-            IRExpr::List(_ty, items) => iter::once(self)
+            IRExpr::Set(_ty, items) => iter::once(self)
                 .chain(items.iter().flat_map(|item| item.subexprs_preorder()))
                 .collect::<Vec<_>>()
                 .into_iter(),

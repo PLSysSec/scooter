@@ -46,7 +46,7 @@ fn mangled_ident<T>(ident: &Ident<T>) -> String {
 fn gen_policy_body(schema: &Schema, policy: &Policy) -> String {
     match policy {
         Policy::Anyone => "        PolicyValue::Public\n    }\n".to_string(),
-        Policy::None => "        PolicyValue::List(vec![])\n    }\n".to_string(),
+        Policy::None => "        PolicyValue::Set(vec![])\n    }\n".to_string(),
         Policy::Func(Func { body, .. }) => format!(
             "        {}.into()\n    }}\n",
             translate_queryexpr_to_idlist(schema, body)
@@ -206,7 +206,7 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             mangled_ident(&func.param),
             translate_queryexpr(schema, &func.body)
         ),
-        IRExpr::List(_ty, exprs) => {
+        IRExpr::Set(_ty, exprs) => {
             let mut out = "vec![".to_string();
             for expr in exprs.into_iter() {
                 out += &translate_queryexpr(schema, expr);
@@ -304,7 +304,7 @@ fn lower_ty(ty: &ExprType) -> String {
         ExprType::F64 => "f64".to_string(),
         ExprType::Bool => "bool".to_string(),
         ExprType::DateTime => "DateTime".to_string(),
-        ExprType::List(inner_ty) => match inner_ty.as_ref() {
+        ExprType::Set(inner_ty) => match inner_ty.as_ref() {
             ExprType::Principle => format!("PolicyValue"),
             _ => format!("Vec::<{}>", lower_ty(inner_ty)).to_string(),
         },

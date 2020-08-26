@@ -46,7 +46,7 @@ FieldType: FieldType = {
     "Bool" => FieldType::Bool,
     "Id" "(" <coll:Ident> ")" => FieldType::Id(coll),
     "DateTime" => FieldType::DateTime,
-    "[" <ft:FieldType> "]" => FieldType::List(Box::new(ft)),
+    "[" <ft:FieldType> "]" => FieldType::Set(Box::new(ft)),
     "Option" "(" <ft:FieldType> ")" => FieldType::Option(Box::new(ft)),
 }
 
@@ -70,7 +70,7 @@ Object: ObjectLiteral = {
     <i:Ident> "{" <fs:Comma<FieldInitializer>> "}" => ObjectLiteral{ coll: i, fields: fs, template_obj: None},
     <i:Ident> "{" <fs:Comma<FieldInitializer>> "..." <e:QueryExpr> "}" => ObjectLiteral {coll: i, fields: fs, template_obj: Some(e)}
 }
-List: Vec<Box<QueryExpr>> = {
+Set: Vec<Box<QueryExpr>> = {
     "[" <exprs:Comma<QueryExpr>> "]" => exprs
 }
 ConditionalExpr: Box<QueryExpr> = {
@@ -132,7 +132,7 @@ QueryExpr2: Box<QueryExpr> = {
     ConditionalExpr => <>,
     CollectionExpr => <>,
     "public" => Box::new(QueryExpr::Public),
-    List => Box::new(QueryExpr::List(<>)),
+    Set => Box::new(QueryExpr::Set(<>)),
     "(" <e:QueryExpr> ")" => e,
     <le: QueryExpr2> "." "map" "(" <f: Func> ")" => Box::new(QueryExpr::Map(le, f)),
     <o: QueryExpr2> "." <f: Ident> => Box::new(QueryExpr::FieldAccess(o, f)),

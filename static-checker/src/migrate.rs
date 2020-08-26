@@ -179,7 +179,7 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
                 .collect::<Vec<String>>()
                 .join(",")
         ),
-        IRExpr::List(_ty, exprs) => format!(
+        IRExpr::Set(_ty, exprs) => format!(
             "[{}]",
             exprs
                 .iter()

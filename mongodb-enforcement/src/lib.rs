@@ -33,7 +33,7 @@ pub enum Principle {
 #[derive(Debug)]
 pub enum PolicyValue {
     Public,
-    List(Vec<Principle>),
+    Set(Vec<Principle>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -69,12 +69,12 @@ where
 
 impl From<Vec<RecordId>> for PolicyValue {
     fn from(ids: Vec<RecordId>) -> PolicyValue {
-        PolicyValue::List(ids.into_iter().map(Principle::Id).collect())
+        PolicyValue::Set(ids.into_iter().map(Principle::Id).collect())
     }
 }
 impl From<Vec<Principle>> for PolicyValue {
     fn from(princs: Vec<Principle>) -> PolicyValue {
-        PolicyValue::List(princs)
+        PolicyValue::Set(princs)
     }
 }
 impl<T> From<Vec<TypedRecordId<T>>> for PolicyValue
@@ -82,7 +82,7 @@ where
     T: DBCollection,
 {
     fn from(ids: Vec<TypedRecordId<T>>) -> PolicyValue {
-        PolicyValue::List(
+        PolicyValue::Set(
             ids.into_iter()
                 .map(|v| Principle::Id(v.clone().into()))
                 .collect(),
@@ -94,7 +94,7 @@ where
     T: DBCollection,
 {
     fn from(ids: Vec<Option<TypedRecordId<T>>>) -> PolicyValue {
-        PolicyValue::List(
+        PolicyValue::Set(
             ids.iter()
                 .map(|v| Principle::Id(v.clone().unwrap().into()))
                 .collect(),
@@ -106,7 +106,7 @@ impl PolicyValue {
     pub fn accessible_by(&self, user: &Principle) -> bool {
         match (self, user) {
             (Self::Public, _) => true,
-            (Self::List(ids), user) => ids.iter().find(|&el| el == user).is_some(),
+            (Self::Set(ids), user) => ids.iter().find(|&el| el == user).is_some(),
         }
     }
 }

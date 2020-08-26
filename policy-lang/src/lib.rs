@@ -97,7 +97,7 @@ mod tests {
                                     ty: FieldType::String,
                                     read: Policy::Func(Func {
                                         param: "u".to_string(),
-                                        expr: Box::new(QueryExpr::List(vec![Box::new(
+                                        expr: Box::new(QueryExpr::Set(vec![Box::new(
                                             QueryExpr::FieldAccess(
                                                 Box::new(QueryExpr::Var("u".to_string())),
                                                 "id".to_string(),
@@ -106,7 +106,7 @@ mod tests {
                                     }),
                                     write: Policy::Func(Func {
                                         param: "u".to_string(),
-                                        expr: Box::new(QueryExpr::List(vec![Box::new(
+                                        expr: Box::new(QueryExpr::Set(vec![Box::new(
                                             QueryExpr::FieldAccess(
                                                 Box::new(QueryExpr::Var("u".to_string())),
                                                 "id".to_string(),

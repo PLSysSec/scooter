@@ -169,7 +169,7 @@ impl SMTContext {
 
         // We need to downcast if target is a Principal and body is a list of concrete type
         match body.type_of() {
-            ExprType::List(id) if *target.1 == ExprType::Principle => {
+            ExprType::Set(id) if *target.1 == ExprType::Principle => {
                 eprintln!("SHIFT!");
                 if let ExprType::Id(ref id) = *id {
                     let new_target = (&self.princ_casts[id].1, &ExprType::Object(id.clone()));
@@ -316,7 +316,7 @@ impl SMTContext {
                 stmts.extend(right.stmts);
                 SMTResult::new(stmts, expr)
             }
-            IRExpr::List(_, exprs) => {
+            IRExpr::Set(_, exprs) => {
                 let mut stmts = vec![];
                 let mut equalities = vec![];
                 for expr in exprs.iter() {
@@ -571,9 +571,9 @@ pub fn type_name(typ: &ExprType) -> String {
         ExprType::F64 => "Real".to_owned(),
         ExprType::Bool => "Bool".to_owned(),
         ExprType::DateTime => "Int".to_owned(),
-        ExprType::List(t) => format!("(Array {} Bool)", type_name(t)),
+        ExprType::Set(t) => format!("(Array {} Bool)", type_name(t)),
         ExprType::Option(t) => format!("(Option {})", type_name(t)),
-        ExprType::Unknown(_) => panic!("ListUnknowns should never be serialized"),
+        ExprType::Unknown(_) => panic!("Set(Unknown)s should never be serialized"),
 
         // Ids and objects are the same in SMT land
         ExprType::Id(t) | ExprType::Object(t) => ident(t),
@@ -595,7 +595,7 @@ fn contains_unknown(typ: &ExprType) -> bool {
         | ExprType::Principle
         | ExprType::Bool => false,
         ExprType::Unknown(_) => true,
-        ExprType::List(t) | ExprType::Option(t) => contains_unknown(t),
+        ExprType::Set(t) | ExprType::Option(t) => contains_unknown(t),
     }
 }
 

@@ -84,7 +84,7 @@ fn two_principles() {
 }
 
 #[test]
-#[should_panic(expected = "Type error: unable to coerce List(Id(User)) to List(Principle)")]
+#[should_panic(expected = "Type error: unable to coerce Set(Id(User)) to Set(Principle)")]
 fn wrong_principle() {
     test_policy(
         r"User {

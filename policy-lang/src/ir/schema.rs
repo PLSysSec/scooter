@@ -241,12 +241,12 @@ impl ExtractionContext {
                     ))
                     .clone(),
             ),
-            FieldType::List(ty) => {
-                if let FieldType::List(_) = **ty {
+            FieldType::Set(ty) => {
+                if let FieldType::Set(_) = **ty {
                     panic!("Schemas may not contain nested lists")
                 };
 
-                ExprType::List(Box::new(self.extract_type(ty)))
+                ExprType::Set(Box::new(self.extract_type(ty)))
             }
             FieldType::Option(ty) => ExprType::Option(Box::new(self.extract_type(ty))),
         }
@@ -269,7 +269,7 @@ pub(crate) fn extract_type(schema: &Schema, ty: &ast::FieldType) -> ExprType {
 
             ExprType::Id(coll.name.clone())
         }
-        FieldType::List(inner_ty) => ExprType::List(Box::new(extract_type(schema, inner_ty))),
+        FieldType::Set(inner_ty) => ExprType::Set(Box::new(extract_type(schema, inner_ty))),
         FieldType::Option(inner_ty) => ExprType::Option(Box::new(extract_type(schema, inner_ty))),
     }
 }

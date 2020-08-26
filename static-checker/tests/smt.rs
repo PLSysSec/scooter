@@ -39,13 +39,13 @@ fn foo() {
         &schema,
         "u -> []",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Id(user.name.clone())),
+        ExprType::set(ExprType::Id(user.name.clone())),
     );
     let after = func(
         &schema,
         "u -> [u.id]",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Id(user.name.clone())),
+        ExprType::set(ExprType::Id(user.name.clone())),
     );
 
     eprintln!(
@@ -80,7 +80,7 @@ fn unauth() {
         &schema,
         "u -> User::Find({}).map(u -> u.id)",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Id(user.name.clone())),
+        ExprType::set(ExprType::Id(user.name.clone())),
     );
     let after = Policy::Anyone;
 
@@ -120,19 +120,19 @@ fn find() {
         &schema,
         "u -> User::Find({ name: \"John\" }).map(u -> u.id)",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Id(user.name.clone())),
+        ExprType::set(ExprType::Id(user.name.clone())),
     );
     let after1 = func(
         &schema,
         "u -> User::Find({ name: \"John\", age: 7 }).map(u -> u.id)",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Id(user.name.clone())),
+        ExprType::set(ExprType::Id(user.name.clone())),
     );
     let after = func(
         &schema,
         "u -> (if u.name == (\"Jo\" + \"hn\") then [u.id] else [])",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Id(user.name.clone())),
+        ExprType::set(ExprType::Id(user.name.clone())),
     );
 
     is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
@@ -187,15 +187,15 @@ fn friends() {
         &schema,
         "u -> [u.id] + (Friendship::Find({ from: u.id }).map(f -> f.to))",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Id(user.name.clone())),
+        ExprType::set(ExprType::Id(user.name.clone())),
     );
     let after = func(
         &schema,
         "u -> [u.id]",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Id(user.name.clone())),
+        ExprType::set(ExprType::Id(user.name.clone())),
     );
-    let after1 = func(&schema, "u -> [u.id] + (Friendship::Find({ from: u.id }).map(f -> f.to).map(u -> User::ById(u)).map(u -> u.id))", ExprType::Object(user.name.clone()), ExprType::list(ExprType::Id(user.name.clone())));
+    let after1 = func(&schema, "u -> [u.id] + (Friendship::Find({ from: u.id }).map(f -> f.to).map(u -> User::ById(u)).map(u -> u.id))", ExprType::Object(user.name.clone()), ExprType::set(ExprType::Id(user.name.clone())));
 
     is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
     is_as_strict(&schema, &vec![], &user.name, &before, &after1).unwrap();
@@ -227,13 +227,13 @@ fn static_princ() {
         &schema,
         "u -> [Authenticator, u.id]",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Principle),
+        ExprType::set(ExprType::Principle),
     );
     let after = func(
         &schema,
         "u -> [u.id]",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Id(user.name.clone())),
+        ExprType::set(ExprType::Id(user.name.clone())),
     );
 
     is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
@@ -267,13 +267,13 @@ fn domains() {
         &schema,
         "u -> User::Find({}).map(u -> u.id)",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Principle),
+        ExprType::set(ExprType::Principle),
     );
     let after = func(
         &schema,
         "u -> [User::ById(u.other).id]",
         ExprType::Object(user.name.clone()),
-        ExprType::list(ExprType::Id(user.name.clone())),
+        ExprType::set(ExprType::Id(user.name.clone())),
     );
 
     is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();

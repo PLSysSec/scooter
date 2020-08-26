@@ -148,7 +148,7 @@ pub fn extract_policy(schema: &Schema, coll: &Ident<Collection>, p: &ast::Policy
         ast::Policy::Func(e) => Policy::Func(extract_func(
             schema,
             ExprType::Object(coll.clone()),
-            &ExprType::list(ExprType::Principle),
+            &ExprType::set(ExprType::Principle),
             e,
         )),
     }

@@ -295,7 +295,7 @@ enum Value {
     /// An object ID in the database.
     Id(ObjectId),
     /// A list of possibly heterogenous values
-    List(Vec<Value>),
+    Set(Vec<Value>),
     /// An optional value
     Option(Option<Box<Value>>),
 }
@@ -310,7 +310,7 @@ impl From<Value> for Bson {
             Value::String(s) => Bson::String(s),
             Value::Object(_) => panic!("Cannot return an object where a value is expected"),
             Value::Id(i) => Bson::ObjectId(i),
-            Value::List(vs) => Bson::Array(vs.into_iter().map(|v| v.into()).collect()),
+            Value::Set(vs) => Bson::Array(vs.into_iter().map(|v| v.into()).collect()),
             Value::Bool(b) => Bson::Boolean(b),
             Value::DateTime(datetime) => Bson::UtcDatetime(datetime),
             Value::Option(Some(val)) => Bson::Document(doc! {"val": Bson::from(*val)}),
@@ -326,7 +326,7 @@ impl From<Bson> for Value {
             Bson::String(s) => Value::String(s),
             Bson::ObjectId(i) => Value::Id(i),
             Bson::Boolean(b) => Value::Bool(b),
-            Bson::Array(l) => Value::List(l.into_iter().map(|v| v.into()).collect()),
+            Bson::Array(l) => Value::Set(l.into_iter().map(|v| v.into()).collect()),
             Bson::Null => Value::Option(None),
             Bson::Document(d) => Value::Option(Some(Box::new(
                 d.get("val")
@@ -384,14 +384,14 @@ impl Evaluator<'_> {
                     panic!("Arguments to append aren't strings at runtime! Type system failure");
                 }
             }
-            // List append
+            // Set union
             IRExpr::AppendL(_ty, subexpr_l, subexpr_r) => {
                 let arg_l = self.eval_expr(db_conn, subexpr_l);
                 let arg_r = self.eval_expr(db_conn, subexpr_r);
-                if let (Value::List(s1), Value::List(s2)) = (arg_l, arg_r) {
+                if let (Value::Set(s1), Value::Set(s2)) = (arg_l, arg_r) {
                     let mut result = s1.clone();
                     result.append(&mut s2.clone());
-                    Value::List(result)
+                    Value::Set(result)
                 } else {
                     panic!("Arguments to append aren't strings at runtime! Type system failure");
                 }
@@ -561,8 +561,8 @@ impl Evaluator<'_> {
             }
             IRExpr::Map(list_expr, func) => {
                 let list_val = self.eval_expr(db_conn, list_expr.clone());
-                if let Value::List(subvals) = list_val {
-                    Value::List(
+                if let Value::Set(subvals) = list_val {
+                    Value::Set(
                         subvals
                             .into_iter()
                             .map(|subval| {
@@ -586,7 +586,7 @@ impl Evaluator<'_> {
                     .collection(&self.schema[&coll].name.orig_name)
                     .find(Some(doc), None)
                 {
-                    Result::Ok(cursor) => Value::List(
+                    Result::Ok(cursor) => Value::Set(
                         cursor
                             .collect::<Vec<_>>()
                             .into_iter()
@@ -608,8 +608,8 @@ impl Evaluator<'_> {
                 },
                 _ => panic!("Runtime type error: lookup argument isn't an id"),
             },
-            // Lists
-            IRExpr::List(_ty, subexprs) => Value::List(
+            // Sets
+            IRExpr::Set(_ty, subexprs) => Value::Set(
                 subexprs
                     .into_iter()
                     .map(|subexpr| self.eval_expr(db_conn, subexpr))
