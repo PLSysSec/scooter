@@ -787,6 +787,55 @@ impl LoweringContext {
         }
     }
 
+    fn join_types(&mut self, schema: &Schema, e1: ExprType, e2: ExprType) -> Option<ExprType> {
+        match (&e1, &e2) {
+            (ExprType::String, ExprType::String) => Some(ExprType::String),
+            (ExprType::I64, ExprType::I64) => Some(ExprType::I64),
+            (ExprType::F64, ExprType::F64) => Some(ExprType::F64),
+            (ExprType::Bool, ExprType::Bool) => Some(ExprType::Bool),
+            (ExprType::DateTime, ExprType::DateTime) => Some(ExprType::DateTime),
+            (ExprType::Object(o1), ExprType::Object(o2)) => {
+                if o1 == o2 {
+                    Some(e1)
+                } else {
+                    None
+                }
+            }
+            (ExprType::Id(coll), ExprType::Principle)
+            | (ExprType::Principle, ExprType::Id(coll)) => {
+                if schema.dynamic_principles.contains(&coll) {
+                    Some(ExprType::Principle)
+                } else {
+                    None
+                }
+            }
+            (ExprType::Id(coll1), ExprType::Id(coll2)) => {
+                if schema.dynamic_principles.contains(&coll1)
+                    && schema.dynamic_principles.contains(&coll2)
+                {
+                    Some(ExprType::Principle)
+                } else {
+                    None
+                }
+            }
+            (ExprType::Set(inner_ty1), ExprType::Set(inner_ty2))
+            | (ExprType::Option(inner_ty1), ExprType::Option(inner_ty2)) => self.join_types(
+                schema,
+                inner_ty1.as_ref().clone(),
+                inner_ty2.as_ref().clone(),
+            ),
+            (ExprType::Unknown(id), other) | (other, ExprType::Unknown(id)) => {
+                if !self.type_map.contains_key(&id) {
+                    self.type_map.insert(id.clone(), other.clone());
+                    Some(other.clone())
+                } else {
+                    self.join_types(schema, other.clone(), self.type_map[&id].clone())
+                }
+            }
+            _ => None,
+        }
+    }
+
     pub fn coerce(&mut self, schema: &Schema, typ: &ExprType, expr: Box<IRExpr>) -> Box<IRExpr> {
         let expr_typ = expr.type_of();
         if self.is_subtype(schema, &expr_typ, typ) {
@@ -806,8 +855,9 @@ impl LoweringContext {
         right: Box<IRExpr>,
     ) -> (Box<IRExpr>, Box<IRExpr>) {
         // They already match
-        if self.is_subtype(schema, &left.type_of(), &right.type_of())
-            || self.is_subtype(schema, &right.type_of(), &left.type_of())
+        if self
+            .join_types(schema, left.type_of(), right.type_of())
+            .is_some()
         {
             return (left, right);
         }
