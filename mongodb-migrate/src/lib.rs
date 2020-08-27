@@ -662,7 +662,7 @@ mod tests {
             },
             &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
-                User::ChangeField(username, [String], u -> [u.username, u.username + "_alias"])
+                User::ChangeField(username, Set(String), u -> [u.username, u.username + "_alias"])
                 "#,
             "test_migration",
         )
@@ -840,7 +840,7 @@ mod tests {
             },
             &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
-                     MultiMessage::ChangeField(to, [Id(User)], u -> u.to.map(id -> id))
+                     MultiMessage::ChangeField(to, Set(Id(User)), u -> u.to.map(id -> id))
                      "#,
             "test_migration",
         )

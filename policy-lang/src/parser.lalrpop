@@ -46,7 +46,7 @@ FieldType: FieldType = {
     "Bool" => FieldType::Bool,
     "Id" "(" <coll:Ident> ")" => FieldType::Id(coll),
     "DateTime" => FieldType::DateTime,
-    "[" <ft:FieldType> "]" => FieldType::Set(Box::new(ft)),
+    "Set" "(" <ft:FieldType> ")" => FieldType::Set(Box::new(ft)),
     "Option" "(" <ft:FieldType> ")" => FieldType::Option(Box::new(ft)),
 }
 

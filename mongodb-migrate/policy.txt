@@ -43,7 +43,7 @@ MultiMessage {
         write: none,
     },
 
-    to : [Id(User)] {
+    to : Set(Id(User)) {
         read: m -> m.to + [m.from],
         write: none,
     },
