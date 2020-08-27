@@ -21,7 +21,10 @@ pub fn translate_policy_file(in_name: impl ToString, out_name: impl ToString) {
 
 pub fn translate(policy_path: impl AsRef<Path>, out_path: impl AsRef<Path>) {
     let path = policy_path.as_ref();
-    let parsed_policy = parse_policy(&get_contents(path).unwrap()).unwrap();
+    let parsed_policy = parse_policy(&get_contents(path).unwrap()).expect(&format!(
+        "Couldn't parse policy at {}",
+        path.to_str().unwrap()
+    ));
     let schema_policy = extract_schema_policy(&parsed_policy);
     let out = gen_schema_macros(schema_policy);
     let mut f = File::create(&out_path).unwrap();
