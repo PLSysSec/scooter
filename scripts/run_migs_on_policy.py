@@ -21,9 +21,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    nocopy = False
     try:
         shutil.copyfile(str(args.policy), args.outdir / "policy.txt")
     except shutil.SameFileError:
+        nocopy = True
         pass
 
     for idx, mig in enumerate(args.migrations):
@@ -47,6 +49,8 @@ def main() -> None:
 
     (args.outdir / "policy.txt").rename(args.outdir /
                                         f"policy.{len(args.migrations)}.txt")
+    if nocopy:
+        shutil.copyfile(args.outdir / "policy.0.txt", args.policy)
 
 
 if __name__ == "__main__":
