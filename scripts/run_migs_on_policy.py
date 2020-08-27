@@ -45,6 +45,7 @@ def main() -> None:
     (args.outdir / "policy.txt").rename(args.outdir /
                                         f"policy.{len(args.migrations)}.txt")
 
+
 if __name__ == "__main__":
     try:
         main()
