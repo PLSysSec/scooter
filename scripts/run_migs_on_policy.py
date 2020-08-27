@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
 import argparse
-import os
 import subprocess
 from pathlib import Path
-from shutil import copyfile
+import shutil
 
 
 def main() -> None:
@@ -18,15 +17,18 @@ def main() -> None:
     parser.add_argument(
         "--outdir", type=Path,
         help="Where to place the resulting policy files",
-        default=Path(os.path.dirname(os.path.abspath(__file__))))
+        default=Path("."))
 
     args = parser.parse_args()
 
-    copyfile(str(args.policy), args.outdir / "policy.txt")
+    try:
+        shutil.copyfile(str(args.policy), args.outdir / "policy.txt")
+    except shutil.SameFileError:
+        pass
 
     for idx, mig in enumerate(args.migrations):
         new_migpath = args.outdir / f"migration-{idx}.mig"
-        copyfile(mig, new_migpath)
+        shutil.copyfile(mig, new_migpath)
 
         result = subprocess.run(
             ["cargo", "run", "--bin",
@@ -38,7 +40,8 @@ def main() -> None:
 
         new_migpath.unlink()
 
-        copyfile(args.outdir / "policy.txt", args.outdir / f"policy.{idx}.txt")
+        shutil.copyfile(args.outdir / "policy.txt",
+                        args.outdir / f"policy.{idx}.txt")
         with (args.outdir / "policy.txt").open('w') as f:
             print(result.stdout, file=f)
 
