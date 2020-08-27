@@ -1,0 +1,24 @@
+@static-principle
+Root
+
+@principle
+PCUser {
+    create: public,
+    delete: u -> [u.id],
+
+    userName: String {
+        read: public,
+        write: u -> [u.id, Root],
+    },
+}
+
+@principle
+Author {
+    create: public,
+    delete: u -> [u.id],
+
+    userName: String {
+        read: public,
+        write: u -> [u.id, Root],
+    },
+}

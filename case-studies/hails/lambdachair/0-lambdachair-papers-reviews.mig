@@ -1,0 +1,38 @@
+CreateCollection(Paper {
+    create: public,
+    delete: p -> p.pcAuthors + p.authors + [Root],
+
+    paperBody: String {
+        read: p -> p.pcAuthors + p.authors + [Root],
+        write: p -> p.pcAuthors + p.authors + [Root],
+    },
+
+    pcAuthors: Set(Id(PCUser)) {
+        read: p -> p.pcAuthors + p.authors + [Root],
+        write: p -> p.pcAuthors + p.authors + [Root],
+    },
+    authors: Set(Id(Author)) {
+        read: p -> p.pcAuthors + p.authors + [Root],
+        write: p -> p.pcAuthors + p.authors + [Root],
+    },
+})
+
+CreateCollection(Review {
+    create: public,
+    delete: r -> [r.author, Root],
+
+    paper: Id(Paper) {
+        read: r -> [r.author, Root],
+        write: r -> [r.author, Root],
+    },
+
+    reviewBody: String {
+        read: r -> [r.author, Root],
+        write: r -> [r.author, Root],
+    },
+
+    author: Id(PCUser) {
+        read: r -> [r.author, Root],
+        write: r -> [r.author, Root],
+    },
+})
