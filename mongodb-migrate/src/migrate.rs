@@ -1,7 +1,7 @@
 use policy_lang;
 use std::iter;
 
-use policy_lang::ir::expr::{Func, IRExpr, Var};
+use policy_lang::ir::expr::{FieldComparison, Func, IRExpr, Var};
 use policy_lang::ir::migration::{extract_migration_steps, DataCommand, MigrationCommand};
 use policy_lang::ir::policy::{extract_schema_policy, SchemaPolicy};
 use policy_lang::ir::schema::{Collection, Schema};
@@ -579,8 +579,17 @@ impl Evaluator<'_> {
             }
             IRExpr::Find(coll, query_fields) => {
                 let mut doc = bson::Document::new();
-                for (field, val) in query_fields {
-                    doc.insert(field.orig_name, self.eval_expr(db_conn, val));
+                for (op, field, val) in query_fields.iter() {
+                    match op {
+                        FieldComparison::Equals => {
+                            doc.insert(
+                                field.orig_name.clone(),
+                                self.eval_expr(db_conn, val.clone()),
+                            );
+                        }
+                        // These are handled in the post-retreive filter
+                        FieldComparison::Contains => (),
+                    }
                 }
                 match db_conn
                     .collection(&self.schema[&coll].name.orig_name)
@@ -588,8 +597,24 @@ impl Evaluator<'_> {
                 {
                     Result::Ok(cursor) => Value::Set(
                         cursor
-                            .collect::<Vec<_>>()
-                            .into_iter()
+                            .filter(|res_bson| {
+                                query_fields.iter().all(|(op, field, val)| {
+                                    match op {
+                                        // These are handled directly in the query
+                                        FieldComparison::Equals => true,
+                                        FieldComparison::Contains => res_bson
+                                            .as_ref()
+                                            .expect("Failed to fetch document")
+                                            .get_array(&field.orig_name)
+                                            .unwrap()
+                                            .iter()
+                                            .any(|elem| {
+                                                Value::from(elem.clone())
+                                                    == self.eval_expr(db_conn, val.clone())
+                                            }),
+                                    }
+                                })
+                            })
                             .map(|res_bson| {
                                 Value::Object(res_bson.expect("Failed to fetch document"))
                             })

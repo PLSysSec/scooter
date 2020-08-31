@@ -1,4 +1,4 @@
-use policy_lang::ir::expr::{ExprType, Func, IRExpr};
+use policy_lang::ir::expr::{ExprType, FieldComparison, Func, IRExpr};
 use policy_lang::ir::policy::*;
 use policy_lang::ir::schema::Schema;
 use policy_lang::ir::Ident;
@@ -193,10 +193,14 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
                 "{}::find_full_by_template(conn, Build{}::new(None)",
                 coll_ident.orig_name, coll_ident.orig_name,
             );
-            for (field, val_expr) in fields.into_iter() {
+            for (op, field, val_expr) in fields.into_iter() {
                 out += &format!(
-                    ".{}({})",
+                    ".{}({}, {})",
                     field.orig_name,
+                    match op {
+                        FieldComparison::Equals => "FieldOp::Equals",
+                        FieldComparison::Contains => "FieldOp::Contains",
+                    },
                     translate_queryexpr(schema, val_expr)
                 );
             }

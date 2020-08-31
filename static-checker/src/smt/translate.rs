@@ -1,5 +1,5 @@
 use policy_lang::ir::{
-    expr::{ExprType, IRExpr, Var},
+    expr::{ExprType, FieldComparison, IRExpr, Var},
     policy::Policy,
     schema::{Collection, Schema},
     Ident,
@@ -226,17 +226,24 @@ impl SMTContext {
             IRExpr::Find(_, fields) => {
                 let mut stmts = vec![];
                 let mut equalities = vec![];
-                for (f, expr) in fields.iter() {
-                    let field_expr = self.lower_expr(target, expr, vm);
+                for (comp, f, expr) in fields.iter() {
+                    match comp {
+                        FieldComparison::Equals => {
+                            let field_expr = self.lower_expr(target, expr, vm);
 
-                    equalities.push(format!(
-                        "(= ({} {}) {})\n",
-                        ident(f),
-                        ident(&target.0),
-                        &field_expr.expr
-                    ));
+                            equalities.push(format!(
+                                "(= ({} {}) {})\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            ));
 
-                    stmts.extend(field_expr.stmts)
+                            stmts.extend(field_expr.stmts)
+                        }
+                        FieldComparison::Contains => {
+                            panic!("Not yet implemented; John, how do I do this?")
+                        }
+                    }
                 }
 
                 let anded_eqs = format!("(and {} true)", spaced(equalities.into_iter()));

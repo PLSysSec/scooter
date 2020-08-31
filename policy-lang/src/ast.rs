@@ -20,7 +20,7 @@ pub enum QueryExpr {
     Map(Box<QueryExpr>, Func),
 
     LookupById(String, Box<QueryExpr>),
-    Find(String, Vec<(String, Box<QueryExpr>)>),
+    Find(String, Vec<(FieldComparison, String, Box<QueryExpr>)>),
 
     Set(Vec<Box<QueryExpr>>),
     If(Box<QueryExpr>, Box<QueryExpr>, Box<QueryExpr>),
@@ -41,6 +41,11 @@ pub struct ObjectLiteral {
     pub coll: String,
     pub fields: Vec<(String, Box<QueryExpr>)>,
     pub template_obj: Option<Box<QueryExpr>>,
+}
+#[derive(Debug, PartialEq, Clone)]
+pub enum FieldComparison {
+    Equals,
+    Contains,
 }
 
 #[derive(Debug, PartialEq)]
