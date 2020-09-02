@@ -178,7 +178,11 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
         ),
         IRExpr::IntToFloat(e) => format!("({} as f64)", translate_queryexpr(schema, e)),
         IRExpr::Path(_, e, f) => {
-            format!("{}.{}.clone()", translate_queryexpr(schema, e), f.orig_name)
+            if f.orig_name == "id" {
+                format!("{}.id.clone().unwrap()", translate_queryexpr(schema, e))
+            } else {
+                format!("{}.{}.clone()", translate_queryexpr(schema, e), f.orig_name)
+            }
         }
         IRExpr::Var(_ty, id) => match schema.static_principles.iter().find(|sp| *sp == id) {
             Some(sp) => format!("Principle::Static(\"{}\")", sp.orig_name),
