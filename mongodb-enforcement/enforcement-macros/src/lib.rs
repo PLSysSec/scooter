@@ -3,7 +3,9 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, AttributeArgs, Data, DataStruct, DeriveInput, Fields, Lit, Meta, NestedMeta,
+    parse_macro_input, AngleBracketedGenericArguments, AttributeArgs, Data, DataStruct,
+    DeriveInput, Fields, GenericArgument, Lit, Meta, NestedMeta, Path, PathArguments, PathSegment,
+    Type, TypePath,
 };
 
 #[proc_macro_attribute]
@@ -194,6 +196,80 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             #builder
         }
     };
+    // Query type
+    let query_ident = format_ident!("{}Query", ident);
+    let query_type = {
+        let optioned_fields = fields.iter().map(|field| {
+            let field_ident = field.ident.as_ref().unwrap();
+            let field_type = &field.ty;
+            let field_attrs = &field.attrs;
+            match vec_type(field_type) {
+                Some(inner_ty) => quote! {
+                    #(#field_attrs)*
+                    pub #field_ident: Option<#inner_ty>
+                },
+                None => quote! {
+                    #(#field_attrs)*
+                    pub #field_ident: Option<#field_type>
+                },
+            }
+        });
+        let builder_fields = optioned_fields.clone();
+        let builder = {
+            let builder_ident = format_ident!("Build{}Query", ident);
+            let field_inits = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                quote! { #field_ident: None }
+            });
+            let field_adders = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                let field_type = &field.ty;
+                match vec_type(field_type) {
+                    Some(inner_ty) => quote! {
+                        pub fn #field_ident(&mut self, val: #inner_ty) -> & mut #builder_ident{
+                            self.#field_ident = Some(val);
+                            self
+                        }
+                    },
+                    None => quote! {
+                        pub fn #field_ident(&mut self, val: #field_type) -> & mut #builder_ident{
+                            self.#field_ident = Some(val);
+                            self
+                        }
+                    },
+                }
+            });
+            let field_setters = fields.iter().map(|field| {
+                let field_ident = field.ident.as_ref().unwrap();
+                quote! {
+                    #field_ident: self.#field_ident.clone()
+                }
+            });
+            quote! {
+                #input_vis struct #builder_ident {
+                    #(#builder_fields),*,
+                }
+                impl #builder_ident {
+                    pub fn new() -> #builder_ident{
+                        #builder_ident { #(#field_inits),* }
+                    }
+                    #(#field_adders)*
+                    pub fn finalize(&self) -> #query_ident {
+                        #query_ident {
+                            #(#field_setters),*,
+                        }
+                    }
+                }
+            }
+        };
+        quote! {
+            #[derive(Debug)]
+            #input_vis struct #query_ident {
+                #(#optioned_fields),*,
+            }
+            #builder
+        }
+    };
 
     // Mongo document conversion
     let mongo_doc_impl = {
@@ -290,17 +366,33 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         };
         let find_full_by_template_impl = {
-            let field_set_partial_arms = fields.iter().map(|field| {
-                let field_ident = field.ident.as_ref().unwrap();
-                let field_str = field_ident.to_string();
-                quote! {
-                    if let Some(v) = &template.#field_ident {
-                        doc.insert(#field_str, v.clone());
+            let field_set_partial_arms = fields
+                .iter()
+                .filter(|field| vec_type(&field.ty).is_none())
+                .map(|field| {
+                    let field_ident = field.ident.as_ref().unwrap();
+                    let field_str = field_ident.to_string();
+                    quote! {
+                        if let Some(v) = &template.#field_ident {
+                            doc.insert(#field_str, v.clone());
+                        }
                     }
-                }
-            });
+                });
+            let field_filter_check_arms = fields
+                .iter()
+                .filter(|field| vec_type(&field.ty).is_some())
+                .map(|field| {
+                    let field_ident = field.ident.as_ref().unwrap();
+                    quote! {
+                        if let Some(v) = &template.#field_ident {
+                            obj.#field_ident.contains(v)
+                        } else {
+                            true
+                        } &&
+                    }
+                });
             quote! {
-                fn find_full_by_template(connection: &AuthConn, template: Self::Partial) -> Option<Vec<Self>> {
+                fn find_full_by_template(connection: &AuthConn, template: Self::Query) -> Option<Vec<Self>> {
                     use mongodb::Database;
                     let mut doc = bson::Document::new();
                     #(#field_set_partial_arms)*
@@ -312,6 +404,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                             doc
                                .filter_map(Result::ok)
                                 .map(|obj| #ident::from_document(obj))
+                                .filter(|obj| #(#field_filter_check_arms)* true)
                                 .collect()),
                         _ => None,
                     }
@@ -321,6 +414,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         quote! {
             impl DBCollection for #ident {
                 type Partial=#partial_ident;
+                type Query=#query_ident;
                 fn find_by_id(connection: &AuthConn, id: TypedRecordId<Self>) -> Option<Self::Partial> {
                     match Self::find_full_by_id(connection.conn(), id) {
                         Some(item) => Some(item.fully_resolve(connection)),
@@ -430,6 +524,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         #setter_impl
         #constructor
         #partial_type
+        #query_type
         #mongo_doc_impl
         #dbcoll_impl
         #save_impl
@@ -437,4 +532,48 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
 
     // Hand the output tokens back to the compiler
     TokenStream::from(expanded)
+}
+
+fn vec_type(t: &Type) -> Option<Type> {
+    match t {
+        Type::Path(TypePath {
+            qself: None,
+            path:
+                Path {
+                    leading_colon: None,
+                    segments: ref segs,
+                },
+        }) => {
+            if segs.len() != 1 {
+                None
+            } else {
+                match segs.last() {
+                    Some(PathSegment {
+                        ident,
+                        arguments: args,
+                    }) => {
+                        if ident.to_string() == "Vec" {
+                            match args {
+                                PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+                                    args,
+                                    ..
+                                }) => {
+                                    assert!(args.len() == 1);
+                                    match args.first() {
+                                        Some(GenericArgument::Type(t)) => Some(t.clone()),
+                                        _ => None,
+                                    }
+                                }
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    None => panic!("This shouldn't happen because of the length check above"),
+                }
+            }
+        }
+        _ => None,
+    }
 }

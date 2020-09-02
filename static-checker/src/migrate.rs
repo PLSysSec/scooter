@@ -1,5 +1,5 @@
 use crate::smt::{is_as_strict, Equiv};
-use policy_lang::ir::expr::{ExprType, Func, IRExpr};
+use policy_lang::ir::expr::{ExprType, FieldComparison, Func, IRExpr};
 use policy_lang::ir::migration::{
     extract_migration_steps, CollectionPolicyKind, DataCommand, FieldPolicyKind, MigrationCommand,
 };
@@ -171,9 +171,13 @@ fn expr_to_string(expr: Box<IRExpr>) -> String {
             coll.orig_name,
             query_fields
                 .iter()
-                .map(|(f_id, f_expr)| format!(
-                    "{}: {}",
+                .map(|(comparison, f_id, f_expr)| format!(
+                    "{}{} {}",
                     f_id.orig_name,
+                    match comparison {
+                        FieldComparison::Equals => ":",
+                        FieldComparison::Contains => ">",
+                    },
                     expr_to_string(f_expr.clone())
                 ))
                 .collect::<Vec<String>>()

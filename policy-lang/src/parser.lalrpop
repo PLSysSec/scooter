@@ -66,6 +66,10 @@ pub Func: Func = {
 FieldInitializer: (String, Box<QueryExpr>) = {
     <i:Ident> ":" <q:QueryExpr> => (i, q)
 }
+FieldPredicate: (FieldComparison, String, Box<QueryExpr>) = {
+    <i:Ident> ":" <q:QueryExpr> => (FieldComparison::Equals, i, q),
+    <i:Ident> ">" <q:QueryExpr> => (FieldComparison::Contains, i, q),
+}
 Object: ObjectLiteral = {
     <i:Ident> "{" <fs:Comma<FieldInitializer>> "}" => ObjectLiteral{ coll: i, fields: fs, template_obj: None},
     <i:Ident> "{" <fs:Comma<FieldInitializer>> "..." <e:QueryExpr> "}" => ObjectLiteral {coll: i, fields: fs, template_obj: Some(e)}
@@ -92,7 +96,7 @@ Comma<T>: Vec<T> = { // (1)
 CollectionExpr: Box<QueryExpr> = {
     <col: Ident> "::" "ById" "(" <idexpr: QueryExpr> ")" =>
     Box::new(QueryExpr::LookupById(col, idexpr)),
-    <col: Ident> "::" "Find" "(" "{" <fs:Comma<FieldInitializer>> "}" ")" =>
+    <col: Ident> "::" "Find" "(" "{" <fs:Comma<FieldPredicate>> "}" ")" =>
     Box::new(QueryExpr::Find(col, fs))
 }
 

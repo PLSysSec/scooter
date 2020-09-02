@@ -341,10 +341,11 @@ impl AuthConn {
 
 pub trait DBCollection: Sized {
     type Partial;
+    type Query;
     fn find_by_id(connection: &AuthConn, id: TypedRecordId<Self>) -> Option<Self::Partial>;
     fn find_all(connection: &AuthConn) -> Option<Vec<Self::Partial>>;
     fn find_full_by_id(connection: &DBConn, id: TypedRecordId<Self>) -> Option<Self>;
-    fn find_full_by_template(connection: &AuthConn, template: Self::Partial) -> Option<Vec<Self>>;
+    fn find_full_by_template(connection: &AuthConn, template: Self::Query) -> Option<Vec<Self>>;
     fn insert_one(connection: &AuthConn, item: Self) -> Option<TypedRecordId<Self>>;
     fn insert_many(connection: &AuthConn, items: Vec<Self>) -> Option<Vec<TypedRecordId<Self>>>;
     fn save_all(connection: &AuthConn, items: Vec<&Self::Partial>) -> bool;

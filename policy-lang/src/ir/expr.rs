@@ -198,7 +198,7 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
             resolve_types(type_map, list_expr);
         }
         IRExpr::Find(_, fields) => {
-            for (_, field) in fields.iter_mut() {
+            for (_, _, field) in fields.iter_mut() {
                 resolve_types(type_map, field);
             }
         }
@@ -321,7 +321,10 @@ pub enum IRExpr {
     /// Look up an id in a collection
     LookupById(Ident<Collection>, Box<IRExpr>),
     /// Look up an object in a collection by some template
-    Find(Ident<Collection>, Vec<(Ident<Field>, Box<IRExpr>)>),
+    Find(
+        Ident<Collection>,
+        Vec<(FieldComparison, Ident<Field>, Box<IRExpr>)>,
+    ),
     /// A list expression
     Set(ExprType, Vec<Box<IRExpr>>),
     /// Conditional expression
@@ -343,6 +346,21 @@ pub enum IRExpr {
     /// Option constructors
     None(ExprType),
     Some(ExprType, Box<IRExpr>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FieldComparison {
+    Equals,
+    Contains,
+}
+
+impl From<ast::FieldComparison> for FieldComparison {
+    fn from(other: ast::FieldComparison) -> Self {
+        match other {
+            ast::FieldComparison::Equals => Self::Equals,
+            ast::FieldComparison::Contains => Self::Contains,
+        }
+    }
 }
 
 struct LoweringContext {
@@ -701,15 +719,31 @@ impl LoweringContext {
                 ));
                 // All the present fields, lowered.
                 let mut ir_fields = vec![];
-                for (fname, fexpr) in fields.iter() {
+                for (comparison, fname, fexpr) in fields.iter() {
                     let field = coll.find_field(fname).expect(&format!(
                         "Unable to find field {} on collection {}",
                         fname, &coll.name.orig_name
                     ));
-                    let fexpr = self.extract_ir_expr(schema, def_map.clone(), fexpr);
-                    let fexpr = self.coerce(schema, &field.typ, fexpr);
+                    let mut fexpr = self.extract_ir_expr(schema, def_map.clone(), fexpr);
 
-                    ir_fields.push((field.name.clone(), fexpr));
+                    match comparison {
+                        ast::FieldComparison::Equals => {
+                            if let ExprType::Set(_) = field.typ.clone() {
+                                panic!("Type error: Field {} is a set", fname);
+                            } else {
+                                fexpr = self.coerce(schema, &field.typ, fexpr);
+                            }
+                        }
+                        ast::FieldComparison::Contains => {
+                            if let ExprType::Set(inner_ty) = field.typ.clone() {
+                                fexpr = self.coerce(schema, inner_ty.as_ref(), fexpr);
+                            } else {
+                                panic!("Type error: Field {} is not a set", fname);
+                            }
+                        }
+                    }
+
+                    ir_fields.push((comparison.clone().into(), field.name.clone(), fexpr));
                 }
                 IRExpr::Find(coll.name.clone(), ir_fields)
             }
@@ -1003,7 +1037,9 @@ impl IRExpr {
                 coll.clone(),
                 query_fields
                     .iter()
-                    .map(|(fld, val)| (fld.clone(), Box::new(val.map(f))))
+                    .map(|(comparison, fld, val)| {
+                        (comparison.clone(), fld.clone(), Box::new(val.map(f)))
+                    })
                     .collect(),
             )),
             IRExpr::Set(ty, items) => f(IRExpr::Set(
@@ -1093,7 +1129,7 @@ impl IRExpr {
                 .chain(
                     fields
                         .iter()
-                        .flat_map(|(_fld, val)| val.subexprs_preorder()),
+                        .flat_map(|(_comparison, _fld, val)| val.subexprs_preorder()),
                 )
                 .collect::<Vec<_>>()
                 .into_iter(),

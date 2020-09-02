@@ -1,4 +1,4 @@
-use policy_lang::ir::expr::{ExprType, Func, IRExpr};
+use policy_lang::ir::expr::{ExprType, FieldComparison, Func, IRExpr};
 use policy_lang::ir::policy::*;
 use policy_lang::ir::schema::Schema;
 use policy_lang::ir::Ident;
@@ -190,17 +190,17 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
         ),
         IRExpr::Find(coll_ident, fields) => {
             let mut out = format!(
-                "{}::find_full_by_template(conn, Build{}::new(None)",
+                "{}::find_full_by_template(conn, Build{}Query::new()",
                 coll_ident.orig_name, coll_ident.orig_name,
             );
-            for (field, val_expr) in fields.into_iter() {
+            for (_op, field, val_expr) in fields.into_iter() {
                 out += &format!(
                     ".{}({})",
                     field.orig_name,
                     translate_queryexpr(schema, val_expr)
                 );
             }
-            out += ".finalize()";
+            out += ".finalize()).expect(\"Query failed!\")";
             out
         }
         IRExpr::Map(list_expr, func) => format!(

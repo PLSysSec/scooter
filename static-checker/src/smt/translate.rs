@@ -1,7 +1,7 @@
 use policy_lang::ir::{
-    expr::{ExprType, IRExpr, Var},
+    expr::{ExprType, FieldComparison, IRExpr, Var},
     policy::Policy,
-    schema::{Collection, Schema},
+    schema::{Collection, Field, Schema},
     Ident,
 };
 
@@ -14,6 +14,8 @@ pub(crate) struct VerifProblem {
     pub princ: Ident<SMTVar>,
     pub rec: Ident<SMTVar>,
     pub stmts: Vec<Statement>,
+    pub join_tables:
+        HashMap<Ident<Field>, (Ident<Collection>, Ident<Field>, Ident<Field>, ExprType)>,
 }
 
 lazy_static! {
@@ -71,6 +73,7 @@ pub(crate) fn gen_assert(
         princ: princ_id,
         rec: rec_id,
         stmts: out,
+        join_tables: ctx.join_tables,
     }
 }
 
@@ -130,6 +133,7 @@ impl VarMap {
 struct SMTContext {
     princ_casts: HashMap<Ident<Collection>, (Ident<SMTVar>, Ident<SMTVar>)>,
     domains: HashMap<ExprType, Vec<Ident<SMTVar>>>,
+    join_tables: HashMap<Ident<Field>, (Ident<Collection>, Ident<Field>, Ident<Field>, ExprType)>,
 }
 
 impl SMTContext {
@@ -202,7 +206,30 @@ impl SMTContext {
                 self.simple_nary_op("<", target, &[l, r], vm)
             }
             IRExpr::IntToFloat(b) => self.simple_nary_op("to-real", target, &[b], vm),
-            IRExpr::Path(_, obj, f) => self.simple_nary_op(&ident(f), target, &[obj], vm),
+            IRExpr::Path(ty, obj, f) => match ty {
+                ExprType::Set(ref _inner_ty) => {
+                    let lower = self.lower_expr(target, obj, vm);
+                    let path_id = Ident::new("path");
+                    let (coll, from, to, _typ) = self.join_tables[f].clone();
+                    let assert =
+                        format!("(= ({} {}) {})", ident(&from), ident(&path_id), &lower.expr);
+                    let mut stmts = lower.stmts;
+                    stmts.append(
+                        &mut self.domain_ident(path_id.clone(), ExprType::Object(coll.clone())),
+                    );
+                    stmts.push(Statement::Assert(assert));
+                    SMTResult::new(
+                        stmts,
+                        format!(
+                            "(= ({} {}) {})",
+                            ident(&to),
+                            ident(&path_id),
+                            ident(&target.0)
+                        ),
+                    )
+                }
+                _ => self.simple_nary_op(&ident(f), target, &[obj], vm),
+            },
             IRExpr::Var(_, i) => SMTResult::expr(ident(&vm.lookup(i))),
             // Because id's and object types are the same, find is a no-op
             IRExpr::LookupById(coll, b) => {
@@ -225,21 +252,40 @@ impl SMTContext {
             IRExpr::BoolConst(b) => SMTResult::expr(b),
             IRExpr::Find(_, fields) => {
                 let mut stmts = vec![];
-                let mut equalities = vec![];
-                for (f, expr) in fields.iter() {
+                let mut field_checks = vec![];
+                for (comp, f, expr) in fields.iter() {
                     let field_expr = self.lower_expr(target, expr, vm);
-
-                    equalities.push(format!(
-                        "(= ({} {}) {})\n",
-                        ident(f),
-                        ident(&target.0),
-                        &field_expr.expr
-                    ));
-
-                    stmts.extend(field_expr.stmts)
+                    stmts.extend(field_expr.stmts);
+                    match comp {
+                        FieldComparison::Equals => {
+                            field_checks.push(format!(
+                                "(= ({} {}) {})\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            ));
+                        }
+                        FieldComparison::Contains => {
+                            let (coll, from, to, _typ) = self.join_tables[f].clone();
+                            let ids = self.domains[&ExprType::Object(coll)].iter();
+                            let mut join_eqs = Vec::new();
+                            for id in ids {
+                                join_eqs.push(format!(
+                                    "(and (= ({} {}) {}) (= ({} {}) {}))\n",
+                                    ident(&from),
+                                    ident(id),
+                                    ident(&target.0),
+                                    ident(&to),
+                                    ident(id),
+                                    &field_expr.expr
+                                ));
+                            }
+                            field_checks.push(format!("(or {})", spaced(join_eqs.into_iter())));
+                        }
+                    }
                 }
 
-                let anded_eqs = format!("(and {} true)", spaced(equalities.into_iter()));
+                let anded_eqs = format!("(and {} true)", spaced(field_checks.into_iter()));
 
                 SMTResult::new(stmts, anded_eqs)
             }
@@ -447,54 +493,80 @@ impl SMTContext {
     /// Each collection gets its own sort named after its Ident,
     /// and each field is a function mapping that sort to either a native
     /// SMT sort or to another sort.
-    fn lower_collection<'a>(
-        &'a self,
-        equivs: &'a [Equiv],
-        coll: &'a Collection,
-    ) -> impl Iterator<Item = Statement> + 'a {
+    fn lower_collection(&mut self, equivs: &[Equiv], coll: &Collection) -> Vec<Statement> {
         let sort = Statement::DeclSort {
             id: coll.name.coerce(),
         };
-        let fields = coll.fields().map(move |f| {
+        let fields = coll.fields().flat_map(move |f| {
             if f.is_id() {
                 let id = Ident::new("id");
-                define(
+                return vec![define(
                     f.name.coerce(),
                     &[(id.clone(), ExprType::Object(coll.name.clone()))],
                     f.typ.clone(),
                     ident(&id),
-                )
-            } else {
-                let equiv = equivs
-                    .iter()
-                    .find(|Equiv(e, _)| e == &f.name)
-                    .map(|Equiv(_, l)| l);
-                match equiv {
-                    None => declare(
-                        f.name.coerce(),
-                        &[ExprType::Object(coll.name.clone())],
-                        f.typ.clone(),
+                )];
+            }
+            if let ExprType::Set(ref inner_ty) = f.typ {
+                let coll_name = Ident::new(coll.name.orig_name.clone() + &f.name.orig_name);
+                let from_name = Ident::new("from");
+                let to_name = Ident::new("to");
+                self.join_tables.insert(
+                    f.name.clone(),
+                    (
+                        coll_name.clone(),
+                        from_name.clone(),
+                        to_name.clone(),
+                        inner_ty.as_ref().clone(),
                     ),
-                    Some(lambda) => {
-                        let varmap =
-                            VarMap::default().extend(lambda.param.clone(), lambda.param.coerce());
-                        let body = self.lower_expr(
-                            (&Ident::new("bogus"), &ExprType::Bool),
-                            &lambda.body,
-                            &varmap,
-                        );
-                        define(
-                            f.name.coerce(),
-                            &[(lambda.param.coerce(), ExprType::Object(coll.name.clone()))],
-                            f.typ.clone(),
-                            body.expr,
-                        )
-                    }
+                );
+                return self.lower_collection(
+                    &[],
+                    &Collection {
+                        name: coll_name,
+                        fields: vec![
+                            Field {
+                                name: from_name,
+                                typ: ExprType::Id(coll.name.clone()),
+                            },
+                            Field {
+                                name: to_name,
+                                typ: inner_ty.as_ref().clone(),
+                            },
+                        ],
+                    },
+                );
+            }
+
+            let equiv = equivs
+                .iter()
+                .find(|Equiv(e, _)| e == &f.name)
+                .map(|Equiv(_, l)| l);
+            match equiv {
+                None => vec![declare(
+                    f.name.coerce(),
+                    &[ExprType::Object(coll.name.clone())],
+                    f.typ.clone(),
+                )],
+                Some(lambda) => {
+                    let varmap =
+                        VarMap::default().extend(lambda.param.clone(), lambda.param.coerce());
+                    let body = self.lower_expr(
+                        (&Ident::new("bogus"), &ExprType::Bool),
+                        &lambda.body,
+                        &varmap,
+                    );
+                    vec![define(
+                        f.name.coerce(),
+                        &[(lambda.param.coerce(), ExprType::Object(coll.name.clone()))],
+                        f.typ.clone(),
+                        body.expr,
+                    )]
                 }
             }
         });
 
-        iter::once(sort).chain(fields)
+        iter::once(sort).chain(fields).collect()
     }
 
     fn simple_nary_op(
@@ -520,11 +592,33 @@ impl SMTContext {
                 let mut out = vec![];
                 for e in f.body.subexprs_preorder() {
                     match e {
-                        IRExpr::LookupById(coll, ..) | IRExpr::Find(coll, ..) => {
+                        IRExpr::LookupById(coll, ..) => {
                             out.push(self.declare_in_domain(
                                 ExprType::Object(coll.clone()),
                                 Ident::new("domain_var"),
                             ));
+                        }
+                        IRExpr::Path(ExprType::Set(_inner_ty), _obj, f) => {
+                            let (coll, _from, _to, _typ) = self.join_tables[f].clone();
+                            out.push(self.declare_in_domain(
+                                ExprType::Object(coll.clone()),
+                                Ident::new("domain_var"),
+                            ));
+                        }
+                        IRExpr::Find(coll, fields) => {
+                            out.push(self.declare_in_domain(
+                                ExprType::Object(coll.clone()),
+                                Ident::new("domain_var"),
+                            ));
+                            for (comp, field, _expr) in fields.iter() {
+                                if *comp == FieldComparison::Contains {
+                                    let (coll, _from, _to, _typ) = self.join_tables[field].clone();
+                                    out.push(self.declare_in_domain(
+                                        ExprType::Object(coll.clone()),
+                                        Ident::new("join_var"),
+                                    ));
+                                }
+                            }
                         }
                         _ => {}
                     }
