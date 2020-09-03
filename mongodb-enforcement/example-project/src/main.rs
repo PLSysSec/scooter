@@ -290,7 +290,7 @@ mod test {
     fn read_public_message() {
         let db_conn = get_dbconn();
 
-        // Add two users, alex and john, where alex has a
+        // Add three users, alex, john and deian, where alex and deian have a
         // trustworthyness above ten, and john has one below ten.
         let users: Vec<_> = vec![
             user! {
