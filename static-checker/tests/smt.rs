@@ -53,7 +53,14 @@ fn foo() {
         is_as_strict(&schema, &vec![], &user.name, &before, &after)
             .expect_err("strictness check should fail")
     );
-    assert!(is_as_strict(&schema, &vec![], &user.name, &before, &Policy::None).is_ok());
+    match is_as_strict(&schema, &vec![], &user.name, &before, &after) {
+        Result::Ok(_) => panic!("Strictness check should fail"),
+        Result::Err(_e) => (),
+    }
+    match is_as_strict(&schema, &vec![], &user.name, &before, &Policy::None) {
+        Result::Ok(_) => (),
+        Result::Err(e) => panic!("Unsafe migration! Counterexample:\n{}", e),
+    }
 }
 
 #[test]
@@ -84,11 +91,10 @@ fn unauth() {
     );
     let after = Policy::Anyone;
 
-    eprintln!(
-        "{}",
-        is_as_strict(&schema, &vec![], &user.name, &before, &after)
-            .expect_err("strictness check should fail")
-    );
+    match is_as_strict(&schema, &vec![], &user.name, &before, &after) {
+        Result::Ok(_) => panic!("Migration shouldn't be safe!"),
+        Result::Err(_e) => (),
+    }
 }
 
 #[test]
@@ -135,19 +141,22 @@ fn find() {
         ExprType::set(ExprType::Id(user.name.clone())),
     );
 
-    is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
-    eprintln!(
-        "{}",
-        is_as_strict(&schema, &vec![], &user.name, &after, &before)
-            .expect_err("strictness check should fail")
-    );
-
-    is_as_strict(&schema, &vec![], &user.name, &before, &after1).unwrap();
-    eprintln!(
-        "{}",
-        is_as_strict(&schema, &vec![], &user.name, &after1, &before)
-            .expect_err("strictness check should fail")
-    );
+    match is_as_strict(&schema, &vec![], &user.name, &before, &after) {
+        Result::Ok(_) => (),
+        Result::Err(e) => panic!("Unsafe migration! Counterexample:\n{}", e),
+    }
+    match is_as_strict(&schema, &vec![], &user.name, &after, &before) {
+        Result::Ok(_) => panic!("Migration is safe backwards!"),
+        Result::Err(_e) => (),
+    }
+    match is_as_strict(&schema, &vec![], &user.name, &before, &after1) {
+        Result::Ok(_) => (),
+        Result::Err(e) => panic!("Unsafe migration! Counterexample:\n{}", e),
+    }
+    match is_as_strict(&schema, &vec![], &user.name, &after1, &before) {
+        Result::Ok(_) => panic!("Migration is safe backwards!"),
+        Result::Err(_e) => (),
+    }
 }
 
 #[test]
@@ -197,8 +206,14 @@ fn friends() {
     );
     let after1 = func(&schema, "u -> [u.id] + (Friendship::Find({ from: u.id }).map(f -> f.to).map(u -> User::ById(u)).map(u -> u.id))", ExprType::Object(user.name.clone()), ExprType::set(ExprType::Id(user.name.clone())));
 
-    is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
-    is_as_strict(&schema, &vec![], &user.name, &before, &after1).unwrap();
+    match is_as_strict(&schema, &vec![], &user.name, &before, &after) {
+        Result::Ok(_) => (),
+        Result::Err(e) => panic!("Unsafe migration! Counterexample:\n{}", e),
+    }
+    match is_as_strict(&schema, &vec![], &user.name, &before, &after1) {
+        Result::Ok(_) => (),
+        Result::Err(e) => panic!("Unsafe migration! Counterexample:\n{}", e),
+    }
 }
 
 #[test]
@@ -236,12 +251,14 @@ fn static_princ() {
         ExprType::set(ExprType::Id(user.name.clone())),
     );
 
-    is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
-    eprintln!(
-        "{}",
-        is_as_strict(&schema, &vec![], &user.name, &after, &before)
-            .expect_err("strictness check should fail")
-    );
+    match is_as_strict(&schema, &vec![], &user.name, &before, &after) {
+        Result::Ok(_) => (),
+        Result::Err(e) => panic!("Unsafe migration! Counterexample:\n{}", e),
+    }
+    match is_as_strict(&schema, &vec![], &user.name, &after, &before) {
+        Result::Ok(_) => panic!("Migration is safe backwards!"),
+        Result::Err(_e) => (),
+    }
 }
 
 #[test]
@@ -276,10 +293,12 @@ fn domains() {
         ExprType::set(ExprType::Id(user.name.clone())),
     );
 
-    is_as_strict(&schema, &vec![], &user.name, &before, &after).unwrap();
-    eprintln!(
-        "{}",
-        is_as_strict(&schema, &vec![], &user.name, &after, &before)
-            .expect_err("strictness check should fail")
-    );
+    match is_as_strict(&schema, &vec![], &user.name, &before, &after) {
+        Result::Ok(_) => (),
+        Result::Err(e) => panic!("Unsafe migration! Counterexample:\n{}", e),
+    }
+    match is_as_strict(&schema, &vec![], &user.name, &after, &before) {
+        Result::Ok(_) => panic!("Migration is safe backwards!"),
+        Result::Err(_e) => (),
+    }
 }
