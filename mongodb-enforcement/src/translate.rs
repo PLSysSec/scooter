@@ -1,4 +1,4 @@
-use policy_lang::ir::expr::{ExprType, FieldComparison, Func, IRExpr};
+use policy_lang::ir::expr::{ExprType, Func, IRExpr};
 use policy_lang::ir::policy::*;
 use policy_lang::ir::schema::Schema;
 use policy_lang::ir::Ident;
