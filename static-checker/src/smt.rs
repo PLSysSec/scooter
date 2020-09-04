@@ -5,6 +5,7 @@ use policy_lang::ir::{
     Ident,
 };
 use std::{
+    collections::HashMap,
     fmt::Display,
     io::{BufRead, BufReader, Write},
     process::{Command, Stdio},
@@ -85,18 +86,50 @@ pub fn is_as_strict(
             princ,
             objects: vec![],
         };
+        let mut tables_to_vars: HashMap<Ident<Collection>, Vec<Ident<SMTVar>>> = HashMap::new();
+        for (coll_id, var_id) in join_objects(&verif_problem) {
+            let vars = tables_to_vars.entry(coll_id).or_insert(Vec::new());
+            (*vars).push(var_id);
+        }
         for (coll_id, var_id) in db_objects(&verif_problem) {
             let mut fields = vec![];
-            let coll = &schema[&coll_id];
+            let maybe_coll = schema.collections.iter().find(|c| c.name == coll_id);
+            let coll = match maybe_coll {
+                Some(ref coll) => coll,
+                None => continue,
+            };
             for field in coll.fields() {
-                input
-                    .write_all(
-                        format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id)).as_bytes(),
-                    )
-                    .unwrap();
-                line = String::new();
-                reader.read_line(&mut line).unwrap();
-                fields.push((field.name.clone(), line.trim().to_owned()));
+                match &field.typ {
+                    ExprType::Set(_inner_ty) => {
+                        let mut lines = Vec::new();
+                        let (join_coll_id, _from_id, to_id, _typ) =
+                            &verif_problem.join_tables[&field.name];
+                        for var in &tables_to_vars[&join_coll_id] {
+                            input
+                                .write_all(
+                                    format!("(eval ({} {}))\n", ident(&to_id), ident(&var))
+                                        .as_bytes(),
+                                )
+                                .unwrap();
+                            line = String::new();
+                            reader.read_line(&mut line).unwrap();
+                            lines.push(line.trim().to_owned());
+                        }
+
+                        fields.push((field.name.clone(), format!("[{}]", lines.join(", "))));
+                    }
+                    _ => {
+                        input
+                            .write_all(
+                                format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
+                                    .as_bytes(),
+                            )
+                            .unwrap();
+                        line = String::new();
+                        reader.read_line(&mut line).unwrap();
+                        fields.push((field.name.clone(), line.trim().to_owned()));
+                    }
+                };
             }
             let obj = ModelObject {
                 coll: coll.name.clone(),
@@ -119,6 +152,21 @@ fn db_objects<'a>(
             params,
             typ: ExprType::Object(ref coll),
         } if params.is_empty() => Some((coll.clone(), id.clone())),
+        _ => None,
+    })
+}
+fn join_objects<'a>(
+    vp: &'a VerifProblem,
+) -> impl Iterator<Item = (Ident<Collection>, Ident<SMTVar>)> + 'a {
+    let join_vals = vp.join_tables.values().collect::<Vec<_>>();
+    vp.stmts.iter().filter_map(move |stmt| match stmt {
+        Statement::DeclFun {
+            id,
+            params,
+            typ: ExprType::Object(ref coll),
+        } if params.is_empty() && join_vals.iter().find(|t| t.0 == *coll).is_some() => {
+            Some((coll.clone(), id.clone()))
+        }
         _ => None,
     })
 }
