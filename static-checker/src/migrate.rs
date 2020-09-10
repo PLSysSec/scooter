@@ -268,12 +268,16 @@ fn interpret_migration_on_policy(
                 equivs.push(Equiv(field.clone(), init.clone()));
                 let inferred_policy =
                     get_policy_from_initializer(&cur_schema_policy, field.clone(), init);
-                let new_read_fine =
-                    is_as_strict(&schema, &equivs, &coll, &inferred_policy.read, &pol.read).is_ok();
-                if !new_read_fine {
-                    return Err("Cannot determine that the given field policy \
-                                is tight enough for the values that flow into it."
-                        .to_string());
+                match is_as_strict(&schema, &equivs, &coll, &inferred_policy.read, &pol.read) {
+                    Result::Ok(_) => (),
+                    Result::Err(e) => {
+                        return Err(format!(
+                            "Cannot determine that the given field policy \
+                                            is tight enough for the values that flow into it.\n \
+                                            Counterexample: {}",
+                            e
+                        ))
+                    }
                 }
                 eprintln!("Adding new field policy {:?}", pol);
                 result_policy.add_field_policy(field, pol)
@@ -346,7 +350,6 @@ fn interpret_migration_on_policy(
                     }
                 };
                 if let Err(model) = res {
-                    eprintln!("{}", model);
                     return Err(
                         format!("Cannot determine that the new field policy for {} is tighter than the old one. Counterexample:\n{}", &field.orig_name, model)
                     );
@@ -372,21 +375,22 @@ fn interpret_migration_on_policy(
                 new_policy,
             } => {
                 let old_policy = result_policy.collection_policies[&coll].clone();
-                if match kind {
+                match match kind {
                     // The "schema" here is actually the schema
                     // afterwards, which would be a problem except
                     // this command doesb't modify the schema.
                     CollectionPolicyKind::Create => {
-                        !is_as_strict(&schema, &equivs, &coll, &old_policy.create, &new_policy)
-                            .is_ok()
+                        is_as_strict(&schema, &equivs, &coll, &old_policy.create, &new_policy)
                     }
                     CollectionPolicyKind::Delete => {
-                        !is_as_strict(&schema, &equivs, &coll, &old_policy.delete, &new_policy)
-                            .is_ok()
+                        is_as_strict(&schema, &equivs, &coll, &old_policy.delete, &new_policy)
                     }
                 } {
-                    return Err("Cannot determine that the new collection policy is tighter than the old one"
-                               .to_string());
+                    Result::Ok(_) => (),
+                    Result::Err(model) =>
+                        return Err(
+                            format!("Cannot determine that the new collection policy for {} is tighter than the old one. Counterexample:\n{}", &coll.orig_name, model)
+                        )
                 }
                 result_policy.remove_collection_policy(coll.clone());
                 let new_policy = coll_policy_lens_set(old_policy.clone(), kind, new_policy);
