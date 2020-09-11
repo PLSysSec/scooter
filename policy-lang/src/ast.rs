@@ -18,6 +18,7 @@ pub enum QueryExpr {
     FieldAccess(Box<QueryExpr>, String),
     Object(ObjectLiteral),
     Map(Box<QueryExpr>, Func),
+    FlatMap(Box<QueryExpr>, Func),
 
     LookupById(String, Box<QueryExpr>),
     Find(String, Vec<(FieldComparison, String, Box<QueryExpr>)>),

@@ -23,6 +23,10 @@ User {
         read: m -> [m.id],
         write: none,
     },
+    flair : String {
+        read: m -> MultiMessage::Find({to > m.id}).flat_map(m -> m.to),
+        write: m -> [m.id],
+    },
 }
 
 Message {
@@ -46,5 +50,24 @@ Message {
     is_public : Bool {
         read: public,
         write: m -> [m.from],
+    },
+}
+
+MultiMessage {
+    create: m -> [m.from],
+    delete: none,
+    from : Id(User) {
+        read: m -> [m.from] + m.to,
+        write: none,
+    },
+
+    to : Set(Id(User)) {
+        read: m -> [m.from] + m.to,
+        write: none,
+    },
+
+    text : String {
+        read: m -> [m.from] + m.to,
+        write: none,
     },
 }

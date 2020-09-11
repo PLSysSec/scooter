@@ -139,6 +139,7 @@ QueryExpr2: Box<QueryExpr> = {
     Set => Box::new(QueryExpr::Set(<>)),
     "(" <e:QueryExpr> ")" => e,
     <le: QueryExpr2> "." "map" "(" <f: Func> ")" => Box::new(QueryExpr::Map(le, f)),
+    <le: QueryExpr2> "." "flat_map" "(" <f: Func> ")" => Box::new(QueryExpr::FlatMap(le, f)),
     <o: QueryExpr2> "." <f: Ident> => Box::new(QueryExpr::FieldAccess(o, f)),
     "None" => Box::new(QueryExpr::None),
     "Some" "(" <e: QueryExpr> ")" => Box::new(QueryExpr::Some(e)),

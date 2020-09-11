@@ -213,6 +213,12 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             mangled_ident(&func.param),
             translate_queryexpr(schema, &func.body)
         ),
+        IRExpr::FlatMap(set_expr, func) => format!(
+            "{}.into_iter().flat_map(|{}| {}).collect::<Vec<_>>()",
+            translate_queryexpr(schema, set_expr),
+            mangled_ident(&func.param),
+            translate_queryexpr(schema, &func.body)
+        ),
         IRExpr::Set(_ty, exprs) => {
             let mut out = "vec![".to_string();
             for expr in exprs.into_iter() {

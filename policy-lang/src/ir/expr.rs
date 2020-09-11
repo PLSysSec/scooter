@@ -197,6 +197,12 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
             resolve_types(type_map, &mut func.body);
             resolve_types(type_map, set_expr);
         }
+        IRExpr::FlatMap(set_expr, func) => {
+            func.param_type = apply_ty(type_map, &func.param_type);
+            func.return_type = apply_ty(type_map, &func.return_type);
+            resolve_types(type_map, &mut func.body);
+            resolve_types(type_map, set_expr);
+        }
         IRExpr::Find(_, fields) => {
             for (_, _, field) in fields.iter_mut() {
                 resolve_types(type_map, field);
@@ -317,6 +323,7 @@ pub enum IRExpr {
 
     /// Functional map across lists
     Map(Box<IRExpr>, Func),
+    FlatMap(Box<IRExpr>, Func),
 
     /// Look up an id in a collection
     LookupById(Ident<Collection>, Box<IRExpr>),
@@ -712,6 +719,37 @@ impl LoweringContext {
                     },
                 )
             }
+            ast::QueryExpr::FlatMap(set_expr, func) => {
+                let param_ty = ExprType::Unknown(Ident::new("map_param"));
+                let set_ir_expr = self.extract_ir_expr(schema, def_map.clone(), set_expr);
+                let set_ir_expr =
+                    self.coerce(schema, &ExprType::set(param_ty.clone()), set_ir_expr);
+                let param_ty = match set_ir_expr.type_of() {
+                    ExprType::Set(p) => *p,
+                    _ => unreachable!("We just set the type"),
+                };
+                let param_ident = Ident::new(func.param.clone());
+                let res_elem_ty = ExprType::Unknown(Ident::new("elem_param"));
+                let body_expr = self.extract_ir_expr(
+                    schema,
+                    def_map.extend(
+                        &param_ident.orig_name,
+                        param_ident.clone(),
+                        param_ty.clone(),
+                    ),
+                    &func.expr,
+                );
+                let body_expr = self.coerce(schema, &ExprType::set(res_elem_ty.clone()), body_expr);
+                IRExpr::FlatMap(
+                    set_ir_expr,
+                    Func {
+                        param: param_ident,
+                        param_type: param_ty,
+                        return_type: body_expr.type_of(),
+                        body: body_expr,
+                    },
+                )
+            }
             ast::QueryExpr::Find(coll_name, fields) => {
                 let coll = schema.find_collection(coll_name).expect(&format!(
                     "Unable to lookup by id because collection `{}` does not exist",
@@ -938,6 +976,7 @@ impl IRExpr {
                 ExprType::Object(coll.clone())
             }
             IRExpr::Map(_list_expr, func) => ExprType::set(func.return_type.clone()),
+            IRExpr::FlatMap(_list_expr, func) => func.return_type.clone(),
 
             IRExpr::Find(coll, ..) => ExprType::set(ExprType::Object(coll.clone())),
 
@@ -1021,6 +1060,15 @@ impl IRExpr {
                 template.as_ref().map(|te| Box::new(te.map(f))),
             )),
             IRExpr::Map(list_expr, func) => f(IRExpr::Map(
+                Box::new(list_expr.map(f)),
+                Func {
+                    param: func.param.clone(),
+                    param_type: func.param_type.clone(),
+                    return_type: func.return_type.clone(),
+                    body: Box::new(func.body.map(f)),
+                },
+            )),
+            IRExpr::FlatMap(list_expr, func) => f(IRExpr::FlatMap(
                 Box::new(list_expr.map(f)),
                 Func {
                     param: func.param.clone(),
@@ -1121,6 +1169,11 @@ impl IRExpr {
                     .into_iter()
             }
             IRExpr::Map(list_expr, func) => iter::once(self)
+                .chain(list_expr.subexprs_preorder())
+                .chain(func.body.subexprs_preorder())
+                .collect::<Vec<_>>()
+                .into_iter(),
+            IRExpr::FlatMap(list_expr, func) => iter::once(self)
                 .chain(list_expr.subexprs_preorder())
                 .chain(func.body.subexprs_preorder())
                 .collect::<Vec<_>>()

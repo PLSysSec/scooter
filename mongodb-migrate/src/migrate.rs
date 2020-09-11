@@ -577,6 +577,29 @@ impl Evaluator<'_> {
                     panic!("Runtime type error: value mapped over is not a list");
                 }
             }
+            IRExpr::FlatMap(list_expr, func) => {
+                let list_val = self.eval_expr(db_conn, list_expr.clone());
+                if let Value::Set(subvals) = list_val {
+                    Value::Set(
+                        subvals
+                            .into_iter()
+                            .flat_map(|subval| {
+                                self.push_scope(&func.param, subval);
+                                let result = self.eval_expr(db_conn, func.body.clone());
+                                self.pop_scope(&func.param);
+                                match result {
+                                    Value::Set(vals) => vals,
+                                    _ => panic!(
+                                        "Runtime type error: return of flat map is not a set"
+                                    ),
+                                }
+                            })
+                            .collect(),
+                    )
+                } else {
+                    panic!("Runtime type error: value mapped over is not a list");
+                }
+            }
             IRExpr::Find(coll, query_fields) => {
                 let mut doc = bson::Document::new();
                 for (op, field, val) in query_fields.iter() {

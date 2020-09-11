@@ -20,12 +20,14 @@ mod test {
                 pass_hash: "alex_hash".to_string(),
                 num_followers: 0,
                 trustworthyness: 15,
+                flair: "".to_string(),
             },
             user! {
                 username: "John".to_string(),
                 pass_hash: "john_hash".to_string(),
                 num_followers: 0,
                 trustworthyness: 5,
+                flair: "".to_string(),
             },
         ];
 
@@ -73,6 +75,7 @@ mod test {
                         pass_hash: "alex_hash".to_string(),
                         num_followers: 0,
                         trustworthyness: 15,
+                        flair: "".to_string(),
             }],
         )
         .unwrap()
@@ -136,6 +139,7 @@ mod test {
                         pass_hash: "alex_hash".to_string(),
                         num_followers: 0,
                         trustworthyness: 15,
+                        flair: "".to_string(),
             }],
         )
         .unwrap()
@@ -170,12 +174,14 @@ mod test {
                 pass_hash: "alex_hash".to_string(),
                 num_followers: 0,
                 trustworthyness: 15,
+                flair: "".to_string(),
             },
             user! {
                 username: "John".to_string(),
                 pass_hash: "john_hash".to_string(),
                 num_followers: 0,
                 trustworthyness: 5,
+                flair: "".to_string(),
             },
         ];
 
@@ -265,12 +271,14 @@ mod test {
                 pass_hash: "alex_hash".to_string(),
                 num_followers: 0,
                 trustworthyness: 15,
+                flair: "".to_string(),
             },
             user! {
                 username: "John".to_string(),
                 pass_hash: "john_hash".to_string(),
                 num_followers: 0,
                 trustworthyness: 5,
+                flair: "".to_string(),
             },
         ];
 
@@ -298,18 +306,21 @@ mod test {
                 pass_hash: "alex_hash".to_string(),
                 num_followers: 0,
                 trustworthyness: 15,
+                flair: "".to_string(),
             },
             user! {
                 username: "John".to_string(),
                 pass_hash: "john_hash".to_string(),
                 num_followers: 0,
                 trustworthyness: 5,
+                flair: "".to_string(),
             },
             user! {
                 username: "Deian".to_string(),
                 pass_hash: "deian_hash".to_string(),
                 num_followers: 100,
                 trustworthyness: 0,
+                flair: "".to_string(),
             },
         ];
 
@@ -354,5 +365,74 @@ mod test {
                 .expect("Couldn't retreive message as unauthenticated");
         // Make sure the message text is readable
         assert!(retreived_as_unauth_message.text.is_some());
+    }
+
+    #[test]
+    fn read_flair() {
+        let db_conn = get_dbconn("read_flair");
+
+        // Add three users, alex, john and deian, where alex and deian have a
+        // trustworthyness above ten, and john has one below ten.
+        let users: Vec<_> = vec![
+            user! {
+                username: "Alex".to_string(),
+                pass_hash: "alex_hash".to_string(),
+                num_followers: 0,
+                trustworthyness: 15,
+                flair: "".to_string(),
+            },
+            user! {
+                username: "John".to_string(),
+                pass_hash: "john_hash".to_string(),
+                num_followers: 0,
+                trustworthyness: 5,
+                flair: "I'm secretly incredible at massage".to_string(),
+            },
+            user! {
+                username: "Deian".to_string(),
+                pass_hash: "deian_hash".to_string(),
+                num_followers: 100,
+                trustworthyness: 0,
+                flair: "".to_string(),
+            },
+        ];
+        let unauthenticated_conn = &db_conn.clone().as_princ(Principle::Unauthenticated);
+        // Insert the users, and get their ids
+        let uids = User::insert_many(unauthenticated_conn, users).unwrap();
+        let (uid_alex, uid_john, uid_deian) = match uids.as_slice() {
+            [id1, id2, id3] => (id1, id2, id3),
+            _ => panic!("Not the right number of returned ids"),
+        };
+        // Make connection objects for all users
+        let alex_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_alex.clone().into()));
+        let _john_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_john.clone().into()));
+        let deian_conn = &db_conn
+            .clone()
+            .as_princ(Principle::Id(uid_deian.clone().into()));
+        // Insert a multi message from deian to alex and john, and get its id
+        let _meeting_message = MultiMessage::insert_one(
+            deian_conn,
+            multimessage! {
+                from: uid_deian.clone(),
+                to: vec![uid_john.clone(), uid_alex.clone()],
+                text: "Are we still meeting today?".to_string(),
+            },
+        )
+        .expect("Couldn't insert message from alex");
+
+        let retrieved_as_alex_john = User::find_by_id(alex_conn, uid_john.clone().into())
+            .expect("Couldn't retreive john as alex");
+        assert_eq!(
+            retrieved_as_alex_john.flair,
+            Some("I'm secretly incredible at massage".to_string())
+        );
+
+        let retrieved_as_deian_john = User::find_by_id(deian_conn, uid_john.clone().into())
+            .expect("Couldn't retreive john as deian");
+        assert_eq!(retrieved_as_deian_john.flair, None);
     }
 }

@@ -353,6 +353,37 @@ impl SMTContext {
                 let expr = format!("(or {})", spaced(elems.into_iter()));
                 SMTResult::new(preamble, expr)
             }
+            IRExpr::FlatMap(set_expr, func) => {
+                let mut elems = vec![];
+                let mut preamble = vec![];
+                let ids: Box<dyn Iterator<Item = Ident<SMTVar>>> = match func.param_type {
+                    ExprType::Object(ref coll) | ExprType::Id(ref coll) => Box::new(
+                        self.domains[&ExprType::Object(coll.clone())]
+                            .iter()
+                            .cloned(),
+                    ),
+                    _ => {
+                        let id = Ident::new("map_var");
+                        preamble.push(declare(id.clone(), &[], func.param_type.clone()));
+                        Box::new(iter::once(id))
+                    }
+                };
+                for id in ids {
+                    let set_expr = self.lower_expr((&id, &func.param_type), &set_expr, &vm);
+                    preamble.extend(set_expr.stmts);
+                    let func_expr = self.lower_expr(
+                        target,
+                        &func.body,
+                        &vm.extend(func.param.clone(), id.clone()),
+                    );
+                    preamble.extend(func_expr.stmts);
+                    let elem = format!("(and {} {})", &set_expr.expr, &func_expr.expr,);
+                    elems.push(elem);
+                }
+
+                let expr = format!("(or {})", spaced(elems.into_iter()));
+                SMTResult::new(preamble, expr)
+            }
             IRExpr::AppendL(_, l, r) => {
                 let left = self.lower_expr(target, l, vm);
                 let right = self.lower_expr(target, r, vm);
