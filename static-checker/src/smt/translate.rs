@@ -209,24 +209,24 @@ impl SMTContext {
             IRExpr::Path(ty, obj, f) => match ty {
                 ExprType::Set(ref _inner_ty) => {
                     let lower = self.lower_expr(target, obj, vm);
-                    let path_id = Ident::new("path");
                     let (coll, from, to, _typ) = self.join_tables[f].clone();
-                    let assert =
-                        format!("(= ({} {}) {})", ident(&from), ident(&path_id), &lower.expr);
-                    let mut stmts = lower.stmts;
-                    stmts.append(
-                        &mut self.domain_ident(path_id.clone(), ExprType::Object(coll.clone())),
-                    );
-                    stmts.push(Statement::Assert(assert));
-                    SMTResult::new(
-                        stmts,
-                        format!(
-                            "(= ({} {}) {})",
-                            ident(&to),
-                            ident(&path_id),
-                            ident(&target.0)
-                        ),
-                    )
+                    let domain_ids = self.domains[&ExprType::Object(coll.clone())].clone();
+                    let domain_clauses: Vec<_> = domain_ids
+                        .into_iter()
+                        .map(|id| {
+                            format!(
+                                "(and (= ({} {}) {}) (= ({} {}) {}))",
+                                ident(&from),
+                                ident(&id),
+                                &lower.expr,
+                                ident(&to),
+                                ident(&id),
+                                ident(&target.0)
+                            )
+                        })
+                        .collect();
+                    let expr = format!("(or {})", domain_clauses.join(" "));
+                    SMTResult::new(lower.stmts, expr)
                 }
                 _ => self.simple_nary_op(&ident(f), target, &[obj], vm),
             },

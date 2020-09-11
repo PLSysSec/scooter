@@ -302,3 +302,40 @@ fn domains() {
         Result::Err(_e) => (),
     }
 }
+#[test]
+fn set_ident() {
+    let before_policy = schema_policy(
+        r#"
+        @principle
+        User {
+            create: public,
+            delete: none,
+
+            friends: Set(Id(User)) {
+                read: public,
+                write: none,
+            },
+        }
+    "#,
+    );
+
+    let schema = before_policy.schema;
+    let user = schema.find_collection("User").unwrap();
+    let before = func(
+        &schema,
+        "u -> u.friends",
+        ExprType::Object(user.name.clone()),
+        ExprType::set(ExprType::Principle),
+    );
+    let after = func(
+        &schema,
+        "u -> u.friends",
+        ExprType::Object(user.name.clone()),
+        ExprType::set(ExprType::Principle),
+    );
+
+    match is_as_strict(&schema, &vec![], &user.name, &before, &after) {
+        Result::Ok(_) => (),
+        Result::Err(e) => panic!("Unsafe migration! Counterexample:\n{}", e),
+    }
+}
