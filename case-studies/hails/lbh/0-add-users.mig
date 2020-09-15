@@ -1,0 +1,14 @@
+User::AddField(
+    full_name: String {
+        read: public,
+        write: u -> [u.id],
+    },
+    u -> ""
+)
+User::AddField(
+    email: String {
+        read: public,
+        write: u -> [u.id],
+    },
+    u -> ""
+)

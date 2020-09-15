@@ -1,0 +1,7 @@
+Post::AddField(
+    tags: Set(String) {
+        read: p -> (if p.is_public then public else [p.owner]),
+        write: p -> [p.owner],
+    },
+    p -> []
+)

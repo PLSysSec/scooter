@@ -1,0 +1,16 @@
+CreateCollection(
+    TagEntry {
+        create: public,
+        delete: public,
+
+        tag_text: String {
+            read: public,
+            write: public,
+        },
+
+        tag_count: I64 {
+            read: public,
+            write: public,
+        },
+    }
+)

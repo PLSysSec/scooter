@@ -1,0 +1,2 @@
+AddStaticPrinciple(UserCreator)
+User::TightenCollectionPolicy(create, p -> [UserCreator])

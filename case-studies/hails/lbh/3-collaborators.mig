@@ -1,0 +1,24 @@
+
+Post::AddField(
+    collaborators: Set(Id(User)) {
+        read: p -> (if p.is_public then public else [p.owner] + p.collaborators),
+        write: p -> [p.owner] + p.collaborators,
+    },
+    p -> []
+)
+
+Post::LoosenCollectionPolicy(delete, p -> [p.owner] + p.collaborators)
+Post::LoosenFieldPolicy(owner, read, p -> (if p.is_public then public else [p.owner] + p.collaborators))
+Post::LoosenFieldPolicy(owner, write, p -> [p.owner] + p.collaborators)
+Post::LoosenFieldPolicy(is_public, read, p -> (if p.is_public then public else [p.owner] + p.collaborators))
+Post::LoosenFieldPolicy(is_public, write, p -> [p.owner] + p.collaborators)
+Post::LoosenFieldPolicy(title, read, p -> (if p.is_public then public else [p.owner] + p.collaborators))
+Post::LoosenFieldPolicy(title, write, p -> [p.owner] + p.collaborators)
+Post::LoosenFieldPolicy(description, read, p -> (if p.is_public then public else [p.owner] + p.collaborators))
+Post::LoosenFieldPolicy(description, write, p -> [p.owner] + p.collaborators)
+Post::LoosenFieldPolicy(body, read, p -> (if p.is_public then public else [p.owner] + p.collaborators))
+Post::LoosenFieldPolicy(body, write, p -> [p.owner] + p.collaborators)
+Post::LoosenFieldPolicy(date, read, p -> (if p.is_public then public else [p.owner] + p.collaborators))
+Post::LoosenFieldPolicy(date, write, p -> [p.owner] + p.collaborators)
+Post::LoosenFieldPolicy(tags, read, p -> (if p.is_public then public else [p.owner] + p.collaborators))
+Post::LoosenFieldPolicy(tags, write, p -> [p.owner] + p.collaborators)

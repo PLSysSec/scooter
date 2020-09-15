@@ -1,0 +1,39 @@
+@principle
+User {
+    create: p -> public,
+    delete: p -> [p.id],
+
+    username : String {
+        read: public,
+        write: p -> [p.id],
+    },
+}
+Post {
+    create: public,
+    delete: p -> [p.owner],
+
+    owner : Id(User) {
+        read: p -> (if p.is_public then public else [p.owner]),
+        write: p -> [p.owner],
+    },
+    is_public : Bool {
+        read: p -> (if p.is_public then public else [p.owner]),
+        write: p -> [p.owner],
+    },
+    title : String {
+        read: p -> (if p.is_public then public else [p.owner]),
+        write: p -> [p.owner],
+    },
+    description : String {
+        read: p -> (if p.is_public then public else [p.owner]),
+        write: p -> [p.owner],
+    },
+    body : String {
+        read: p -> (if p.is_public then public else [p.owner]),
+        write: p -> [p.owner],
+    },
+    date : DateTime {
+        read: p -> (if p.is_public then public else [p.owner]),
+        write: p -> [p.owner],
+    },
+}
