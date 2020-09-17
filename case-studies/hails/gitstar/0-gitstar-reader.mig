@@ -1,14 +1,12 @@
 
 AddStaticPrinciple(GitStar)
-Project::LoosenFieldPolicy(owner, read, p ->
-        [p.owner, GitStar] +
-        ProjectReader::Find({proj: p.id}).map(pr -> pr.user) +
-        ProjectCollaborator::Find({proj: p.id}).map(pc -> pc.user))
-Project::LoosenFieldPolicy(name, read, p ->
-        [p.owner, GitStar] +
-        ProjectReader::Find({proj: p.id}).map(pr -> pr.user) +
-        ProjectCollaborator::Find({proj: p.id}).map(pc -> pc.user))
-Project::LoosenFieldPolicy(is_public, read, p ->
-        [p.owner, GitStar] +
-        ProjectReader::Find({proj: p.id}).map(pr -> pr.user) +
-        ProjectCollaborator::Find({proj: p.id}).map(pc -> pc.user))
+Project::LoosenFieldPolicy(owner, read,
+        p -> [p.owner, GitStar] + p.readers + p.collaborators)
+Project::LoosenFieldPolicy(name, read,
+        p -> [p.owner, GitStar] + p.readers + p.collaborators)
+Project::LoosenFieldPolicy(is_public, read,
+        p -> [p.owner, GitStar] + p.readers + p.collaborators)
+Project::LoosenFieldPolicy(readers, read,
+        p -> [p.owner, GitStar] + p.readers + p.collaborators)
+Project::LoosenFieldPolicy(collaborators, read,
+        p -> [p.owner, GitStar] + p.readers + p.collaborators)
