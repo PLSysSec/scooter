@@ -1,0 +1,42 @@
+@static-principle
+Authenticator
+
+@principle
+User {
+    create: public,
+    delete: none,
+    username : String {
+        read: public,
+        write: none,
+    },
+
+    pass_hash : String {
+        read: r -> [Authenticator],
+        write: r -> [r.id],
+    },
+
+    friends : Set(Id(User)) {
+        read: r -> r.friends,
+        write: r -> [r.id],
+    },
+}
+
+Post {
+    create: p -> [p.author],
+    delete: p -> [p.author],
+
+    author: Id(User) {
+        read: p -> User::ById(p.author).friends,
+        write: none,
+    },
+
+    title: String {
+        read: p -> User::ById(p.author).friends,
+        write: none,
+    },
+
+    contents: String {
+        read: p -> User::ById(p.author).friends,
+        write: p -> [p.author],
+    },
+}
