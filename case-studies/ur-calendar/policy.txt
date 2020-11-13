@@ -1,0 +1,45 @@
+@principle
+User {
+  create: public,
+  delete: none,
+
+  name: String {
+    read: public,
+    write: none,
+  },
+
+  pass: String {
+    read: u -> [u.id],
+    write: none,
+  },
+}
+
+Event {
+  create: e -> [e.creator],
+  delete: e -> [e.creator],
+
+  creator: Id(User) {
+    read: e -> [e.creator],
+    write: none,
+  },
+
+  time: DateTime {
+    read: e -> [e.creator] + e.attendees,
+    write: e -> [e.creator] + e.attendees,
+  },
+
+  title: String {
+    read: e -> [e.creator] + e.attendees,
+    write: e -> [e.creator] + e.attendees,
+  },
+
+  desc: String {
+    read: e -> [e.creator] + e.attendees,
+    write: e -> [e.creator] + e.attendees,
+  },
+
+  attendees: Set(Id(User)) {
+    read: e -> [e.creator],
+    write: e -> [e.creator],
+  },
+}
