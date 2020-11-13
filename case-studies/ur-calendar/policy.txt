@@ -24,8 +24,8 @@ Event {
   },
 
   time: DateTime {
-    read: e -> [e.creator] + e.attendees,
-    write: e -> [e.creator] + e.attendees,
+    read: e -> [e.creator] + e.attendees + e.time_only,
+    write: e -> [e.creator] + e.attendees + e.time_only,
   },
 
   title: String {
@@ -39,6 +39,11 @@ Event {
   },
 
   attendees: Set(Id(User)) {
+    read: e -> [e.creator],
+    write: e -> [e.creator],
+  },
+
+  time_only: Set(Id(User)) {
     read: e -> [e.creator],
     write: e -> [e.creator],
   },
