@@ -15,6 +15,7 @@ enforcement = {path="../../mongodb-enforcement"}
 bson = "0.14.0"
 hyper = "0.13"
 tokio = { version = "0.2", features = ["full"] }
+serde_json = "1.0"
 
 [[bin]]
 name = "postfriend-server"
