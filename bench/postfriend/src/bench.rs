@@ -3,15 +3,23 @@ mod types;
 use enforcement::*;
 use types::*;
 
+use std::env;
 use std::fmt;
 use std::time::{Duration, Instant};
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    let num_trials = if args.len() > 1 {
+        args[1].parse().unwrap()
+    } else {
+        1000
+    };
+
     let db_conn = get_dbconn("postfriend-bench");
     let main_user_id = setup_db_contents(&db_conn);
-    let post_time = time_post(&db_conn, main_user_id.clone());
+    let post_time = time_post(&db_conn, main_user_id.clone(), num_trials);
     println!("Creating a new post: {}", post_time);
-    let read_friend_posts_time = time_read_friend_posts(&db_conn, main_user_id);
+    let read_friend_posts_time = time_read_friend_posts(&db_conn, main_user_id, num_trials);
 
     println!("Reading friends posts: {}", read_friend_posts_time);
 }
@@ -127,13 +135,12 @@ fn setup_db_contents(conn: &DBConn) -> TypedRecordId<User> {
 
     uid_bernie.clone()
 }
-fn time_post(conn: &DBConn, bernie_id: TypedRecordId<User>) -> TimeEntry {
-    let n = 10000;
+fn time_post(conn: &DBConn, bernie_id: TypedRecordId<User>, num_trials: u32) -> TimeEntry {
     let bernie_conn = conn
         .clone()
         .as_princ(Principle::Id(bernie_id.clone().into()));
     let before_posting_checked = Instant::now();
-    for _ in 0..n {
+    for _ in 0..num_trials {
         Post::insert_one(
             &bernie_conn,
             post! {
@@ -143,18 +150,17 @@ fn time_post(conn: &DBConn, bernie_id: TypedRecordId<User>) -> TimeEntry {
             },
         );
     }
-    let time_taken_checked = (Instant::now() - before_posting_checked) / n;
+    let time_taken_checked = (Instant::now() - before_posting_checked) / num_trials;
 
     TimeEntry {
         time_checked: time_taken_checked,
-        time_direct: time_post_unchecked(conn, bernie_id),
+        time_direct: time_post_unchecked(conn, bernie_id, num_trials),
     }
 }
-fn time_post_unchecked(conn: &DBConn, bernie_id: TypedRecordId<User>) -> Duration {
+fn time_post_unchecked(conn: &DBConn, bernie_id: TypedRecordId<User>, num_trials: u32) -> Duration {
     use bson::doc;
-    let n = 10000;
     let before_posting_unchecked = Instant::now();
-    for _ in 0..n {
+    for _ in 0..num_trials {
         conn.mongo_conn
             .collection("Post")
             .insert_one(
@@ -167,16 +173,19 @@ fn time_post_unchecked(conn: &DBConn, bernie_id: TypedRecordId<User>) -> Duratio
             )
             .unwrap();
     }
-    let time_taken_unchecked = (Instant::now() - before_posting_unchecked) / n;
+    let time_taken_unchecked = (Instant::now() - before_posting_unchecked) / num_trials;
     time_taken_unchecked
 }
-fn time_read_friend_posts(conn: &DBConn, bernie_id: TypedRecordId<User>) -> TimeEntry {
-    let n = 10000;
+fn time_read_friend_posts(
+    conn: &DBConn,
+    bernie_id: TypedRecordId<User>,
+    num_trials: u32,
+) -> TimeEntry {
     let bernie_conn = conn
         .clone()
         .as_princ(Principle::Id(bernie_id.clone().into()));
     let before_posting_checked = Instant::now();
-    for _ in 0..n {
+    for _ in 0..num_trials {
         let bernie_user =
             User::find_by_id(&bernie_conn, bernie_id.clone()).expect("Couldn't get bernie user");
         let friends = bernie_user
@@ -193,17 +202,20 @@ fn time_read_friend_posts(conn: &DBConn, bernie_id: TypedRecordId<User>) -> Time
             .collect();
         }
     }
-    let time_taken_checked = (Instant::now() - before_posting_checked) / n;
+    let time_taken_checked = (Instant::now() - before_posting_checked) / num_trials;
     TimeEntry {
         time_checked: time_taken_checked,
-        time_direct: time_read_friend_posts_unchecked(conn, bernie_id),
+        time_direct: time_read_friend_posts_unchecked(conn, bernie_id, num_trials),
     }
 }
-fn time_read_friend_posts_unchecked(conn: &DBConn, bernie_id: TypedRecordId<User>) -> Duration {
+fn time_read_friend_posts_unchecked(
+    conn: &DBConn,
+    bernie_id: TypedRecordId<User>,
+    num_trials: u32,
+) -> Duration {
     use bson::doc;
-    let n = 10000;
     let before_posting_unchecked = Instant::now();
-    for _ in 0..n {
+    for _ in 0..num_trials {
         let user_obj = conn
             .mongo_conn
             .collection("User")
@@ -222,6 +234,6 @@ fn time_read_friend_posts_unchecked(conn: &DBConn, bernie_id: TypedRecordId<User
                 .collect();
         }
     }
-    let time_taken_unchecked = (Instant::now() - before_posting_unchecked) / n;
+    let time_taken_unchecked = (Instant::now() - before_posting_unchecked) / num_trials;
     time_taken_unchecked
 }
