@@ -11,7 +11,7 @@ User {
     },
 
     friends : Set(Id(User)) {
-        read: r -> r.friends,
+        read: r -> r.friends + [r.id],
         write: r -> [r.id],
     },
 }
