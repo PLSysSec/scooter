@@ -34,14 +34,15 @@ fn get_dbconn(name: &str) -> DBConn {
 struct TimeEntry {
     pub time_checked: Duration,
     pub time_direct: Duration,
+    pub time_manually_checked: Duration,
 }
 
 impl fmt::Display for TimeEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "[{:#?} checked, {:#?} direct]",
-            self.time_checked, self.time_direct
+            "[{:#?} caravan checked, {:#?} manually checked, {:#?} direct]",
+            self.time_checked, self.time_manually_checked, self.time_direct
         )
     }
 }
@@ -154,7 +155,8 @@ fn time_post(conn: &DBConn, bernie_id: TypedRecordId<User>, num_trials: u32) -> 
 
     TimeEntry {
         time_checked: time_taken_checked,
-        time_direct: time_post_unchecked(conn, bernie_id, num_trials),
+        time_direct: time_post_unchecked(conn, bernie_id.clone(), num_trials),
+        time_manually_checked: time_post_manually_checked(conn, bernie_id, num_trials),
     }
 }
 fn time_post_unchecked(conn: &DBConn, bernie_id: TypedRecordId<User>, num_trials: u32) -> Duration {
@@ -175,6 +177,41 @@ fn time_post_unchecked(conn: &DBConn, bernie_id: TypedRecordId<User>, num_trials
     }
     let time_taken_unchecked = (Instant::now() - before_posting_unchecked) / num_trials;
     time_taken_unchecked
+}
+fn time_post_manually_checked(
+    conn: &DBConn,
+    bernie_id: TypedRecordId<User>,
+    num_trials: u32,
+) -> Duration {
+    use bson::doc;
+    use bson::oid::ObjectId;
+    let before_posting_unchecked = Instant::now();
+    for _ in 0..num_trials {
+        let post_doc = doc! {
+            "author": bernie_id.clone().to_bson(),
+            "title": "I am once again asking for your support".to_string(),
+            "contents": "It's time for a new generation of leaders...".to_string()
+        };
+        if post_doc.get_object_id("author").unwrap().clone()
+            == ObjectId::from(RecordId::from(bernie_id.clone()))
+        {
+            conn.mongo_conn
+                .collection("Post")
+                .insert_one(
+                    doc! {
+                        "author": bernie_id.clone().to_bson(),
+                        "title": "I am once again asking for your support".to_string(),
+                        "contents": "It's time for a new generation of leaders...".to_string()
+                    },
+                    None,
+                )
+                .unwrap();
+        } else {
+            panic!("Bad write!");
+        }
+    }
+    let time_taken_manually_checked = (Instant::now() - before_posting_unchecked) / num_trials;
+    time_taken_manually_checked
 }
 fn time_read_friend_posts(
     conn: &DBConn,
@@ -205,7 +242,8 @@ fn time_read_friend_posts(
     let time_taken_checked = (Instant::now() - before_posting_checked) / num_trials;
     TimeEntry {
         time_checked: time_taken_checked,
-        time_direct: time_read_friend_posts_unchecked(conn, bernie_id, num_trials),
+        time_direct: time_read_friend_posts_unchecked(conn, bernie_id.clone(), num_trials),
+        time_manually_checked: time_read_friend_posts_manually_checked(conn, bernie_id, num_trials),
     }
 }
 fn time_read_friend_posts_unchecked(
@@ -222,7 +260,7 @@ fn time_read_friend_posts_unchecked(
             .find_one(Some(doc! {"_id":bernie_id.clone()}), None)
             .unwrap()
             .unwrap();
-        let friends = user_obj.get_array("friends");
+        let friends = user_obj.get_array("friends").unwrap();
         for friend_id in friends.into_iter() {
             let _friend_posts: Vec<_> = conn
                 .mongo_conn
@@ -236,4 +274,66 @@ fn time_read_friend_posts_unchecked(
     }
     let time_taken_unchecked = (Instant::now() - before_posting_unchecked) / num_trials;
     time_taken_unchecked
+}
+
+fn time_read_friend_posts_manually_checked(
+    conn: &DBConn,
+    bernie_id: TypedRecordId<User>,
+    num_trials: u32,
+) -> Duration {
+    use bson::doc;
+    use bson::oid::ObjectId;
+    let before_posting_manually_checked = Instant::now();
+    let bernie_id_raw = ObjectId::from(RecordId::from(bernie_id));
+    for _ in 0..num_trials {
+        let user_obj = conn
+            .mongo_conn
+            .collection("User")
+            .find_one(Some(doc! {"_id":bernie_id_raw.clone()}), None)
+            .unwrap()
+            .unwrap();
+        let friends = user_obj.get_array("friends").unwrap();
+        if bernie_id_raw == user_obj.get_object_id("_id").unwrap().clone()
+            || friends
+                .iter()
+                .map(|friend_bson| friend_bson.as_object_id().unwrap().clone())
+                .collect::<Vec<_>>()
+                .contains(&bernie_id_raw)
+        {
+            for friend_id in friends.into_iter() {
+                let friend_posts: Vec<_> = conn
+                    .mongo_conn
+                    .collection("Post")
+                    .find(Some(doc! {"author":friend_id}), None)
+                    .unwrap()
+                    .filter_map(Result::ok)
+                    .collect();
+                for friend_post in friend_posts.into_iter() {
+                    let post_author_id = friend_post.get_object_id("author").unwrap();
+                    let post_author = conn
+                        .mongo_conn
+                        .collection("User")
+                        .find_one(Some(doc! {"_id":post_author_id}), None)
+                        .unwrap()
+                        .unwrap();
+                    let post_author_friends: Vec<_> = post_author
+                        .get_array("friends")
+                        .unwrap()
+                        .into_iter()
+                        .map(|bson_id| bson_id.as_object_id().unwrap().clone())
+                        .collect();
+                    if post_author_friends.contains(&bernie_id_raw) {
+                        let _post_contents = friend_post.get_str("contents").unwrap().to_string();
+                    } else {
+                        panic!("We're not allowed to read the post!")
+                    }
+                }
+            }
+        } else {
+            panic!("We're not allowed to read the friends!")
+        }
+    }
+    let time_taken_manually_checked =
+        (Instant::now() - before_posting_manually_checked) / num_trials;
+    time_taken_manually_checked
 }

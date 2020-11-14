@@ -21,17 +21,17 @@ Post {
     delete: p -> [p.author],
 
     author: Id(User) {
-        read: p -> User::ById(p.author).friends,
+        read: p -> [p.author] + User::ById(p.author).friends,
         write: none,
     },
 
     title: String {
-        read: p -> User::ById(p.author).friends,
+        read: p -> [p.author] + User::ById(p.author).friends,
         write: none,
     },
 
     contents: String {
-        read: p -> User::ById(p.author).friends,
+        read: p -> [p.author] + User::ById(p.author).friends,
         write: p -> [p.author],
     },
 }
