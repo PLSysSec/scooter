@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use migrate::{migrate, DbConf};
 use static_checker;
 use std::env::current_dir;
