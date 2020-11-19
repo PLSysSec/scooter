@@ -4,7 +4,7 @@ User::AddField(
         read: u -> [u.id] + User::Find({adminLevel: 1}).map(u -> u.id) + User::Find({adminLevel: 2}).map(u -> u.id),
         write: u -> [u.id] + User::Find({adminLevel: 2}).map(u -> u.id),
     },
-    u -> (if u.is_admin then 2 else 0))
+    u -> (if u.isAdmin then 2 else 0))
 User::TightenFieldPolicy(email, read, u -> [u.id] + User::Find({adminLevel: 0}).map(u -> u.id) + User::Find({adminLevel: 2}).map(u -> u.id))
 User::TightenFieldPolicy(email, write, u -> [u.id] + User::Find({adminLevel: 2}).map(u -> u.id))
 User::TightenFieldPolicy(bio, read, u -> [u.id] + User::Find({adminLevel: 1}).map(u -> u.id))
