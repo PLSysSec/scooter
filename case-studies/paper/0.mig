@@ -1,0 +1,7 @@
+User::AddField(admin_level: I64 {
+  read: public,
+  write: public,
+}, u -> (if u.is_admin then 1 else 0))
+
+User::TightenFieldPolicy(email, read, u ->
+  (User::Find({}).flat_map(u -> (if u.admin_level >= 0 then [u.id] else []))))

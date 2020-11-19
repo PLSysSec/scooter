@@ -1,0 +1,30 @@
+@principle
+User {
+  create: public,
+  delete: public,
+
+  email: String {
+    read: u -> User::Find({is_admin: true}).map(u -> u.id),
+    write: none,
+  },
+
+  is_admin: Bool {
+    read: public,
+    write: public,
+  },
+}
+
+Friendship {
+  create: public,
+  delete: public,
+
+  from: Id(User) {
+    read: public,
+    write: public,
+  },
+
+  to: Id(User) {
+    read: public,
+    write: public,
+  },
+}
