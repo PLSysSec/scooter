@@ -1,0 +1,18 @@
+@principle
+User {
+   create: public,
+   delete: none,
+
+   isAdmin: Bool {
+       read: public,
+       write: none,
+   },
+   email: String {
+       read: u -> [u.id] + User::Find({isAdmin: true}).map(u -> u.id),
+       write: u -> [u.id] + User::Find({isAdmin: true}).map(u -> u.id),
+   },
+   bio: String {
+       read: u -> [u.id] + User::Find({isAdmin: true}).map(u -> u.id),
+       write: u -> [u.id] + User::Find({isAdmin: true}).map(u -> u.id),
+   },
+}
