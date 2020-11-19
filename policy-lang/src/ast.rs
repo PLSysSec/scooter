@@ -210,6 +210,15 @@ pub enum FieldPolicyKind {
     Read,
 }
 
+impl fmt::Display for FieldPolicyKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FieldPolicyKind::Edit => write!(f, "edit"),
+            FieldPolicyKind::Read => write!(f, "read"),
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CollectionPolicyKind {
     Create,

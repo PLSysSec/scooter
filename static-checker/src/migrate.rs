@@ -357,7 +357,7 @@ fn interpret_migration_on_policy(
                 };
                 if let Err(model) = res {
                     return Err(
-                        format!("Cannot determine that the new field policy for {} is tighter than the old one. Counterexample:\n{}", &field.orig_name, model)
+                        format!("Cannot determine that the new {} policy for {} is tighter than the old one. Counterexample:\n{}", kind, &field.orig_name, model)
                     );
                 }
                 let new_policy = field_policy_lens_set(old_policy.clone(), kind, new_policy);
