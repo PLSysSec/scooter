@@ -179,11 +179,33 @@ pub struct Model {
 
 impl Model {
     fn add_obj(&mut self, m: ModelObject) {
+        let mut duplicate: Option<&mut ModelObject> = None;
+        let mut is_referenced = false;
         for obj in self.objects.iter_mut() {
-            if *obj == m {
-                obj.is_record = obj.is_record || m.is_record;
-                return;
+            for (_, field_str_value) in obj.fields.iter() {
+                let m_id = m
+                    .fields
+                    .iter()
+                    .find(|(ident, _)| ident.orig_name == "id")
+                    .unwrap()
+                    .1
+                    .clone();
+                if field_str_value.contains(&m_id) {
+                    is_referenced = true;
+                }
             }
+            if *obj == m {
+                duplicate = Some(obj);
+            }
+        }
+        if !is_referenced {
+            match duplicate {
+                Some(obj) => {
+                    obj.is_record = obj.is_record || m.is_record;
+                    return;
+                }
+                None => (),
+            };
         }
         self.objects.push(m);
     }
@@ -221,6 +243,9 @@ impl PartialEq for ModelObject {
         }
 
         for (l, r) in self.fields.iter().zip(other.fields.iter()) {
+            if l.0.orig_name == "id" {
+                continue;
+            }
             if l != r {
                 return false;
             }
