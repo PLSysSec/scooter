@@ -193,19 +193,22 @@ impl SMTContext {
 
         match body {
             IRExpr::AppendS(l, r) => self.simple_nary_op("str.++", target, &[l, r], vm),
-            IRExpr::AddI(l, r) | IRExpr::AddF(l, r) | IRExpr::AddD(l, r) => {
-                self.simple_nary_op("+", target, &[l, r], vm)
-            }
-            IRExpr::SubI(l, r) | IRExpr::SubF(l, r) | IRExpr::SubD(l, r) => {
-                self.simple_nary_op("-", target, &[l, r], vm)
-            }
+            IRExpr::AddI(l, r) => self.simple_nary_op("bvadd", target, &[l, r], vm),
+            IRExpr::AddD(l, r) => self.simple_nary_op("+", target, &[l, r], vm),
+            IRExpr::AddF(l, r) => self.simple_nary_op("fp.add", target, &[l, r], vm),
+            IRExpr::SubI(l, r) => self.simple_nary_op("bvsub", target, &[l, r], vm),
+            IRExpr::SubD(l, r) => self.simple_nary_op("-", target, &[l, r], vm),
+            IRExpr::SubF(l, r) => self.simple_nary_op("fp.sub", target, &[l, r], vm),
+            IRExpr::IsEq(ExprType::F64, l, r) => self.simple_nary_op("fp.eq", target, &[l, r], vm),
             // In policylang, equality is not defined for lists so no special handling is needed
             IRExpr::IsEq(_, l, r) => self.simple_nary_op("=", target, &[l, r], vm),
             IRExpr::Not(b) => self.simple_nary_op("not", target, &[b], vm),
-            IRExpr::IsLessI(l, r) | IRExpr::IsLessF(l, r) | IRExpr::IsLessD(l, r) => {
-                self.simple_nary_op("<", target, &[l, r], vm)
+            IRExpr::IsLessI(l, r) => self.simple_nary_op("bvslt", target, &[l, r], vm),
+            IRExpr::IsLessD(l, r) => self.simple_nary_op("<", target, &[l, r], vm),
+            IRExpr::IsLessF(l, r) => self.simple_nary_op("fp.lt", target, &[l, r], vm),
+            IRExpr::IntToFloat(b) => {
+                self.simple_nary_op("(_ to_fp 11 53) roundNearestTiesToEven", target, &[b], vm)
             }
-            IRExpr::IntToFloat(b) => self.simple_nary_op("to-real", target, &[b], vm),
             IRExpr::Path(ty, obj, f) => match ty {
                 ExprType::Set(ref _inner_ty) => {
                     let lower = self.lower_expr(target, obj, vm);
@@ -246,8 +249,11 @@ impl SMTContext {
             }
             IRExpr::Now => SMTResult::expr(ident(&NOW_IDENT)),
             IRExpr::DateTimeConst(datetime) => SMTResult::expr(datetime.timestamp()),
-            IRExpr::IntConst(i) => SMTResult::expr(i),
-            IRExpr::FloatConst(f) => SMTResult::expr(f),
+            //IRExpr::IntConst(i) => SMTResult::expr(format!("#x{:x}", i)),
+            IRExpr::IntConst(i) => SMTResult::expr(format!("(_ bv{} 64)", i)),
+            IRExpr::FloatConst(f) => {
+                SMTResult::expr(format!("((_ to_fp 11 53) roundNearestTiesToEven {}", f))
+            }
             IRExpr::StringConst(s) => SMTResult::expr(format!("\"{}\"", s)),
             IRExpr::BoolConst(b) => SMTResult::expr(b),
             IRExpr::Find(_, fields) => {
@@ -692,8 +698,8 @@ pub fn ident<T>(ident: &Ident<T>) -> String {
 pub fn type_name(typ: &ExprType) -> String {
     match typ {
         ExprType::String => "String".to_owned(),
-        ExprType::I64 => "Int".to_owned(),
-        ExprType::F64 => "Real".to_owned(),
+        ExprType::I64 => "(_ BitVec 64)".to_owned(),
+        ExprType::F64 => "Float64".to_owned(),
         ExprType::Bool => "Bool".to_owned(),
         ExprType::DateTime => "Int".to_owned(),
         ExprType::Set(t) => format!("(Array {} Bool)", type_name(t)),
