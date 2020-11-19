@@ -2,6 +2,7 @@
 
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 import shutil
 
@@ -39,6 +40,8 @@ def main() -> None:
             text=True,  # encode to a string
             cwd=args.outdir,  # Run from the script directory
             check=True)  # Fail if the exit code is non-zero
+
+        print(result.stderr, file=sys.stderr)
 
         new_migpath.unlink()
 
