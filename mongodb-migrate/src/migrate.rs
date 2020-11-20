@@ -606,12 +606,44 @@ impl Evaluator<'_> {
             }
             IRExpr::Find(coll, query_fields) => {
                 let mut doc = bson::Document::new();
-                for (op, field, val) in query_fields.iter() {
+                for (op, field, _fty, val) in query_fields.iter() {
                     match op {
                         FieldComparison::Equals => {
                             doc.insert(
                                 field.orig_name.clone(),
                                 self.eval_expr(db_conn, val.clone()),
+                            );
+                        }
+                        FieldComparison::Greater => {
+                            doc.insert(
+                                field.orig_name.clone(),
+                                doc! {
+                                    "$gt": self.eval_expr(db_conn, val.clone()),
+                                },
+                            );
+                        }
+                        FieldComparison::GreaterOrEquals => {
+                            doc.insert(
+                                field.orig_name.clone(),
+                                doc! {
+                                    "$ge": self.eval_expr(db_conn, val.clone()),
+                                },
+                            );
+                        }
+                        FieldComparison::Less => {
+                            doc.insert(
+                                field.orig_name.clone(),
+                                doc! {
+                                    "$lt": self.eval_expr(db_conn, val.clone()),
+                                },
+                            );
+                        }
+                        FieldComparison::LessOrEquals => {
+                            doc.insert(
+                                field.orig_name.clone(),
+                                doc! {
+                                    "$le": self.eval_expr(db_conn, val.clone()),
+                                },
                             );
                         }
                         // These are handled in the post-retreive filter
@@ -625,10 +657,9 @@ impl Evaluator<'_> {
                     Result::Ok(cursor) => Value::Set(
                         cursor
                             .filter(|res_bson| {
-                                query_fields.iter().all(|(op, field, val)| {
+                                query_fields.iter().all(|(op, field, _fty, val)| {
                                     match op {
                                         // These are handled directly in the query
-                                        FieldComparison::Equals => true,
                                         FieldComparison::Contains => res_bson
                                             .as_ref()
                                             .expect("Failed to fetch document")
@@ -639,6 +670,7 @@ impl Evaluator<'_> {
                                                 Value::from(elem.clone())
                                                     == self.eval_expr(db_conn, val.clone())
                                             }),
+                                        _ => true,
                                     }
                                 })
                             })

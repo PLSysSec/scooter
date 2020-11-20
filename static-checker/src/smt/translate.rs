@@ -252,14 +252,14 @@ impl SMTContext {
             //IRExpr::IntConst(i) => SMTResult::expr(format!("#x{:x}", i)),
             IRExpr::IntConst(i) => SMTResult::expr(format!("(_ bv{} 64)", i)),
             IRExpr::FloatConst(f) => {
-                SMTResult::expr(format!("((_ to_fp 11 53) roundNearestTiesToEven {}", f))
+                SMTResult::expr(format!("((_ to_fp 11 53) roundNearestTiesToEven {})", f))
             }
             IRExpr::StringConst(s) => SMTResult::expr(format!("\"{}\"", s)),
             IRExpr::BoolConst(b) => SMTResult::expr(b),
-            IRExpr::Find(_, fields) => {
+            IRExpr::Find(coll, fields) => {
                 let mut stmts = vec![];
                 let mut field_checks = vec![];
-                for (comp, f, expr) in fields.iter() {
+                for (comp, f, fty, expr) in fields.iter() {
                     let field_expr = self.lower_expr(target, expr, vm);
                     stmts.extend(field_expr.stmts);
                     match comp {
@@ -271,6 +271,114 @@ impl SMTContext {
                                 &field_expr.expr
                             ));
                         }
+                        FieldComparison::Greater => match (fty, expr.type_of()) {
+                            (ExprType::I64, ExprType::I64) => field_checks.push(format!(
+                                "(bvsgt ({} {}) {})\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::I64, ExprType::F64) => field_checks.push(format!(
+                                "(fp.gt ((_ to_fp 11 53) roundNearestTiesToEven ({} {})) {})\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::F64, ExprType::I64) => field_checks.push(format!(
+                                "(fp.gt ({} {}) ((_ to_fp 11 53) roundNearestTiesToEven {}))\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::F64, ExprType::F64) => field_checks.push(format!(
+                                "(fp.gt ({} {}) {})",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            _ => panic!("Type error: this should not happen"),
+                        },
+                        FieldComparison::GreaterOrEquals => match (fty, expr.type_of()) {
+                            (ExprType::I64, ExprType::I64) => field_checks.push(format!(
+                                "(bvsge ({} {}) {})\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::I64, ExprType::F64) => field_checks.push(format!(
+                                "(fp.geq ((_ to_fp 11 53) roundNearestTiesToEven ({} {})) {})\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::F64, ExprType::I64) => field_checks.push(format!(
+                                "(fp.geq ({} {}) ((_ to_fp 11 53) roundNearestTiesToEven {}))\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::F64, ExprType::F64) => field_checks.push(format!(
+                                "(fp.geq ({} {}) {})",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            _ => panic!("Type error: this should not happen"),
+                        },
+                        FieldComparison::Less => match (fty, expr.type_of()) {
+                            (ExprType::I64, ExprType::I64) => field_checks.push(format!(
+                                "(bvslt ({} {}) {})\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::I64, ExprType::F64) => field_checks.push(format!(
+                                "(fp.lt ((_ to_fp 11 53) roundNearestTiesToEven ({} {})) {})\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::F64, ExprType::I64) => field_checks.push(format!(
+                                "(fp.lt ({} {}) ((_ to_fp 11 53) roundNearestTiesToEven {}))\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::F64, ExprType::F64) => field_checks.push(format!(
+                                "(fp.lt ({} {}) {})",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            _ => panic!("Type error: this should not happen"),
+                        },
+                        FieldComparison::LessOrEquals => match (fty, expr.type_of()) {
+                            (ExprType::I64, ExprType::I64) => field_checks.push(format!(
+                                "(bvsle ({} {}) {})\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::I64, ExprType::F64) => field_checks.push(format!(
+                                "(fp.leq ((_ to_fp 11 53) roundNearestTiesToEven ({} {})) {})\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::F64, ExprType::I64) => field_checks.push(format!(
+                                "(fp.leq ({} {}) ((_ to_fp 11 53) roundNearestTiesToEven {}))\n",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            (ExprType::F64, ExprType::F64) => field_checks.push(format!(
+                                "(fp.leq ({} {}) {})",
+                                ident(f),
+                                ident(&target.0),
+                                &field_expr.expr
+                            )),
+                            _ => panic!("Type error: this should not happen"),
+                        },
                         FieldComparison::Contains => {
                             let (coll, from, to, _typ) = self.join_tables[f].clone();
                             let ids = self.domains[&ExprType::Object(coll)].iter();
@@ -656,7 +764,7 @@ impl SMTContext {
                                 ExprType::Object(coll.clone()),
                                 Ident::new("domain_var"),
                             ));
-                            for (comp, field, _expr) in fields.iter() {
+                            for (comp, field, _fty, _expr) in fields.iter() {
                                 if *comp == FieldComparison::Contains {
                                     let (coll, _from, _to, _typ) = self.join_tables[field].clone();
                                     out.push(self.declare_in_domain(

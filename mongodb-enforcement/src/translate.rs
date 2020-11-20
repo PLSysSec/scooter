@@ -202,7 +202,7 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
                 "{}::find_full_by_template(conn, Build{}Query::new()",
                 coll_ident.orig_name, coll_ident.orig_name,
             );
-            for (_op, field, val_expr) in fields.into_iter() {
+            for (_op, field, _fty, val_expr) in fields.into_iter() {
                 out += &format!(
                     ".{}({})",
                     field.orig_name,

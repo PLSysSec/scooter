@@ -205,7 +205,7 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
             resolve_types(type_map, set_expr);
         }
         IRExpr::Find(_, fields) => {
-            for (_, _, field) in fields.iter_mut() {
+            for (_, _, _, field) in fields.iter_mut() {
                 resolve_types(type_map, field);
             }
         }
@@ -333,7 +333,7 @@ pub enum IRExpr {
     /// Look up an object in a collection by some template
     Find(
         Ident<Collection>,
-        Vec<(FieldComparison, Ident<Field>, Box<IRExpr>)>,
+        Vec<(FieldComparison, Ident<Field>, ExprType, Box<IRExpr>)>,
     ),
     /// A list expression
     Set(ExprType, Vec<Box<IRExpr>>),
@@ -361,14 +361,21 @@ pub enum IRExpr {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FieldComparison {
     Equals,
+    Greater,
+    GreaterOrEquals,
+    Less,
+    LessOrEquals,
     Contains,
 }
-
-impl From<ast::FieldComparison> for FieldComparison {
-    fn from(other: ast::FieldComparison) -> Self {
-        match other {
-            ast::FieldComparison::Equals => Self::Equals,
-            ast::FieldComparison::Contains => Self::Contains,
+impl fmt::Display for FieldComparison {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FieldComparison::Equals => write!(f, ":"),
+            FieldComparison::Greater => write!(f, ">"),
+            FieldComparison::GreaterOrEquals => write!(f, ">="),
+            FieldComparison::Less => write!(f, "<"),
+            FieldComparison::LessOrEquals => write!(f, "<="),
+            FieldComparison::Contains => write!(f, ">"),
         }
     }
 }
@@ -770,21 +777,92 @@ impl LoweringContext {
                     match comparison {
                         ast::FieldComparison::Equals => {
                             if let ExprType::Set(_) = field.typ.clone() {
-                                panic!("Type error: Field {} is a set", fname);
+                                panic!("Type error: Field {} is a set, no equality queries supported on sets",
+                                       fname);
                             } else {
                                 fexpr = self.coerce(schema, &field.typ, fexpr);
                             }
+                            ir_fields.push((
+                                FieldComparison::Equals,
+                                field.name.clone(),
+                                field.typ.clone(),
+                                fexpr,
+                            ));
                         }
-                        ast::FieldComparison::Contains => {
-                            if let ExprType::Set(inner_ty) = field.typ.clone() {
+                        ast::FieldComparison::Greater => match &field.typ {
+                            ExprType::Set(inner_ty) => {
                                 fexpr = self.coerce(schema, inner_ty.as_ref(), fexpr);
-                            } else {
-                                panic!("Type error: Field {} is not a set", fname);
+                                ir_fields.push((
+                                    FieldComparison::Contains,
+                                    field.name.clone(),
+                                    field.typ.clone(),
+                                    fexpr,
+                                ));
                             }
+                            ExprType::I64 | ExprType::F64 => {
+                                fexpr = self.coerce(schema, &field.typ, fexpr);
+                                ir_fields.push((
+                                    FieldComparison::Greater,
+                                    field.name.clone(),
+                                    field.typ.clone(),
+                                    fexpr,
+                                ));
+                            }
+                            _ => panic!(
+                                "Type error: Field {} of type {} doesn't support the '>' operator \
+                                             (not a set or numeric value)",
+                                fname, field.typ
+                            ),
+                        },
+                        ast::FieldComparison::GreaterOrEquals => {
+                            match &field.typ {
+                                ExprType::I64 | ExprType::F64 => {
+                                    fexpr = self.coerce(schema, &field.typ, fexpr);
+                                }
+                                _ => panic!("Type error: Field {} of type {} doesn't support the '>=' operator \
+                                             (not a numeric value)",
+                                            fname, field.typ)
+                            }
+                            ir_fields.push((
+                                FieldComparison::GreaterOrEquals,
+                                field.name.clone(),
+                                field.typ.clone(),
+                                fexpr,
+                            ));
+                        }
+                        ast::FieldComparison::Less => {
+                            match &field.typ {
+                                ExprType::I64 | ExprType::F64 => {
+                                    fexpr = self.coerce(schema, &field.typ, fexpr);
+                                }
+                                _ => panic!("Type error: Field {} of type {} doesn't support the '<' operator \
+                                            (not a  numeric value)",
+                                            fname, field.typ)
+                            }
+                            ir_fields.push((
+                                FieldComparison::Less,
+                                field.name.clone(),
+                                field.typ.clone(),
+                                fexpr,
+                            ));
+                        }
+                        ast::FieldComparison::LessOrEquals => {
+                            match &field.typ {
+                                ExprType::I64 | ExprType::F64 => {
+                                    fexpr = self.coerce(schema, &field.typ, fexpr);
+                                }
+                                _ => panic!("Type error: Field {} of type {} doesn't support the '<=' operator \
+                                             (not a numeric value)",
+                                            fname, field.typ)
+                            }
+                            ir_fields.push((
+                                FieldComparison::LessOrEquals,
+                                field.name.clone(),
+                                field.typ.clone(),
+                                fexpr,
+                            ));
                         }
                     }
-
-                    ir_fields.push((comparison.clone().into(), field.name.clone(), fexpr));
                 }
                 IRExpr::Find(coll.name.clone(), ir_fields)
             }
@@ -1094,8 +1172,13 @@ impl IRExpr {
                 coll.clone(),
                 query_fields
                     .iter()
-                    .map(|(comparison, fld, val)| {
-                        (comparison.clone(), fld.clone(), Box::new(val.map(f)))
+                    .map(|(comparison, fld, typ, val)| {
+                        (
+                            comparison.clone(),
+                            fld.clone(),
+                            typ.clone(),
+                            Box::new(val.map(f)),
+                        )
                     })
                     .collect(),
             )),
@@ -1192,7 +1275,7 @@ impl IRExpr {
                 .chain(
                     fields
                         .iter()
-                        .flat_map(|(_comparison, _fld, val)| val.subexprs_preorder()),
+                        .flat_map(|(_comparison, _fld, _ty, val)| val.subexprs_preorder()),
                 )
                 .collect::<Vec<_>>()
                 .into_iter(),
@@ -1284,13 +1367,10 @@ pub fn expr_to_string(expr: Box<IRExpr>) -> String {
             coll.orig_name,
             query_fields
                 .iter()
-                .map(|(comparison, f_id, f_expr)| format!(
-                    "{}{} {}",
+                .map(|(comparison, f_id, _f_ty, f_expr)| format!(
+                    "{} {} {}",
                     f_id.orig_name,
-                    match comparison {
-                        FieldComparison::Equals => ":",
-                        FieldComparison::Contains => ">",
-                    },
+                    comparison,
                     expr_to_string(f_expr.clone())
                 ))
                 .collect::<Vec<String>>()

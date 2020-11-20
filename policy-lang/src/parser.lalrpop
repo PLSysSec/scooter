@@ -68,7 +68,10 @@ FieldInitializer: (String, Box<QueryExpr>) = {
 }
 FieldPredicate: (FieldComparison, String, Box<QueryExpr>) = {
     <i:Ident> ":" <q:QueryExpr> => (FieldComparison::Equals, i, q),
-    <i:Ident> ">" <q:QueryExpr> => (FieldComparison::Contains, i, q),
+    <i:Ident> ">" <q:QueryExpr> => (FieldComparison::Greater, i, q),
+    <i:Ident> ">=" <q:QueryExpr> => (FieldComparison::GreaterOrEquals, i, q),
+    <i:Ident> "<" <q:QueryExpr> => (FieldComparison::Less, i, q),
+    <i:Ident> "<=" <q:QueryExpr> => (FieldComparison::LessOrEquals, i, q),
 }
 Object: ObjectLiteral = {
     <i:Ident> "{" <fs:Comma<FieldInitializer>> "}" => ObjectLiteral{ coll: i, fields: fs, template_obj: None},

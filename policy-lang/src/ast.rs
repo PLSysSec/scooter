@@ -46,7 +46,21 @@ pub struct ObjectLiteral {
 #[derive(Debug, PartialEq, Clone)]
 pub enum FieldComparison {
     Equals,
-    Contains,
+    Greater,
+    GreaterOrEquals,
+    Less,
+    LessOrEquals,
+}
+impl fmt::Display for FieldComparison {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FieldComparison::Equals => write!(f, ":"),
+            FieldComparison::Greater => write!(f, ">"),
+            FieldComparison::GreaterOrEquals => write!(f, ">="),
+            FieldComparison::Less => write!(f, "<"),
+            FieldComparison::LessOrEquals => write!(f, "<="),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]

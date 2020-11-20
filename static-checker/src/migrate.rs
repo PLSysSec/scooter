@@ -1116,7 +1116,7 @@ User {
 
     name : String {
         read: public,
-        write: u -> User::Find({privilege: 3}).map(u -> u.id),
+        write: u -> User::Find({privilege : 3}).map(u -> u.id),
     },
     privilege : I64 {
         read: public,
