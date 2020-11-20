@@ -3,7 +3,7 @@ use super::{
     Ident,
 };
 use crate::ast;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
 use std::iter;
 use std::{collections::HashMap, fmt, rc::Rc};
 
@@ -154,6 +154,7 @@ pub fn extract_ir_expr(
 fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExpr) {
     match expr {
         IRExpr::AppendL(ref mut ty, l, r)
+        | IRExpr::Intersect(ref mut ty, l, r)
         | IRExpr::IsEq(ref mut ty, l, r) => {
             *ty = apply_ty(type_map, ty);
             resolve_types(type_map, l);
@@ -272,8 +273,10 @@ fn apply_ty(type_map: &HashMap<Ident<ExprType>, ExprType>, ty: &ExprType) -> Exp
 pub enum IRExpr {
     /// String append
     AppendS(Box<IRExpr>, Box<IRExpr>),
-    /// Set union. The type denotes the unified type from the operation
+    /// Set union. The type denotes the inner type of the result
     AppendL(ExprType, Box<IRExpr>, Box<IRExpr>),
+    /// Set intersect. The type denotes the inner type of the result
+    Intersect(ExprType, Box<IRExpr>, Box<IRExpr>),
     /// Adding integers
     AddI(Box<IRExpr>, Box<IRExpr>),
     /// Adding floats
@@ -982,6 +985,7 @@ impl IRExpr {
 
             IRExpr::Var(typ, ..)
             | IRExpr::AppendL(typ, ..)
+            | IRExpr::Intersect(typ, ..)
             | IRExpr::If(typ, ..)
             | IRExpr::Match(typ, ..) => typ.clone(),
             IRExpr::Set(typ, ..) => ExprType::set(typ.clone()),
@@ -995,6 +999,11 @@ impl IRExpr {
                 Box::new(r.as_ref().map(f)),
             )),
             IRExpr::AppendL(ty, l, r) => f(IRExpr::AppendL(
+                ty.clone(),
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
+            IRExpr::Intersect(ty, l, r) => f(IRExpr::AppendL(
                 ty.clone(),
                 Box::new(l.as_ref().map(f)),
                 Box::new(r.as_ref().map(f)),
@@ -1131,6 +1140,7 @@ impl IRExpr {
             | IRExpr::None(_) => vec![self].into_iter(),
             IRExpr::AppendS(l, r)
             | IRExpr::AppendL(_, l, r)
+            | IRExpr::Intersect(_, l, r)
             | IRExpr::AddI(l, r)
             | IRExpr::AddF(l, r)
             | IRExpr::AddD(l, r)
@@ -1203,5 +1213,126 @@ impl IRExpr {
                 .collect::<Vec<_>>()
                 .into_iter(),
         }
+    }
+}
+
+pub fn expr_to_string(expr: Box<IRExpr>) -> String {
+    match *expr {
+        IRExpr::AppendS(e1_id, e2_id)
+        | IRExpr::AppendL(_, e1_id, e2_id)
+        | IRExpr::AddI(e1_id, e2_id)
+        | IRExpr::AddF(e1_id, e2_id)
+        | IRExpr::AddD(e1_id, e2_id) => {
+            format!("({} + {})", expr_to_string(e1_id), expr_to_string(e2_id))
+        }
+        IRExpr::Intersect(_, _, _) => panic!("there's no concrete syntax for intersect"),
+
+        IRExpr::SubI(e1_id, e2_id) | IRExpr::SubF(e1_id, e2_id) | IRExpr::SubD(e1_id, e2_id) => {
+            format!("({} - {})", expr_to_string(e1_id), expr_to_string(e2_id))
+        }
+        IRExpr::IsEq(_, e1_id, e2_id) => {
+            format!("({} == {})", expr_to_string(e1_id), expr_to_string(e2_id))
+        }
+        IRExpr::Not(e_id) => format!("!({})", expr_to_string(e_id)),
+        IRExpr::IsLessI(e1_id, e2_id)
+        | IRExpr::IsLessF(e1_id, e2_id)
+        | IRExpr::IsLessD(e1_id, e2_id) => {
+            format!("({} < {})", expr_to_string(e1_id), expr_to_string(e2_id))
+        }
+        // These don't appear in concrete syntax, but will be inserted
+        // where needed during lowering.
+        IRExpr::IntToFloat(e_id) => expr_to_string(e_id),
+        IRExpr::Path(_, e_id, f_id) => format!("{}.{}", expr_to_string(e_id), f_id.orig_name),
+        IRExpr::Var(_typ, v_id) => v_id.orig_name,
+        IRExpr::Object(coll, field_exprs, template_expr) => {
+            let fields = field_exprs
+                .iter()
+                .flat_map(|(f_id, fexpr)| {
+                    fexpr
+                        .clone()
+                        .map(|expr| format!("{}: {},", f_id.orig_name, expr_to_string(expr)))
+                })
+                .collect::<Vec<String>>()
+                .join("");
+            match template_expr {
+                None => format!("{} {{ {} }}", coll.orig_name, fields),
+                Some(te) => format!(
+                    "{} {{ {} .. {} }}",
+                    coll.orig_name,
+                    fields,
+                    expr_to_string(te)
+                ),
+            }
+        }
+        IRExpr::Map(list_expr, func) => format!(
+            "{}.map({} -> {})",
+            expr_to_string(list_expr),
+            func.param.orig_name,
+            expr_to_string(func.body)
+        ),
+        IRExpr::FlatMap(list_expr, func) => format!(
+            "{}.flat_map({} -> {})",
+            expr_to_string(list_expr),
+            func.param.orig_name,
+            expr_to_string(func.body)
+        ),
+        IRExpr::LookupById(coll, e_id) => {
+            format!("{}::ById({})", coll.orig_name, expr_to_string(e_id))
+        }
+        IRExpr::Find(coll, query_fields) => format!(
+            "{}::Find({{{}}})",
+            coll.orig_name,
+            query_fields
+                .iter()
+                .map(|(comparison, f_id, f_expr)| format!(
+                    "{}{} {}",
+                    f_id.orig_name,
+                    match comparison {
+                        FieldComparison::Equals => ":",
+                        FieldComparison::Contains => ">",
+                    },
+                    expr_to_string(f_expr.clone())
+                ))
+                .collect::<Vec<String>>()
+                .join(",")
+        ),
+        IRExpr::Set(_ty, exprs) => format!(
+            "[{}]",
+            exprs
+                .iter()
+                .map(|e_id| expr_to_string(e_id.clone()))
+                .collect::<Vec<String>>()
+                .join(",")
+        ),
+        IRExpr::If(_, cond, iftrue, iffalse) => format!(
+            "(if {} then {} else {})",
+            expr_to_string(cond),
+            expr_to_string(iftrue),
+            expr_to_string(iffalse)
+        ),
+        IRExpr::Match(_, opt_expr, var, some_expr, none_expr) => format!(
+            "(match {} as {} in {} else {})",
+            expr_to_string(opt_expr),
+            var.orig_name,
+            expr_to_string(some_expr),
+            expr_to_string(none_expr)
+        ),
+        IRExpr::None(_ty) => "None".to_string(),
+        IRExpr::Some(_ty, inner_expr) => format!("Some({})", expr_to_string(inner_expr)),
+        IRExpr::Now => "now()".to_string(),
+        IRExpr::DateTimeConst(datetime) => format!(
+            "d<{}-{}-{}-{}:{}:{}>",
+            datetime.month(),
+            datetime.day(),
+            datetime.year(),
+            datetime.hour(),
+            datetime.minute(),
+            datetime.second()
+        ),
+        IRExpr::IntConst(i) => format!("{}", i),
+        IRExpr::FloatConst(f) => format!("{}", f),
+        IRExpr::StringConst(s) => format!("\"{}\"", s),
+        IRExpr::BoolConst(b) => format!("{}", b),
+        IRExpr::Public => "public".to_string(),
     }
 }

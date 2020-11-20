@@ -1,5 +1,5 @@
 use crate::smt::{is_as_strict, Equiv};
-use policy_lang::ir::expr::{ExprType, FieldComparison, Func, IRExpr};
+use policy_lang::ir::expr::{expr_to_string, ExprType, FieldComparison, Func, IRExpr};
 use policy_lang::ir::migration::{
     extract_migration_steps, CollectionPolicyKind, DataCommand, FieldPolicyKind, MigrationCommand,
 };
@@ -110,126 +110,6 @@ fn type_to_string(ty: ExprType) -> String {
     }
 }
 
-fn expr_to_string(expr: Box<IRExpr>) -> String {
-    match *expr {
-        IRExpr::AppendS(e1_id, e2_id)
-        | IRExpr::AppendL(_, e1_id, e2_id)
-        | IRExpr::AddI(e1_id, e2_id)
-        | IRExpr::AddF(e1_id, e2_id)
-        | IRExpr::AddD(e1_id, e2_id) => {
-            format!("({} + {})", expr_to_string(e1_id), expr_to_string(e2_id))
-        }
-
-        IRExpr::SubI(e1_id, e2_id) | IRExpr::SubF(e1_id, e2_id) | IRExpr::SubD(e1_id, e2_id) => {
-            format!("({} - {})", expr_to_string(e1_id), expr_to_string(e2_id))
-        }
-        IRExpr::IsEq(_, e1_id, e2_id) => {
-            format!("({} == {})", expr_to_string(e1_id), expr_to_string(e2_id))
-        }
-        IRExpr::Not(e_id) => format!("!({})", expr_to_string(e_id)),
-        IRExpr::IsLessI(e1_id, e2_id)
-        | IRExpr::IsLessF(e1_id, e2_id)
-        | IRExpr::IsLessD(e1_id, e2_id) => {
-            format!("({} < {})", expr_to_string(e1_id), expr_to_string(e2_id))
-        }
-        // These don't appear in concrete syntax, but will be inserted
-        // where needed during lowering.
-        IRExpr::IntToFloat(e_id) => expr_to_string(e_id),
-        IRExpr::Path(_, e_id, f_id) => format!("{}.{}", expr_to_string(e_id), f_id.orig_name),
-        IRExpr::Var(_typ, v_id) => v_id.orig_name,
-        IRExpr::Object(coll, field_exprs, template_expr) => {
-            let fields = field_exprs
-                .iter()
-                .flat_map(|(f_id, fexpr)| {
-                    fexpr
-                        .clone()
-                        .map(|expr| format!("{}: {},", f_id.orig_name, expr_to_string(expr)))
-                })
-                .collect::<Vec<String>>()
-                .join("");
-            match template_expr {
-                None => format!("{} {{ {} }}", coll.orig_name, fields),
-                Some(te) => format!(
-                    "{} {{ {} .. {} }}",
-                    coll.orig_name,
-                    fields,
-                    expr_to_string(te)
-                ),
-            }
-        }
-        IRExpr::Map(list_expr, func) => format!(
-            "{}.map({} -> {})",
-            expr_to_string(list_expr),
-            func.param.orig_name,
-            expr_to_string(func.body)
-        ),
-        IRExpr::FlatMap(list_expr, func) => format!(
-            "{}.flat_map({} -> {})",
-            expr_to_string(list_expr),
-            func.param.orig_name,
-            expr_to_string(func.body)
-        ),
-        IRExpr::LookupById(coll, e_id) => {
-            format!("{}::ById({})", coll.orig_name, expr_to_string(e_id))
-        }
-        IRExpr::Find(coll, query_fields) => format!(
-            "{}::Find({{{}}})",
-            coll.orig_name,
-            query_fields
-                .iter()
-                .map(|(comparison, f_id, f_expr)| format!(
-                    "{}{} {}",
-                    f_id.orig_name,
-                    match comparison {
-                        FieldComparison::Equals => ":",
-                        FieldComparison::Contains => ">",
-                    },
-                    expr_to_string(f_expr.clone())
-                ))
-                .collect::<Vec<String>>()
-                .join(",")
-        ),
-        IRExpr::Set(_ty, exprs) => format!(
-            "[{}]",
-            exprs
-                .iter()
-                .map(|e_id| expr_to_string(e_id.clone()))
-                .collect::<Vec<String>>()
-                .join(",")
-        ),
-        IRExpr::If(_, cond, iftrue, iffalse) => format!(
-            "(if {} then {} else {})",
-            expr_to_string(cond),
-            expr_to_string(iftrue),
-            expr_to_string(iffalse)
-        ),
-        IRExpr::Match(_, opt_expr, var, some_expr, none_expr) => format!(
-            "(match {} as {} in {} else {})",
-            expr_to_string(opt_expr),
-            var.orig_name,
-            expr_to_string(some_expr),
-            expr_to_string(none_expr)
-        ),
-        IRExpr::None(_ty) => "None".to_string(),
-        IRExpr::Some(_ty, inner_expr) => format!("Some({})", expr_to_string(inner_expr)),
-        IRExpr::Now => "now()".to_string(),
-        IRExpr::DateTimeConst(datetime) => format!(
-            "d<{}-{}-{}-{}:{}:{}>",
-            datetime.month(),
-            datetime.day(),
-            datetime.year(),
-            datetime.hour(),
-            datetime.minute(),
-            datetime.second()
-        ),
-        IRExpr::IntConst(i) => format!("{}", i),
-        IRExpr::FloatConst(f) => format!("{}", f),
-        IRExpr::StringConst(s) => format!("\"{}\"", s),
-        IRExpr::BoolConst(b) => format!("{}", b),
-        IRExpr::Public => "public".to_string(),
-    }
-}
-
 fn interpret_migration_on_policy(
     initial_sp: SchemaPolicy,
     migration_steps: Vec<(Schema, MigrationCommand)>,
@@ -285,7 +165,6 @@ fn interpret_migration_on_policy(
                         ))
                     }
                 }
-                eprintln!("Adding new field policy {:?}", pol);
                 result_policy.add_field_policy(field, pol)
             }
             // For removing fields, remove the policy data, and
@@ -597,7 +476,7 @@ fn remove_invalidated_policies(
     fn expr_still_valid(expr: &Box<IRExpr>, deleted_fields: &Vec<Ident<Field>>) -> bool {
         field_lookups_in_expr(expr)
             .into_iter()
-            .any(|field_id| deleted_fields.contains(&field_id))
+            .any(|field_id| deleted_fields.contains(&field_id.1))
     }
 
     // Get all `create` policies whose body references fields or
@@ -713,36 +592,101 @@ fn get_policy_from_initializer(
     init: Func,
 ) -> FieldPolicy {
     let sources = field_lookups_in_expr(&init.body);
-    if sources.is_empty() {
-        FieldPolicy {
-            read: Policy::Anyone,
-            edit: Policy::None,
+    let my_coll = match init.param_type {
+        ExprType::Object(coll) => coll,
+        _ => panic!("parameter to policy function isn't an object?!?"),
+    };
+    for source in sources.iter() {
+        assert_eq!(
+            source.0, my_coll,
+            "Analysis of data flow from foreign objects not supported. \
+                    Tried to look up field {} on object of type {}",
+            source.1.orig_name, source.0.orig_name
+        );
+    }
+    let read_policies: Vec<_> = sources
+        .iter()
+        .map(|s| old_schema.field_policies[&s.1].read.clone())
+        .collect();
+    let edit_policies = sources
+        .iter()
+        .map(|s| old_schema.field_policies[&s.1].edit.clone());
+    return FieldPolicy {
+        read: policy_intersect(read_policies.into_iter()),
+        edit: policy_intersect(edit_policies.into_iter()),
+    };
+}
+fn policy_intersect(mut pols: impl Iterator<Item = Policy>) -> Policy {
+    fn policy_intersect_2(pol1: Policy, pol2: Policy) -> Policy {
+        match (pol1, pol2) {
+            (Policy::None, _) => Policy::None,
+            (_, Policy::None) => Policy::None,
+            (Policy::Anyone, pol2) => pol2,
+            (pol1, Policy::Anyone) => pol1,
+            (
+                Policy::Func(Func {
+                    param: p1,
+                    param_type: pty1,
+                    return_type: rty1,
+                    body: e1,
+                }),
+                Policy::Func(Func {
+                    param: p2,
+                    param_type: pty2,
+                    return_type: rty2,
+                    body: e2,
+                }),
+            ) => {
+                assert_eq!(pty1, pty2);
+                assert_eq!(rty1, rty2);
+                let e2_subst = e2.map(&|e| match e {
+                    IRExpr::Var(ref ty, ref v) => {
+                        if *v == p2 {
+                            IRExpr::Var(ty.clone(), p1.clone())
+                        } else {
+                            e
+                        }
+                    }
+                    _ => e,
+                });
+
+                Policy::Func(Func {
+                    param: p1,
+                    param_type: pty1,
+                    return_type: rty1.clone(),
+                    body: Box::new(IRExpr::Intersect(rty1, e1, Box::new(e2_subst))),
+                })
+            }
         }
-    } else if sources.len() == 1 {
-        old_schema.field_policies[&sources[0]].clone()
-    } else {
-        FieldPolicy {
-            read: Policy::None,
-            edit: Policy::Anyone,
+    }
+    match pols.next() {
+        None => Policy::Anyone,
+        Some(p) => {
+            let result = policy_intersect_2(p, policy_intersect(pols));
+            return result;
         }
     }
 }
 
-fn field_lookups_in_expr(expr: &Box<IRExpr>) -> Vec<Ident<Field>> {
+fn field_lookups_in_expr(expr: &Box<IRExpr>) -> Vec<(Ident<Collection>, Ident<Field>)> {
     expr.subexprs_preorder()
         .flat_map(|se| match se {
-            IRExpr::Path(_, _, def) => {
+            IRExpr::Path(_, obj, def) => {
                 if def.is_id() {
                     vec![]
                 } else {
-                    vec![def.clone()]
+                    if let ExprType::Object(coll) = obj.type_of() {
+                        vec![(coll, def.clone())]
+                    } else {
+                        vec![]
+                    }
                 }
             }
-            IRExpr::Object(_coll, field_exprs, _template_expr) => field_exprs
+            IRExpr::Object(coll, field_exprs, _template_expr) => field_exprs
                 .iter()
                 .flat_map(|(k, e)| match e {
                     Some(_) => None,
-                    None => Some(k.clone()),
+                    None => Some((coll.clone(), k.clone())),
                 })
                 .collect(),
             _ => vec![],

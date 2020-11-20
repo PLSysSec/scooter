@@ -396,6 +396,10 @@ impl Evaluator<'_> {
                     panic!("Arguments to append aren't strings at runtime! Type system failure");
                 }
             }
+            // Set intersect
+            IRExpr::Intersect(_ty, subexpr_l, subexpr_r) => {
+                panic!("Intersect isn't yet supported in non-policy functions")
+            }
             // Math operators
             IRExpr::AddI(subexpr_l, subexpr_r) => {
                 let arg_l = self.eval_expr(db_conn, subexpr_l);

@@ -1,10 +1,11 @@
 use super::{
-    expr::{extract_func, ExprType, Func},
+    expr::{expr_to_string, extract_func, ExprType, Func},
     schema::{Collection, Field, Schema},
     Ident,
 };
 use crate::ast;
 use std::collections::HashMap;
+use std::fmt::Display;
 
 /// Describes the policy for access of a given schema
 #[derive(Debug, Clone)]
@@ -50,6 +51,21 @@ pub enum Policy {
     None,
     Anyone,
     Func(Func),
+}
+
+impl Display for Policy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Policy::None => write!(f, "none"),
+            Policy::Anyone => write!(f, "public"),
+            Policy::Func(Func {
+                param: p,
+                param_type: _pty,
+                return_type: _rty,
+                body: e,
+            }) => write!(f, "{} -> {}", p.orig_name, expr_to_string(e.clone())),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
