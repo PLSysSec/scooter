@@ -1,5 +1,5 @@
 use crate::smt::{is_as_strict, Equiv};
-use policy_lang::ir::expr::{expr_to_string, ExprType, FieldComparison, Func, IRExpr};
+use policy_lang::ir::expr::{expr_to_string, ExprType, Func, IRExpr};
 use policy_lang::ir::migration::{
     extract_migration_steps, CollectionPolicyKind, DataCommand, FieldPolicyKind, MigrationCommand,
 };
@@ -13,8 +13,6 @@ use policy_lang::{parse_migration, parse_policy};
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::path::Path;
-
-use chrono::{Datelike, Timelike};
 
 /// Take two filenames, a policy and a migration, and produce a new
 /// policy as a string, by reading those files.

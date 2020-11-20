@@ -256,7 +256,7 @@ impl SMTContext {
             }
             IRExpr::StringConst(s) => SMTResult::expr(format!("\"{}\"", s)),
             IRExpr::BoolConst(b) => SMTResult::expr(b),
-            IRExpr::Find(coll, fields) => {
+            IRExpr::Find(_coll, fields) => {
                 let mut stmts = vec![];
                 let mut field_checks = vec![];
                 for (comp, f, fty, expr) in fields.iter() {

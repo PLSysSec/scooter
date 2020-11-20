@@ -397,7 +397,7 @@ impl Evaluator<'_> {
                 }
             }
             // Set intersect
-            IRExpr::Intersect(_ty, subexpr_l, subexpr_r) => {
+            IRExpr::Intersect(_ty, _subexpr_l, _subexpr_r) => {
                 panic!("Intersect isn't yet supported in non-policy functions")
             }
             // Math operators
