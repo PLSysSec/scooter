@@ -104,16 +104,18 @@ pub fn is_as_strict(
                         let mut lines = Vec::new();
                         let (join_coll_id, _from_id, to_id, _typ) =
                             &verif_problem.join_tables[&field.name];
-                        for var in &tables_to_vars[&join_coll_id] {
-                            input
-                                .write_all(
-                                    format!("(eval ({} {}))\n", ident(&to_id), ident(&var))
-                                        .as_bytes(),
-                                )
-                                .unwrap();
-                            line = String::new();
-                            reader.read_line(&mut line).unwrap();
-                            lines.push(line.trim().to_owned());
+                        if let Some(vars) = tables_to_vars.get(&join_coll_id) {
+                            for var in vars {
+                                input
+                                    .write_all(
+                                        format!("(eval ({} {}))\n", ident(&to_id), ident(&var))
+                                            .as_bytes(),
+                                    )
+                                    .unwrap();
+                                line = String::new();
+                                reader.read_line(&mut line).unwrap();
+                                lines.push(line.trim().to_owned());
+                            }
                         }
 
                         fields.push((field.name.clone(), format!("[{}]", lines.join(", "))));
