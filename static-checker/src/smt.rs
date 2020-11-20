@@ -120,6 +120,25 @@ pub fn is_as_strict(
 
                         fields.push((field.name.clone(), format!("[{}]", lines.join(", "))));
                     }
+                    ExprType::I64 => {
+                        input
+                            .write_all(
+                                format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
+                                    .as_bytes(),
+                            )
+                            .unwrap();
+                        line = String::new();
+                        reader.read_line(&mut line).unwrap();
+                        let raw = line.trim().trim_start_matches("#x");
+                        fields.push((
+                            field.name.clone(),
+                            format!(
+                                "{}",
+                                i64::from_str_radix(raw, 16)
+                                    .expect(&format!("Couldn't parse hex {}", raw))
+                            ),
+                        ))
+                    }
                     _ => {
                         input
                             .write_all(
