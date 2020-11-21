@@ -202,20 +202,18 @@ impl Model {
     fn add_obj(&mut self, m: ModelObject) {
         let mut duplicate: Option<&mut ModelObject> = None;
         let mut is_referenced = false;
+
+        if m.is_record || self.princ.contains(&m.id()) {
+            self.objects.push(m);
+            return;
+        }
         for obj in self.objects.iter_mut() {
             for (_, field_str_value) in obj.fields.iter() {
-                let m_id = m
-                    .fields
-                    .iter()
-                    .find(|(ident, _)| ident.orig_name == "id")
-                    .unwrap()
-                    .1
-                    .clone();
-                if field_str_value.contains(&m_id) {
+                if field_str_value.contains(&m.id()) {
                     is_referenced = true;
                 }
             }
-            if *obj == m {
+            if *obj == m && !(obj.is_record || obj.id() == self.princ) {
                 duplicate = Some(obj);
             }
         }
@@ -242,7 +240,7 @@ impl Display for Model {
         write!(f, "Model:\nprinc: {}\nrec: {}\n", self.princ, rec)?;
 
         for obj in self.objects.iter() {
-            if obj != rec {
+            if obj.id() != rec.id() {
                 write!(f, "{}\n", obj)?;
             }
         }
@@ -255,6 +253,17 @@ pub struct ModelObject {
     coll: Ident<Collection>,
     fields: Vec<(Ident<Field>, String)>,
     is_record: bool,
+}
+
+impl ModelObject {
+    fn id(&self) -> String {
+        self.fields
+            .iter()
+            .find(|(ident, _)| ident.orig_name == "id")
+            .unwrap()
+            .1
+            .clone()
+    }
 }
 
 impl PartialEq for ModelObject {
