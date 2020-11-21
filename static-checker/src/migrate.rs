@@ -149,9 +149,8 @@ fn interpret_migration_on_policy(
                 init,
                 pol,
             } => {
-                equivs.push(Equiv(field.clone(), init.clone()));
                 let inferred_policy =
-                    get_policy_from_initializer(&cur_schema_policy, field.clone(), init);
+                    get_policy_from_initializer(&cur_schema_policy, field.clone(), init.clone());
                 match is_as_strict(&schema, &equivs, &coll, &inferred_policy.read, &pol.read) {
                     Result::Ok(_) => (),
                     Result::Err(e) => {
@@ -163,6 +162,7 @@ fn interpret_migration_on_policy(
                         ))
                     }
                 }
+                equivs.push(Equiv(field.clone(), init));
                 result_policy.add_field_policy(field, pol)
             }
             // For removing fields, remove the policy data, and
@@ -596,23 +596,25 @@ fn get_policy_from_initializer(
         _ => panic!("parameter to policy function isn't an object?!?"),
     };
     for source in sources.iter() {
-        assert_eq!(
-            source.0, my_coll,
-            "Analysis of data flow from foreign objects not supported. \
-                    Tried to look up field {} on object of type {}",
-            source.1.orig_name, source.0.orig_name
-        );
+        match old_schema.field_policies[&source.1].read {
+            Policy::Anyone => (),
+            Policy::None => (),
+            _ => assert_eq!(
+                source.0, my_coll,
+                "Analysis of data flow from foreign objects not supported. \
+                 Tried to look up field {} on object of type {}",
+                source.1.orig_name, source.0.orig_name
+            ),
+        };
     }
     let read_policies: Vec<_> = sources
         .iter()
         .map(|s| old_schema.field_policies[&s.1].read.clone())
         .collect();
-    let edit_policies = sources
-        .iter()
-        .map(|s| old_schema.field_policies[&s.1].edit.clone());
+    let intersect = policy_intersect(read_policies.into_iter());
     return FieldPolicy {
-        read: policy_intersect(read_policies.into_iter()),
-        edit: policy_intersect(edit_policies.into_iter()),
+        read: intersect,
+        edit: Policy::Anyone,
     };
 }
 fn policy_intersect(mut pols: impl Iterator<Item = Policy>) -> Policy {
