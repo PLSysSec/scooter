@@ -1,0 +1,21 @@
+@static-principle
+NameAdmin
+
+@principle
+User {
+    create: public,
+    delete: none,
+
+    name: String {
+        read: u -> [u.id, NameAdmin],
+        write: u -> [u.id],
+    },
+    pronouns: String {
+        read: u -> [u.id] + User::Find({following > u.id}).map(u -> u.id),
+        write: u -> [u.id],
+    },
+    following: Set(Id(User)) {
+        read: public,
+        write: u -> [u.id],
+    },
+}

@@ -1,0 +1,6 @@
+
+User::AddField(
+    bio : String {
+        read: u -> [u.id],
+        write: u -> [u.id],
+    }, u -> "Hi! I'm, " + u.name + "(" + u.pronouns + ")")
