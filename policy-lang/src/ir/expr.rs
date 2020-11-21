@@ -962,6 +962,7 @@ impl LoweringContext {
                     None
                 }
             }
+            (ExprType::Principle, ExprType::Principle) => Some(ExprType::Principle),
             (ExprType::Id(coll1), ExprType::Id(coll2)) => {
                 if schema.dynamic_principles.contains(&coll1)
                     && schema.dynamic_principles.contains(&coll2)
