@@ -295,17 +295,18 @@ fn interpret_migration_on_policy(
             // For creating collections, just create a new create and
             // delete policies.
             MigrationCommand::Create { pol } => {
-                assert!(pol.schema.collections.len() == 1);
-                assert!(pol.collection_policies.len() == 1);
-                let collection = pol.schema.collections[0].clone();
-                let coll_pol = pol.collection_policies[&collection.name].clone();
-                result_policy.add_collection_policy(collection.name.clone(), coll_pol);
-                for field in collection.fields() {
-                    if field.is_id() {
-                        continue;
+                // assert!(pol.schema.collections.len() == 1);
+                // assert!(pol.collection_policies.len() == 1);
+                for collection in pol.schema.collections.iter() {
+                    let coll_pol = pol.collection_policies[&collection.name].clone();
+                    result_policy.add_collection_policy(collection.name.clone(), coll_pol);
+                    for field in collection.fields() {
+                        if field.is_id() {
+                            continue;
+                        }
+                        let field_pol = pol.field_policies[&field.name].clone();
+                        result_policy.add_field_policy(field.name.clone(), field_pol);
                     }
-                    let field_pol = pol.field_policies[&field.name].clone();
-                    result_policy.add_field_policy(field.name.clone(), field_pol);
                 }
             }
             // For deleting collections, remove the policy data.

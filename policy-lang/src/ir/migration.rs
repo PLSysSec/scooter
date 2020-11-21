@@ -322,11 +322,11 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
                 }
             }
         }
-        ast::MigrationCommand::Create { collection } => {
+        ast::MigrationCommand::Create { collections } => {
             let pol = extract_partial_schema_policy(
                 &ast::GlobalPolicy {
                     static_principles: vec![],
-                    collections: vec![collection],
+                    collections: collections,
                 },
                 schema,
             );

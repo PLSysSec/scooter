@@ -147,7 +147,7 @@ pub enum MigrationCommand {
         action: MigrationAction,
     },
     Create {
-        collection: CollectionPolicy,
+        collections: Vec<CollectionPolicy>,
     },
     Delete {
         table_name: String,
