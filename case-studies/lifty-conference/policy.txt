@@ -58,7 +58,7 @@ Review {
   },
 
   reviewer: Id(Reviewer) {
-    read: r -> World::BPaper::Find({reviews > r.id}).world,
+    read: r -> Paper::Find({reviews > r.id}).world,
     write: none,
   },
 }
