@@ -150,6 +150,11 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             translate_queryexpr(schema, e1),
             translate_queryexpr(schema, e2)
         ),
+        IRExpr::DiffL(_ty, e1, e2) => format!(
+            "let othervec = {} {{ {}.into_iter().filter(|el| !othervec.contains(el)).collect::<Vec<_>>() }}" ,
+            translate_queryexpr(schema, e1),
+            translate_queryexpr(schema, e2)
+        ),
         IRExpr::Intersect(_ty, e1, e2) => format!(
             "let othervec = {} {{ {}.into_iter().filter(|el| othervec.contains(el)).collect::<Vec<_>>() }}" ,
             translate_queryexpr(schema, e1),

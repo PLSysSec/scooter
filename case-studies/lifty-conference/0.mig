@@ -74,10 +74,10 @@ Paper {
 
   title: String {
     # Should be anyone but conflicts but we don't have blacklists
-    read: public,
+    read: p -> public - p.conflicts,
     # Should also be anyone but conflicts but this is super weird cuz it means non-authors could change the title
     # Still, that's the policy that the Lifty case studies puts down
-    write: public,
+    write: p -> public - p.conflicts,
   },
 
   authors: Set(Id(User)) {
@@ -87,9 +87,9 @@ Paper {
 
   conflicts: Set(Id(User)) {
      # - p.conflicts UNSUPPORTED BLACKLIST
-    read: p -> User::Find({world: p.world}).map(u -> u.id),
+    read: p -> User::Find({world: p.world}).map(u -> u.id) - p.conflicts,
     # In the Lifty version, this is anyone not in the blacklist, which is way too permissive, but eh
-    write: public,
+    write: p -> public - p.conflicts,
   },
 
   # 0 = NoDecision

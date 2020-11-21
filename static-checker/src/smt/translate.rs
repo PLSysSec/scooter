@@ -507,6 +507,15 @@ impl SMTContext {
                 stmts.extend(right.stmts);
                 SMTResult::new(stmts, expr)
             }
+            IRExpr::DiffL(_, l, r) => {
+                let left = self.lower_expr(target, l, vm);
+                let right = self.lower_expr(target, r, vm);
+                let expr = format!("(and {} (not {}))", &left.expr, &right.expr);
+
+                let mut stmts = left.stmts;
+                stmts.extend(right.stmts);
+                SMTResult::new(stmts, expr)
+            }
             IRExpr::Intersect(_, l, r) => {
                 let left = self.lower_expr(target, l, vm);
                 let right = self.lower_expr(target, r, vm);

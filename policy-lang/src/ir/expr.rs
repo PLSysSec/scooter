@@ -154,6 +154,7 @@ pub fn extract_ir_expr(
 fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExpr) {
     match expr {
         IRExpr::AppendL(ref mut ty, l, r)
+        | IRExpr::DiffL(ref mut ty, l, r)
         | IRExpr::Intersect(ref mut ty, l, r)
         | IRExpr::IsEq(ref mut ty, l, r) => {
             *ty = apply_ty(type_map, ty);
@@ -273,6 +274,8 @@ fn apply_ty(type_map: &HashMap<Ident<ExprType>, ExprType>, ty: &ExprType) -> Exp
 pub enum IRExpr {
     /// String append
     AppendS(Box<IRExpr>, Box<IRExpr>),
+    /// Subtracting lists
+    DiffL(ExprType, Box<IRExpr>, Box<IRExpr>),
     /// Set union. The type denotes the inner type of the result
     AppendL(ExprType, Box<IRExpr>, Box<IRExpr>),
     /// Set intersect. The type denotes the inner type of the result
@@ -426,6 +429,14 @@ impl LoweringContext {
                     ExprType::I64 => IRExpr::SubI(left, right),
                     ExprType::F64 => IRExpr::SubF(left, right),
                     ExprType::DateTime => IRExpr::SubD(left, right),
+                    ExprType::Set(_) => {
+                        let typ = if self.is_subtype(schema, &left.type_of(), &right.type_of()) {
+                            right.type_of()
+                        } else {
+                            left.type_of()
+                        };
+                        IRExpr::DiffL(typ, left, right)
+                    }
                     _ => panic!(
                         "`-` operation not defined for types: {} + {}",
                         left.type_of(),
@@ -1064,6 +1075,7 @@ impl IRExpr {
 
             IRExpr::Var(typ, ..)
             | IRExpr::AppendL(typ, ..)
+            | IRExpr::DiffL(typ, ..)
             | IRExpr::Intersect(typ, ..)
             | IRExpr::If(typ, ..)
             | IRExpr::Match(typ, ..) => typ.clone(),
@@ -1078,6 +1090,11 @@ impl IRExpr {
                 Box::new(r.as_ref().map(f)),
             )),
             IRExpr::AppendL(ty, l, r) => f(IRExpr::AppendL(
+                ty.clone(),
+                Box::new(l.as_ref().map(f)),
+                Box::new(r.as_ref().map(f)),
+            )),
+            IRExpr::DiffL(ty, l, r) => f(IRExpr::DiffL(
                 ty.clone(),
                 Box::new(l.as_ref().map(f)),
                 Box::new(r.as_ref().map(f)),
@@ -1224,6 +1241,7 @@ impl IRExpr {
             | IRExpr::None(_) => vec![self].into_iter(),
             IRExpr::AppendS(l, r)
             | IRExpr::AppendL(_, l, r)
+            | IRExpr::DiffL(_, l, r)
             | IRExpr::Intersect(_, l, r)
             | IRExpr::AddI(l, r)
             | IRExpr::AddF(l, r)
@@ -1311,7 +1329,10 @@ pub fn expr_to_string(expr: Box<IRExpr>) -> String {
         }
         IRExpr::Intersect(_, _, _) => panic!("there's no concrete syntax for intersect"),
 
-        IRExpr::SubI(e1_id, e2_id) | IRExpr::SubF(e1_id, e2_id) | IRExpr::SubD(e1_id, e2_id) => {
+        IRExpr::SubI(e1_id, e2_id)
+        | IRExpr::SubF(e1_id, e2_id)
+        | IRExpr::SubD(e1_id, e2_id)
+        | IRExpr::DiffL(_, e1_id, e2_id) => {
             format!("({} - {})", expr_to_string(e1_id), expr_to_string(e2_id))
         }
         IRExpr::IsEq(_, e1_id, e2_id) => {

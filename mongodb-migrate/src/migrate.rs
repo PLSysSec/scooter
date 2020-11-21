@@ -396,6 +396,20 @@ impl Evaluator<'_> {
                     panic!("Arguments to append aren't strings at runtime! Type system failure");
                 }
             }
+            IRExpr::DiffL(_ty, subexpr_l, subexpr_r) => {
+                let arg_l = self.eval_expr(db_conn, subexpr_l);
+                let arg_r = self.eval_expr(db_conn, subexpr_r);
+                if let (Value::Set(s1), Value::Set(s2)) = (arg_l, arg_r) {
+                    let result = s1
+                        .clone()
+                        .into_iter()
+                        .filter(|v| !s2.contains(v))
+                        .collect::<Vec<_>>();
+                    Value::Set(result)
+                } else {
+                    panic!("Arguments to append aren't strings at runtime! Type system failure");
+                }
+            }
             // Set intersect
             IRExpr::Intersect(_ty, _subexpr_l, _subexpr_r) => {
                 panic!("Intersect isn't yet supported in non-policy functions")
