@@ -120,10 +120,8 @@ fn interpret_migration(
                     let field_name = field.orig_name.clone();
                     assert!(
                         !result.contains_key(&field_name),
-                        format!(
-                            "Document already contained a field with the name \"{}\"",
-                            field_name
-                        )
+                        "Document already contained a field with the name \"{}\"",
+                        field_name
                     );
                     // Insert the field into the object
                     result.insert(
@@ -149,10 +147,8 @@ fn interpret_migration(
                     let field_name = field.orig_name.clone();
                     assert!(
                         result.contains_key(&field_name),
-                        format!(
-                            "Document doesn't contain a field with the name \"{}\"",
-                            field_name
-                        )
+                        "Document doesn't contain a field with the name \"{}\"",
+                        field_name
                     );
                     // Insert the new field value into the object. Note
                     // that here, we don't have to worry about changing
@@ -190,10 +186,8 @@ fn interpret_migration(
                         result
                             .insert(new_name.orig_name.clone(), field_value)
                             .is_none(),
-                        format!(
-                            "Document already contains a field with the name \"{}\"",
-                            new_name.orig_name
-                        )
+                        "Document already contains a field with the name \"{}\"",
+                        new_name.orig_name
                     );
                     // Replace the document
                     replace_doc(&db_conn, &coll, item_id, result);
