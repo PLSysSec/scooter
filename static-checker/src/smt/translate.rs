@@ -804,11 +804,13 @@ impl SMTContext {
     fn domain_ident(&self, id: Ident<SMTVar>, typ: ExprType) -> Vec<Statement> {
         let expr = format!(
             "(or {})",
-            spaced(self.domains[&typ].iter().map(|d_id| format!(
-                "(= {} {})",
-                ident(&id),
-                ident(d_id)
-            )))
+            spaced(
+                self.domains
+                    .get(&typ)
+                    .expect(&format!("Cannot find domain for type {}", typ))
+                    .iter()
+                    .map(|d_id| format!("(= {} {})", ident(&id), ident(d_id)))
+            )
         );
         let decl = declare(id.clone(), &[], typ);
         let ass = Statement::Assert(expr);
