@@ -1,9 +1,4 @@
-use policy_lang::ir::{
-    expr::{ExprType, FieldComparison, IRExpr, Var},
-    policy::Policy,
-    schema::{Collection, Field, Schema},
-    Ident,
-};
+use policy_lang::ir::{Ident, expr::{ExprType, FieldComparison, IRExpr, Var}, policy::Policy, schema::{Collection, Field, Schema}};
 
 use std::{collections::HashMap, fmt::Display, iter};
 
@@ -134,6 +129,11 @@ struct SMTContext {
     princ_casts: HashMap<Ident<Collection>, (Ident<SMTVar>, Ident<SMTVar>)>,
     domains: HashMap<ExprType, Vec<Ident<SMTVar>>>,
     join_tables: HashMap<Ident<Field>, (Ident<Collection>, Ident<Field>, Ident<Field>, ExprType)>,
+}
+
+struct LoweredColl {
+    sorts: Vec<Statement>,
+    body: Vec<Statement>,
 }
 
 impl SMTContext {
@@ -638,12 +638,13 @@ impl SMTContext {
                 .insert(princ_coll.clone(), (princ_cons.clone(), princ_obj.clone()));
         }
 
-        let mut out: Vec<_> = schema
+        let colls = schema
             .collections
             .iter()
-            .flat_map(|c| self.lower_collection(equivs, c))
-            .collect();
-        out.push(princ_decl);
+            .map(|c| self.lower_collection(equivs, c));
+
+        let (sorts, fields): (Vec<_>, Vec<_>) = colls.map(|lc| (lc.sorts, lc.body)).unzip();
+        let mut out: Vec<_> = sorts.into_iter().flatten().chain(fields.into_iter().flatten()).chain(iter::once(princ_decl)).collect();
         for (_princ_cons, princ_obj, princ_coll) in princ_ids.iter() {
             let princ_obj_decl =
                 self.declare_in_domain(ExprType::Object(princ_coll.clone()), princ_obj.clone());
@@ -656,20 +657,10 @@ impl SMTContext {
     /// Each collection gets its own sort named after its Ident,
     /// and each field is a function mapping that sort to either a native
     /// SMT sort or to another sort.
-    fn lower_collection(&mut self, equivs: &[Equiv], coll: &Collection) -> Vec<Statement> {
-        let sort = Statement::DeclSort {
-            id: coll.name.coerce(),
-        };
-        let fields = coll.fields().flat_map(move |f| {
-            if f.is_id() {
-                let id = Ident::new("id");
-                return vec![define(
-                    f.name.coerce(),
-                    &[(id.clone(), ExprType::Object(coll.name.clone()))],
-                    f.typ.clone(),
-                    ident(&id),
-                )];
-            }
+    fn lower_collection(&mut self, equivs: &[Equiv], coll: &Collection) -> LoweredColl {
+        let mut sorts = vec![Statement::DeclSort{id: coll.name.coerce() }];
+
+        let joins = coll.fields().filter_map(|f| {
             if let ExprType::Set(ref inner_ty) = f.typ {
                 let coll_name = Ident::new(coll.name.orig_name.clone() + &f.name.orig_name);
                 let from_name = Ident::new("from");
@@ -683,7 +674,7 @@ impl SMTContext {
                         inner_ty.as_ref().clone(),
                     ),
                 );
-                return self.lower_collection(
+                return Some(self.lower_collection(
                     &[],
                     &Collection {
                         name: coll_name,
@@ -698,7 +689,23 @@ impl SMTContext {
                             },
                         ],
                     },
-                );
+                ));
+            }
+            None
+        });
+
+        let (join_sorts, mut join_fields): (Vec<_>, Vec<_>) = joins.map(|lc| (lc.sorts, lc.body)).unzip();
+        sorts.extend(join_sorts.into_iter().flatten());
+
+        let fields = coll.fields().flat_map(move |f| {
+            if f.is_id() {
+                let id = Ident::new("id");
+                return vec![define(
+                    f.name.coerce(),
+                    &[(id.clone(), ExprType::Object(coll.name.clone()))],
+                    f.typ.clone(),
+                    ident(&id),
+                )];
             }
 
             let equiv = equivs
@@ -728,8 +735,10 @@ impl SMTContext {
                 }
             }
         });
-
-        iter::once(sort).chain(fields).collect()
+        LoweredColl {
+            sorts,
+            body: join_fields.into_iter().flatten().chain(fields).collect()
+        }
     }
 
     fn simple_nary_op(
