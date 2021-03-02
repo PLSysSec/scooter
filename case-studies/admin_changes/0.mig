@@ -1,0 +1,8 @@
+Site::AddField(admins: Set(Id(User)) {
+  read: public,
+  write: s -> s.admins,
+},
+  s -> User::Find({site: s.id, is_admin: true}).map(u -> u.id)
+)
+
+Site::TightenFieldPolicy(name, write, s -> s.admins)
