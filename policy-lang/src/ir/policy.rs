@@ -1,5 +1,5 @@
 use super::{
-    expr::{expr_to_string, extract_func, ExprType, Func},
+    expr::{expr_to_string, extract_func, ExprType, Func, IRExpr},
     schema::{Collection, Field, Schema},
     Ident,
 };
@@ -64,6 +64,18 @@ impl Display for Policy {
                 return_type: _rty,
                 body: e,
             }) => write!(f, "{} -> {}", p.orig_name, expr_to_string(e.clone())),
+        }
+    }
+}
+impl Policy {
+    pub fn expr_map(&self, f: &dyn Fn(IRExpr) -> IRExpr) -> Policy {
+        match self {
+            Policy::None | Policy::Anyone => self.clone(),
+            Policy::Func(Func{param, param_type, return_type, body}) =>
+                Policy::Func(Func{param: param.clone(),
+                                  param_type: param_type.clone(),
+                                  return_type: return_type.clone(),
+                                  body: Box::new(body.map(f))})
         }
     }
 }
