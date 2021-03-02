@@ -274,7 +274,7 @@ fn apply_ty(type_map: &HashMap<Ident<ExprType>, ExprType>, ty: &ExprType) -> Exp
 pub enum IRExpr {
     /// String append
     AppendS(Box<IRExpr>, Box<IRExpr>),
-    /// Subtracting lists
+    /// Subtracting sets
     DiffL(ExprType, Box<IRExpr>, Box<IRExpr>),
     /// Set union. The type denotes the inner type of the result
     AppendL(ExprType, Box<IRExpr>, Box<IRExpr>),
