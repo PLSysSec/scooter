@@ -50,7 +50,7 @@ impl DefMap {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExprType {
     Id(Ident<Collection>),
-    Principle,
+    Principal,
     String,
     I64,
     F64,
@@ -97,7 +97,7 @@ impl fmt::Display for ExprType {
             ExprType::Option(ty) => write!(f, "Option({})", ty),
             ExprType::Object(coll) => write!(f, "{}", coll.orig_name),
             ExprType::Unknown(id) => write!(f, "{}_{}", &id.orig_name, id.index),
-            ExprType::Principle => write!(f, "Principle"),
+            ExprType::Principal => write!(f, "Principal"),
         }
     }
 }
@@ -248,7 +248,7 @@ fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExp
 fn apply_ty(type_map: &HashMap<Ident<ExprType>, ExprType>, ty: &ExprType) -> ExprType {
     match ty {
         ExprType::Id(_)
-        | ExprType::Principle
+        | ExprType::Principal
         | ExprType::String
         | ExprType::I64
         | ExprType::F64
@@ -562,10 +562,10 @@ impl LoweringContext {
                     .lookup(v)
                     .or_else(|| {
                         schema
-                            .static_principles
+                            .static_principals
                             .iter()
                             .find(|sp| sp.orig_name == *v)
-                            .map(|sp| (sp.clone(), ExprType::Principle))
+                            .map(|sp| (sp.clone(), ExprType::Principal))
                     })
                     .expect(&format!("Use of undefined variable: {}", v));
                 IRExpr::Var(typ, ident)
@@ -902,10 +902,10 @@ impl LoweringContext {
                             most_general_type = expr.type_of();
                         } else if self.is_subtype(schema, &expr.type_of(), &most_general_type) {
                             continue;
-                        } else if self.is_subtype(schema, &most_general_type, &ExprType::Principle)
-                            && self.is_subtype(schema, &most_general_type, &ExprType::Principle)
+                        } else if self.is_subtype(schema, &most_general_type, &ExprType::Principal)
+                            && self.is_subtype(schema, &most_general_type, &ExprType::Principal)
                         {
-                            most_general_type = ExprType::Principle;
+                            most_general_type = ExprType::Principal;
                         } else {
                             panic!(
                                 "Set elements have incompatible types!\n\
@@ -946,7 +946,7 @@ impl LoweringContext {
                     self.is_subtype(schema, l, &self.type_map[&id].clone())
                 }
             }
-            (ExprType::Id(coll), ExprType::Principle) => schema.dynamic_principles.contains(coll),
+            (ExprType::Id(coll), ExprType::Principal) => schema.dynamic_principals.contains(coll),
             _ => typ1 == typ2,
         }
     }
@@ -965,20 +965,20 @@ impl LoweringContext {
                     None
                 }
             }
-            (ExprType::Id(coll), ExprType::Principle)
-            | (ExprType::Principle, ExprType::Id(coll)) => {
-                if schema.dynamic_principles.contains(&coll) {
-                    Some(ExprType::Principle)
+            (ExprType::Id(coll), ExprType::Principal)
+            | (ExprType::Principal, ExprType::Id(coll)) => {
+                if schema.dynamic_principals.contains(&coll) {
+                    Some(ExprType::Principal)
                 } else {
                     None
                 }
             }
-            (ExprType::Principle, ExprType::Principle) => Some(ExprType::Principle),
+            (ExprType::Principal, ExprType::Principal) => Some(ExprType::Principal),
             (ExprType::Id(coll1), ExprType::Id(coll2)) => {
-                if schema.dynamic_principles.contains(&coll1)
-                    && schema.dynamic_principles.contains(&coll2)
+                if schema.dynamic_principals.contains(&coll1)
+                    && schema.dynamic_principals.contains(&coll2)
                 {
-                    Some(ExprType::Principle)
+                    Some(ExprType::Principal)
                 } else {
                     None
                 }
@@ -1043,7 +1043,7 @@ impl LoweringContext {
 impl IRExpr {
     pub fn type_of(&self) -> ExprType {
         match self {
-            IRExpr::Public => ExprType::set(ExprType::Principle),
+            IRExpr::Public => ExprType::set(ExprType::Principal),
             IRExpr::AddI(..) | IRExpr::SubI(..) | IRExpr::IntConst(_) => ExprType::I64,
 
             IRExpr::IntToFloat(_) | IRExpr::FloatConst(_) | IRExpr::AddF(..) | IRExpr::SubF(..) => {

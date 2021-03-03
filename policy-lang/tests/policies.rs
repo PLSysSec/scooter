@@ -12,7 +12,7 @@ fn test_policy(pol: &str) -> SchemaPolicy {
 fn simple_valid() {
     let policy = test_policy(
         r#"
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -29,7 +29,7 @@ fn simple_valid() {
     assert_eq!(
         policy
             .schema
-            .dynamic_principles
+            .dynamic_principals
             .iter()
             .map(|dp| dp.orig_name.clone())
             .collect::<Vec<_>>(),
@@ -37,10 +37,10 @@ fn simple_valid() {
     );
 }
 #[test]
-fn two_principles() {
+fn two_principals() {
     let policy = test_policy(
         r#"
-        @principle
+        @principal
         Service {
             create: public,
             delete: s -> [s.owner, s.id],
@@ -50,7 +50,7 @@ fn two_principles() {
                 write: s -> [s.owner],
             },
         }
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -75,7 +75,7 @@ fn two_principles() {
     assert_eq!(
         policy
             .schema
-            .dynamic_principles
+            .dynamic_principals
             .iter()
             .map(|dp| dp.orig_name.clone())
             .collect::<Vec<_>>(),
@@ -84,8 +84,8 @@ fn two_principles() {
 }
 
 #[test]
-#[should_panic(expected = "Type error: unable to coerce Set(Id(User)) to Set(Principle)")]
-fn wrong_principle() {
+#[should_panic(expected = "Type error: unable to coerce Set(Id(User)) to Set(Principal)")]
+fn wrong_principal() {
     test_policy(
         r"User {
     create: none,
@@ -107,7 +107,7 @@ fn wrong_principle() {
 fn big() {
     test_policy(
         r#"
-    @principle
+    @principal
     User {
         create: public,
         delete: none,

@@ -76,7 +76,7 @@ pub fn is_as_strict(
             .unwrap();
         line = String::new();
         reader.read_line(&mut line).unwrap();
-        let princ = parse(&ExprType::Principle, line.trim());
+        let princ = parse(&ExprType::Principal, line.trim());
 
         let mut model = Model {
             princ,
@@ -171,7 +171,7 @@ fn parse(typ: &ExprType, text: &str) -> String {
             }
             ID_RE.replace_all(text, "($id)").into()
         },
-        ExprType::Principle => {
+        ExprType::Principal => {
             lazy_static! {
                 static ref ID_PRINC: Regex = Regex::new(r#"\(\S+ (?P<id>[^)]*)\)"#).unwrap();
             }
@@ -188,7 +188,7 @@ fn parse(typ: &ExprType, text: &str) -> String {
 }
 
 fn db_objects<'a>(
-    vp: &'a VerifProblem,
+    vp: &'a VerifProblem
 ) -> impl Iterator<Item = (Ident<Collection>, Ident<SMTVar>)> + 'a {
     vp.stmts.iter().filter_map(move |stmt| match stmt {
         Statement::DeclFun {

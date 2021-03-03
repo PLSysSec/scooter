@@ -3,11 +3,11 @@ use std::str::FromStr;
 grammar;
 
 pub GlobalPolicy: GlobalPolicy = {
-    <sp:StaticPrinciple*> <cp:CollectionPolicy*> => GlobalPolicy { static_principles: sp, collections: cp}
+    <sp:StaticPrincipal*> <cp:CollectionPolicy*> => GlobalPolicy { static_principals: sp, collections: cp}
 }
 
-StaticPrinciple: StaticPrinciple = {
-    "@static-principle" <i:Ident> => StaticPrinciple{name: i}
+StaticPrincipal: StaticPrincipal = {
+    "@static-principal" <i:Ident> => StaticPrincipal{name: i}
 }
 
 CollectionPolicy: CollectionPolicy = {
@@ -26,7 +26,7 @@ CollectionPolicy: CollectionPolicy = {
 }
 
 Annotation: Annotation = {
-    "@principle" => Annotation::Principle,
+    "@principal" => Annotation::Principal,
 }
 
 FieldPolicy: (String, FieldPolicy) = {
@@ -193,10 +193,10 @@ MigrationCommand: MigrationCommand = {
 
     ObjectCommand => MigrationCommand::ObjectCommand(<>),
 
-    "AddStaticPrinciple" "(" <sp:Ident> ")" =>
-        MigrationCommand::AddStaticPrinciple{name: sp},
-    "AddPrinciple" "(" <p:Ident> ")" =>
-        MigrationCommand::AddPrinciple{table_name: p},
+    "AddStaticPrincipal" "(" <sp:Ident> ")" =>
+        MigrationCommand::AddStaticPrincipal{name: sp},
+    "AddPrincipal" "(" <p:Ident> ")" =>
+        MigrationCommand::AddPrincipal{table_name: p},
 }
 
 ObjectCommand: ObjectCommand = {

@@ -1,7 +1,7 @@
-@static-principle
+@static-principal
 NameAdmin
 
-@principle
+@principal
 User {
     create: public,
     delete: none,

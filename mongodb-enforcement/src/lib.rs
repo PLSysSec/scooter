@@ -24,7 +24,7 @@ pub mod gen_prelude {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub enum Principle {
+pub enum Principal {
     Id(RecordId),
     Static(&'static str),
     Unauthenticated,
@@ -33,7 +33,7 @@ pub enum Principle {
 #[derive(Debug)]
 pub enum PolicyValue {
     Public,
-    Set(Vec<Principle>),
+    Set(Vec<Principal>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -69,11 +69,11 @@ where
 
 impl From<Vec<RecordId>> for PolicyValue {
     fn from(ids: Vec<RecordId>) -> PolicyValue {
-        PolicyValue::Set(ids.into_iter().map(Principle::Id).collect())
+        PolicyValue::Set(ids.into_iter().map(Principal::Id).collect())
     }
 }
-impl From<Vec<Principle>> for PolicyValue {
-    fn from(princs: Vec<Principle>) -> PolicyValue {
+impl From<Vec<Principal>> for PolicyValue {
+    fn from(princs: Vec<Principal>) -> PolicyValue {
         PolicyValue::Set(princs)
     }
 }
@@ -84,7 +84,7 @@ where
     fn from(ids: Vec<TypedRecordId<T>>) -> PolicyValue {
         PolicyValue::Set(
             ids.into_iter()
-                .map(|v| Principle::Id(v.clone().into()))
+                .map(|v| Principal::Id(v.clone().into()))
                 .collect(),
         )
     }
@@ -96,14 +96,14 @@ where
     fn from(ids: Vec<Option<TypedRecordId<T>>>) -> PolicyValue {
         PolicyValue::Set(
             ids.iter()
-                .map(|v| Principle::Id(v.clone().unwrap().into()))
+                .map(|v| Principal::Id(v.clone().unwrap().into()))
                 .collect(),
         )
     }
 }
 
 impl PolicyValue {
-    pub fn accessible_by(&self, user: &Principle) -> bool {
+    pub fn accessible_by(&self, user: &Principal) -> bool {
         match (self, user) {
             (Self::Public, _) => true,
             (Self::Set(ids), user) => ids.iter().find(|&el| el == user).is_some(),
@@ -299,10 +299,10 @@ struct ConnConf {
 }
 
 impl DBConn {
-    pub fn as_princ(self, id: Principle) -> AuthConn {
+    pub fn as_princ(self, id: Principal) -> AuthConn {
         AuthConn {
             inner_conn: self,
-            principle: id,
+            principal: id,
         }
     }
     pub fn new(host: &str, port: u16, db_name: &str) -> DBConn {
@@ -327,15 +327,15 @@ impl DBConn {
 
 pub struct AuthConn {
     inner_conn: DBConn,
-    principle: Principle,
+    principal: Principal,
 }
 
 impl AuthConn {
     pub fn conn(&self) -> &DBConn {
         &self.inner_conn
     }
-    pub fn principle(&self) -> Principle {
-        self.principle.clone()
+    pub fn principal(&self) -> Principal {
+        self.principal.clone()
     }
 }
 

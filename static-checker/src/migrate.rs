@@ -48,15 +48,15 @@ pub fn migrate_policy(policy_text: &str, migration_text: &str) -> Result<String,
 
 fn policy_to_string(policy: SchemaPolicy) -> String {
     let mut result = "".to_string();
-    for sp in policy.schema.static_principles.iter() {
-        result += "@static-principle\n";
+    for sp in policy.schema.static_principals.iter() {
+        result += "@static-principal\n";
         result += &sp.orig_name;
         result += "\n";
     }
     for coll in policy.schema.collections.iter() {
         let coll_policy = policy.collection_policies[&coll.name].clone();
-        if policy.schema.dynamic_principles.contains(&coll.name) {
-            result += &format!("@principle\n")
+        if policy.schema.dynamic_principals.contains(&coll.name) {
+            result += &format!("@principal\n")
         }
         result += &format!("{} {{\n", coll.name.orig_name);
         result += &format!(
@@ -313,10 +313,10 @@ fn interpret_migration_on_policy(
             MigrationCommand::Delete { name } => {
                 result_policy.remove_collection_policy(name);
             }
-            // The adding of static principles is purely a schema
+            // The adding of static principals is purely a schema
             // thing, so it's handled before this step.
-            MigrationCommand::AddStaticPrinciple { name: _ } => (),
-            MigrationCommand::AddPrinciple { table_name: _ } => {}
+            MigrationCommand::AddStaticPrincipal { name: _ } => (),
+            MigrationCommand::AddPrincipal { table_name: _ } => {}
         }
     }
 
@@ -701,7 +701,7 @@ mod test {
 
     #[test]
     fn parse_and_print() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -718,7 +718,7 @@ User {
 
     #[test]
     fn add_const_field() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -732,7 +732,7 @@ User {
         let migration_text = r#"User::AddField(pass_hash: String {read: none, write: u -> [u.id],}, u -> "default_hash")"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-        let expected_result_text = r"@principle
+        let expected_result_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -752,7 +752,7 @@ User {
 
     #[test]
     fn add_private_depends_field() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -766,7 +766,7 @@ User {
         let migration_text = r#"User::AddField(pass_hash: String {read: none, write: public,}, u -> u.username + "_hash")"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-        let expected_result_text = r"@principle
+        let expected_result_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -786,7 +786,7 @@ User {
 
     #[test]
     fn remove_policy_field_dependency() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: public,
     delete: u -> [u.owner],
@@ -805,7 +805,7 @@ User {
         let migration_text = r#"User::RemoveField(owner)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-        let expected_result_text = r"@principle
+        let expected_result_text = r"@principal
 User {
     create: public,
     delete: none,
@@ -820,7 +820,7 @@ User {
     }
     #[test]
     fn rename_policy_field_dependency() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: public,
     delete: u -> [u.owner],
@@ -839,7 +839,7 @@ User {
         let migration_text = r#"User::RenameField(owner, manager)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-        let expected_result_text = r"@principle
+        let expected_result_text = r"@principal
 User {
     create: public,
     delete: u -> [u.manager],
@@ -859,7 +859,7 @@ User {
 
     #[test]
     fn loosen_field_policy() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -873,7 +873,7 @@ User {
         let migration_text = r#"User::LoosenFieldPolicy(username, read, public)
 User::LoosenFieldPolicy(username, write, public)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"@principle
+        let expected_result_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -888,7 +888,7 @@ User {
     }
     #[test]
     fn simple_tighten_field_policy() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -902,7 +902,7 @@ User {
         let migration_text = r#"User::TightenFieldPolicy(username, read, none)
 User::TightenFieldPolicy(username, write, none)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"@principle
+        let expected_result_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -917,7 +917,7 @@ User {
     }
     #[test]
     fn tighten_field_policy() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -947,7 +947,7 @@ Message {
 ";
         let migration_text = r#"Message::TightenFieldPolicy(contents, read, m -> [m.from])"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"@principle
+        let expected_result_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -979,7 +979,7 @@ Message {
     }
     #[test]
     fn loosen_collection_policy() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -993,7 +993,7 @@ User {
         let migration_text = r#"User::LoosenCollectionPolicy(create, public)
 User::LoosenCollectionPolicy(delete, public)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"@principle
+        let expected_result_text = r"@principal
 User {
     create: public,
     delete: public,
@@ -1008,7 +1008,7 @@ User {
     }
     #[test]
     fn simple_tighten_collection_policy() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: public,
     delete: public,
@@ -1021,7 +1021,7 @@ User {
 ";
         let migration_text = r#"User::TightenCollectionPolicy(create, none)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
-        let expected_result_text = r"@principle
+        let expected_result_text = r"@principal
 User {
     create: none,
     delete: public,
@@ -1037,7 +1037,7 @@ User {
     #[test]
     fn add_collections() {
         let before_policy = r#"
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -1055,7 +1055,7 @@ User {
 
         let after_policy = migrate_policy(before_policy, migration).expect("Couldn't migrate!");
 
-        let expected_after_policy = r#"@principle
+        let expected_after_policy = r#"@principal
 User {
     create: public,
     delete: none,
@@ -1089,7 +1089,7 @@ Laptop {
 
     #[test]
     fn to_privilege() {
-        let before_policy = r#"@principle
+        let before_policy = r#"@principal
 User {
     create: public,
     delete: none,
@@ -1110,7 +1110,7 @@ User {
             User::RemoveField(is_admin)
             "#;
         let after_policy = migrate_policy(before_policy, migration).unwrap();
-        let expected_after_policy = r#"@principle
+        let expected_after_policy = r#"@principal
 User {
     create: public,
     delete: none,
@@ -1130,7 +1130,7 @@ User {
 
     #[test]
     fn to_optional() {
-        let before_policy = r#"@principle
+        let before_policy = r#"@principal
 User {
     create: public,
     delete: none,
@@ -1163,7 +1163,7 @@ Phone {
             Phone::RenameField(owner_1, owner)
             "#;
         let after_policy = migrate_policy(before_policy, migration).unwrap();
-        let expected_after_policy = r#"@principle
+        let expected_after_policy = r#"@principal
 User {
     create: public,
     delete: none,
@@ -1191,9 +1191,9 @@ Phone {
     }
     #[test]
     fn pass_read_to_authenticator() {
-        let before_policy = r#"@static-principle
+        let before_policy = r#"@static-principal
 Authenticator
-@principle
+@principal
 User {
     create: public,
     delete: none,
@@ -1210,9 +1210,9 @@ User {
 }"#;
         let migration = r#"User::TightenFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
         let after_policy = migrate_policy(before_policy, migration).unwrap();
-        let expected_after_policy = r#"@static-principle
+        let expected_after_policy = r#"@static-principal
 Authenticator
-@principle
+@principal
 User {
     create: public,
     delete: none,
@@ -1231,7 +1231,7 @@ User {
     }
 
     #[test]
-    fn add_principles_field() {
+    fn add_principals_field() {
         let policy_text = r"User {
     create: none,
     delete: none,
@@ -1246,15 +1246,15 @@ User {
     },
 }
 ";
-        let migration_text = r#"AddStaticPrinciple(Authenticator)
-AddPrinciple(User)
+        let migration_text = r#"AddStaticPrincipal(Authenticator)
+AddPrincipal(User)
 User::LoosenFieldPolicy(pass_hash, write, u -> [u.id])
 User::TightenFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-        let expected_result_text = r"@static-principle
+        let expected_result_text = r"@static-principal
 Authenticator
-@principle
+@principal
 User {
     create: none,
     delete: none,
@@ -1274,7 +1274,7 @@ User {
 
     #[test]
     fn domain_constraints() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -1306,7 +1306,7 @@ Message {
             r#"Message::TightenFieldPolicy(from, read, m -> Message::Find({}).map(m -> m.from))"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-        let expected_result_text = r"@principle
+        let expected_result_text = r"@principal
 User {
     create: none,
     delete: none,

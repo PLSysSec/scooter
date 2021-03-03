@@ -194,8 +194,8 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
                 format!("{}.{}.clone()", translate_queryexpr(schema, e), f.orig_name)
             }
         }
-        IRExpr::Var(_ty, id) => match schema.static_principles.iter().find(|sp| *sp == id) {
-            Some(sp) => format!("Principle::Static(\"{}\")", sp.orig_name),
+        IRExpr::Var(_ty, id) => match schema.static_principals.iter().find(|sp| *sp == id) {
+            Some(sp) => format!("Principal::Static(\"{}\")", sp.orig_name),
             None => format!("{}", mangled_ident(id)),
         },
         IRExpr::LookupById(_, id_expr) => format!(
@@ -321,14 +321,14 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
 fn lower_ty(ty: &ExprType) -> String {
     match ty {
         ExprType::Id(coll) => format!("TypedRecordId<{}>", coll.orig_name).to_string(),
-        ExprType::Principle => panic!("Cannot convert a principle directly to a rust type"),
+        ExprType::Principal => panic!("Cannot convert a principal directly to a rust type"),
         ExprType::String => "String".to_string(),
         ExprType::I64 => "i64".to_string(),
         ExprType::F64 => "f64".to_string(),
         ExprType::Bool => "bool".to_string(),
         ExprType::DateTime => "DateTime".to_string(),
         ExprType::Set(inner_ty) => match inner_ty.as_ref() {
-            ExprType::Principle => format!("PolicyValue"),
+            ExprType::Principal => format!("PolicyValue"),
             _ => format!("Vec::<{}>", lower_ty(inner_ty)).to_string(),
         },
         ExprType::Option(inner_ty) => format!("POption::<{}>", lower_ty(inner_ty)).to_string(),

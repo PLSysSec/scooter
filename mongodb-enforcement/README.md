@@ -94,7 +94,7 @@ struct UserPartial {
 }
 ```
 
-If the principle associated with `conn` is unable to read the `name` field of this particular user, the value of `name` will be `None`. **Note that direct access is allowed because the permissions have been fully resolved**
+If the principal associated with `conn` is unable to read the `name` field of this particular user, the value of `name` will be `None`. **Note that direct access is allowed because the permissions have been fully resolved**
 
 This approach is less efficient than resolving just the fields you need. For
 performance-critical applications, you can use the getters and setters on the

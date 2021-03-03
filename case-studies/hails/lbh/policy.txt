@@ -1,4 +1,4 @@
-@principle
+@principal
 User {
     create: p -> public,
     delete: p -> [p.id],

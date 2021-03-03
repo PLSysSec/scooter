@@ -69,7 +69,7 @@ fn setup_db_contents(conn: &DBConn) -> TypedRecordId<User> {
 
     // Insert the users, and get their ids
     let uids =
-        User::insert_many(&conn.clone().as_princ(Principle::Unauthenticated), users).unwrap();
+        User::insert_many(&conn.clone().as_princ(Principal::Unauthenticated), users).unwrap();
     let (uid_bernie, uid_joe, uid_kamala, uid_micheal) = match uids.as_slice() {
         [id1, id2, id3, id4] => (id1, id2, id3, id4),
         _ => panic!("Not the right number of returned ids"),
@@ -77,7 +77,7 @@ fn setup_db_contents(conn: &DBConn) -> TypedRecordId<User> {
 
     let bernie_conn = conn
         .clone()
-        .as_princ(Principle::Id(uid_bernie.clone().into()));
+        .as_princ(Principal::Id(uid_bernie.clone().into()));
     BuildUser::new(uid_bernie.clone().into())
         .friends(vec![uid_joe.clone(), uid_kamala.clone()])
         .finalize()
@@ -85,7 +85,7 @@ fn setup_db_contents(conn: &DBConn) -> TypedRecordId<User> {
 
     let kamala_conn = conn
         .clone()
-        .as_princ(Principle::Id(uid_kamala.clone().into()));
+        .as_princ(Principal::Id(uid_kamala.clone().into()));
     BuildUser::new(uid_kamala.clone().into())
         .friends(vec![
             uid_joe.clone(),
@@ -95,7 +95,7 @@ fn setup_db_contents(conn: &DBConn) -> TypedRecordId<User> {
         .finalize()
         .save(&kamala_conn);
 
-    let joe_conn = conn.clone().as_princ(Principle::Id(uid_joe.clone().into()));
+    let joe_conn = conn.clone().as_princ(Principal::Id(uid_joe.clone().into()));
     BuildUser::new(uid_joe.clone().into())
         .friends(vec![
             uid_kamala.clone(),
@@ -107,7 +107,7 @@ fn setup_db_contents(conn: &DBConn) -> TypedRecordId<User> {
 
     let micheal_conn = conn
         .clone()
-        .as_princ(Principle::Id(uid_micheal.clone().into()));
+        .as_princ(Principal::Id(uid_micheal.clone().into()));
     BuildUser::new(uid_micheal.clone().into())
         .friends(vec![uid_kamala.clone(), uid_joe.clone()])
         .finalize()
@@ -139,7 +139,7 @@ fn setup_db_contents(conn: &DBConn) -> TypedRecordId<User> {
 fn time_post(conn: &DBConn, bernie_id: TypedRecordId<User>, num_trials: u32) -> TimeEntry {
     let bernie_conn = conn
         .clone()
-        .as_princ(Principle::Id(bernie_id.clone().into()));
+        .as_princ(Principal::Id(bernie_id.clone().into()));
     let before_posting_checked = Instant::now();
     for _ in 0..num_trials {
         Post::insert_one(
@@ -220,7 +220,7 @@ fn time_read_friend_posts(
 ) -> TimeEntry {
     let bernie_conn = conn
         .clone()
-        .as_princ(Principle::Id(bernie_id.clone().into()));
+        .as_princ(Principal::Id(bernie_id.clone().into()));
     let before_posting_checked = Instant::now();
     for _ in 0..num_trials {
         let bernie_user =

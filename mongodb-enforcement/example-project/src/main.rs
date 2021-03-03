@@ -31,7 +31,7 @@ mod test {
             },
         ];
 
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -39,19 +39,19 @@ mod test {
         };
 
         let authenticator_retrieved_alex = User::find_by_id(
-            &db_conn.clone().as_princ(Principle::Static("Authenticator")),
+            &db_conn.clone().as_princ(Principal::Static("Authenticator")),
             uid_alex.clone().into(),
         )
         .unwrap();
         let alex_retrieved_alex = User::find_by_id(
             &db_conn
                 .clone()
-                .as_princ(Principle::Id(uid_alex.clone().into())),
+                .as_princ(Principal::Id(uid_alex.clone().into())),
             uid_alex.clone().into(),
         )
         .unwrap();
         let publicly_retrieved_alex = User::find_by_id(
-            &db_conn.clone().as_princ(Principle::Unauthenticated),
+            &db_conn.clone().as_princ(Principal::Unauthenticated),
             uid_alex.clone().into(),
         )
         .unwrap();
@@ -70,7 +70,7 @@ mod test {
     fn set_password() {
         let db_conn = get_dbconn("set_password");
         let alex_id = User::insert_many(
-            &db_conn.clone().as_princ(Principle::Unauthenticated),
+            &db_conn.clone().as_princ(Principal::Unauthenticated),
             vec![user! {username: "Alex".to_string(),
                         pass_hash: "alex_hash".to_string(),
                         num_followers: 0,
@@ -87,15 +87,15 @@ mod test {
             .pass_hash("monster_mash".to_string())
             .finalize();
 
-        assert!(!alex_obj.save(&db_conn.clone().as_princ(Principle::Unauthenticated)));
+        assert!(!alex_obj.save(&db_conn.clone().as_princ(Principal::Unauthenticated)));
         {
             let auth_retrieved_alex = User::find_by_id(
-                &db_conn.clone().as_princ(Principle::Static("Authenticator")),
+                &db_conn.clone().as_princ(Principal::Static("Authenticator")),
                 alex_id.clone().into(),
             )
             .unwrap();
             let publicly_retrieved_alex = User::find_by_id(
-                &db_conn.clone().as_princ(Principle::Unauthenticated),
+                &db_conn.clone().as_princ(Principal::Unauthenticated),
                 alex_id.clone().into(),
             )
             .unwrap();
@@ -106,17 +106,17 @@ mod test {
         assert!(alex_obj.save(
             &db_conn
                 .clone()
-                .as_princ(Principle::Id(alex_id.clone().into()))
+                .as_princ(Principal::Id(alex_id.clone().into()))
         ));
 
         {
             let auth_retrieved_alex = User::find_by_id(
-                &db_conn.clone().as_princ(Principle::Static("Authenticator")),
+                &db_conn.clone().as_princ(Principal::Static("Authenticator")),
                 alex_id.clone().into(),
             )
             .unwrap();
             let publicly_retrieved_alex = User::find_by_id(
-                &db_conn.clone().as_princ(Principle::Unauthenticated),
+                &db_conn.clone().as_princ(Principal::Unauthenticated),
                 alex_id.clone().into(),
             )
             .unwrap();
@@ -134,7 +134,7 @@ mod test {
         let db_conn = get_dbconn("fail_delete_user");
 
         let alex_id = User::insert_many(
-            &db_conn.clone().as_princ(Principle::Unauthenticated),
+            &db_conn.clone().as_princ(Principal::Unauthenticated),
             vec![user! {username: "Alex".to_string(),
                         pass_hash: "alex_hash".to_string(),
                         num_followers: 0,
@@ -149,7 +149,7 @@ mod test {
         let result = User::delete_by_id(
             &db_conn
                 .clone()
-                .as_princ(Principle::Id(alex_id.clone().into())),
+                .as_princ(Principal::Id(alex_id.clone().into())),
             alex_id.clone().into(),
         );
         assert!(!result);
@@ -186,7 +186,7 @@ mod test {
         ];
 
         // Insert the users, and get their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -195,10 +195,10 @@ mod test {
         // Make connection objects for both users
         let alex_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_alex.clone().into()));
+            .as_princ(Principal::Id(uid_alex.clone().into()));
         let john_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_john.clone().into()));
+            .as_princ(Principal::Id(uid_john.clone().into()));
 
         // Insert a message from alex to john, and get its id
         let mid_fromalex = Message::insert_one(
@@ -282,9 +282,9 @@ mod test {
             },
         ];
 
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
-        let all: Vec<_> = User::find_all(&db_conn.clone().as_princ(Principle::Unauthenticated))
+        let all: Vec<_> = User::find_all(&db_conn.clone().as_princ(Principal::Unauthenticated))
             .unwrap()
             .iter()
             .map(|obj| obj.id.clone())
@@ -324,7 +324,7 @@ mod test {
             },
         ];
 
-        let unauthenticated_conn = &db_conn.clone().as_princ(Principle::Unauthenticated);
+        let unauthenticated_conn = &db_conn.clone().as_princ(Principal::Unauthenticated);
         // Insert the users, and get their ids
         let uids = User::insert_many(unauthenticated_conn, users).unwrap();
         let (uid_alex, uid_john, uid_deian) = match uids.as_slice() {
@@ -334,13 +334,13 @@ mod test {
         // Make connection objects for all users
         let alex_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_alex.clone().into()));
+            .as_princ(Principal::Id(uid_alex.clone().into()));
         let _john_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_john.clone().into()));
+            .as_princ(Principal::Id(uid_john.clone().into()));
         let deian_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_deian.clone().into()));
+            .as_princ(Principal::Id(uid_deian.clone().into()));
 
         // Insert a message from alex to john, and get its id
         let mid_public_update = Message::insert_one(
@@ -396,7 +396,7 @@ mod test {
                 flair: "".to_string(),
             },
         ];
-        let unauthenticated_conn = &db_conn.clone().as_princ(Principle::Unauthenticated);
+        let unauthenticated_conn = &db_conn.clone().as_princ(Principal::Unauthenticated);
         // Insert the users, and get their ids
         let uids = User::insert_many(unauthenticated_conn, users).unwrap();
         let (uid_alex, uid_john, uid_deian) = match uids.as_slice() {
@@ -406,13 +406,13 @@ mod test {
         // Make connection objects for all users
         let alex_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_alex.clone().into()));
+            .as_princ(Principal::Id(uid_alex.clone().into()));
         let _john_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_john.clone().into()));
+            .as_princ(Principal::Id(uid_john.clone().into()));
         let deian_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_deian.clone().into()));
+            .as_princ(Principal::Id(uid_deian.clone().into()));
         // Insert a multi message from deian to alex and john, and get its id
         let _meeting_message = MultiMessage::insert_one(
             deian_conn,

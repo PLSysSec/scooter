@@ -55,7 +55,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -176,7 +176,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -267,7 +267,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let _uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         assert_eq!(
             db_conn
@@ -341,7 +341,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let _uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let _uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         assert_eq!(
             db_conn
@@ -399,7 +399,7 @@ mod tests {
                 num_followers: 0,
             },
         ];
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -480,7 +480,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -567,7 +567,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -636,7 +636,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, _uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -708,7 +708,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -717,10 +717,10 @@ mod tests {
         // Make connection objects for both users
         let alex_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_alex.clone().into()));
+            .as_princ(Principal::Id(uid_alex.clone().into()));
         let john_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_john.clone().into()));
+            .as_princ(Principal::Id(uid_john.clone().into()));
 
         let m1_id = Message::insert_one(
             alex_conn,
@@ -816,7 +816,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -824,7 +824,7 @@ mod tests {
         };
         let alex_conn = &db_conn
             .clone()
-            .as_princ(Principle::Id(uid_alex.clone().into()));
+            .as_princ(Principal::Id(uid_alex.clone().into()));
         let m_id = MultiMessage::insert_one(
             alex_conn,
             multimessage! { from: uid_alex.clone(),
@@ -884,7 +884,7 @@ mod tests {
             },
         ];
         // Insert the users into the database, and get back their ids
-        let uids = User::insert_many(&db_conn.clone().as_princ(Principle::Unauthenticated), users)
+        let uids = User::insert_many(&db_conn.clone().as_princ(Principal::Unauthenticated), users)
             .unwrap();
         let (uid_alex, uid_john) = match uids.as_slice() {
             [id1, id2] => (id1, id2),
@@ -958,7 +958,7 @@ mod tests {
         let db_conn = get_dbconn(&db_name);
 
         let alex_uid = InvitedUser::insert_one(
-            &db_conn.clone().as_princ(Principle::Unauthenticated),
+            &db_conn.clone().as_princ(Principal::Unauthenticated),
             inviteduser! {
                 username: "Alex".to_string(),
                 pass_hash: "alex_hash".to_string(),
@@ -968,7 +968,7 @@ mod tests {
         .unwrap();
 
         let john_uid = InvitedUser::insert_one(
-            &db_conn.clone().as_princ(Principle::Unauthenticated),
+            &db_conn.clone().as_princ(Principal::Unauthenticated),
             inviteduser! {
                 username: "John".to_string(),
                 pass_hash: "john_hash".to_string(),

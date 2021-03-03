@@ -1,4 +1,4 @@
-@principle
+@principal
 User {
     create: public,
     delete: u -> [u.id],
@@ -9,7 +9,7 @@ User {
     },
 }
 
-@principle
+@principal
 Apps {
     create: public,
     delete: a -> [a.owner],

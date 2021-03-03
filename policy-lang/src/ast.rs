@@ -78,12 +78,12 @@ pub struct Func {
 
 #[derive(Debug, PartialEq)]
 pub struct GlobalPolicy {
-    pub static_principles: Vec<StaticPrinciple>,
+    pub static_principals: Vec<StaticPrincipal>,
     pub collections: Vec<CollectionPolicy>,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct StaticPrinciple {
+pub struct StaticPrincipal {
     pub name: String,
 }
 
@@ -98,7 +98,7 @@ pub struct CollectionPolicy {
 
 #[derive(Debug, PartialEq)]
 pub enum Annotation {
-    Principle,
+    Principal,
 }
 
 #[derive(Debug, PartialEq)]
@@ -154,10 +154,10 @@ pub enum MigrationCommand {
     },
     ObjectCommand(ObjectCommand),
 
-    AddStaticPrinciple {
+    AddStaticPrincipal {
         name: String,
     },
-    AddPrinciple {
+    AddPrincipal {
         table_name: String,
     },
 }

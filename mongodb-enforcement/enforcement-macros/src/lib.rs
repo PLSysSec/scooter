@@ -58,7 +58,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         quote! {
             #[allow(dead_code)]
             pub fn #method_ident(&self, conn: &AuthConn) -> Option<&#field_type> {
-                if #policy_module::#reader_ident(self, conn).accessible_by(&conn.principle()) {
+                if #policy_module::#reader_ident(self, conn).accessible_by(&conn.principal()) {
                     Some(&self.#field_ident)
                 } else {
                     None
@@ -316,7 +316,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                 quote! {
                     if item.#field_ident.is_some() &&
                         ! #policy_module::#write_ident(&full_item, &connection)
-                        .accessible_by(&connection.principle()) {
+                        .accessible_by(&connection.principal()) {
                             return false
                     }
                 }
@@ -452,7 +452,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                     use mongodb::Database;
                     for item in items.iter() {
                         if ! #policy_module::create(&item, connection)
-                            .accessible_by(&connection.principle()) {
+                            .accessible_by(&connection.principal()) {
                                 return None
                             }
                     }
@@ -486,7 +486,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
                         Result::Ok(Some(doc)) =>
                             if ! #policy_module::delete(&#ident::from_document(doc),
                                                         connection)
-                            .accessible_by(&connection.principle()){
+                            .accessible_by(&connection.principal()){
                                 return false
                             }
                         _ => return false

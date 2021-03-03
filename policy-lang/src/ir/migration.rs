@@ -72,11 +72,11 @@ pub enum MigrationCommand {
         name: Ident<Collection>,
     },
 
-    AddStaticPrinciple {
+    AddStaticPrincipal {
         name: Ident<Var>,
     },
 
-    AddPrinciple {
+    AddPrincipal {
         table_name: Ident<Collection>,
     },
 }
@@ -172,11 +172,11 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
                 .filter(|c| c.name == *name)
                 .collect();
         }
-        MigrationCommand::AddStaticPrinciple { name } => {
-            output.static_principles.push(name.clone());
+        MigrationCommand::AddStaticPrincipal { name } => {
+            output.static_principals.push(name.clone());
         }
-        MigrationCommand::AddPrinciple { table_name } => {
-            output.dynamic_principles.push(table_name.clone());
+        MigrationCommand::AddPrincipal { table_name } => {
+            output.dynamic_principals.push(table_name.clone());
         }
         MigrationCommand::LoosenFieldPolicy { .. }
         | MigrationCommand::TightenFieldPolicy { .. }
@@ -325,7 +325,7 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
         ast::MigrationCommand::Create { collections } => {
             let pol = extract_partial_schema_policy(
                 &ast::GlobalPolicy {
-                    static_principles: vec![],
+                    static_principals: vec![],
                     collections: collections,
                 },
                 schema,
@@ -348,16 +348,16 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
             MigrationCommand::DataCommand(extract_data_command(schema, DefMap::empty(), oc))
         }
 
-        ast::MigrationCommand::AddStaticPrinciple { name } => {
+        ast::MigrationCommand::AddStaticPrincipal { name } => {
             let name = Ident::new(name);
-            MigrationCommand::AddStaticPrinciple { name }
+            MigrationCommand::AddStaticPrincipal { name }
         }
-        ast::MigrationCommand::AddPrinciple { table_name } => {
+        ast::MigrationCommand::AddPrincipal { table_name } => {
             let coll = schema.find_collection(&table_name).expect(&format!(
-                "Unable to make collection `{}` the principle because it does not exist.",
+                "Unable to make collection `{}` the principal because it does not exist.",
                 table_name
             ));
-            MigrationCommand::AddPrinciple {
+            MigrationCommand::AddPrincipal {
                 table_name: coll.name.clone(),
             }
         }

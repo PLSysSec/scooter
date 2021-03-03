@@ -26,11 +26,11 @@ pub(crate) fn gen_assert(
 ) -> VerifProblem {
     let mut ctx = SMTContext::default();
     let low_schema = ctx.lower_schema(equivs, schema);
-    let princ_id = Ident::new("principle");
+    let princ_id = Ident::new("principal");
     let rec_id = Ident::new("rec");
 
-    // Declare the principle and record
-    let princ = ctx.declare_in_domain(ExprType::Principle, princ_id.clone());
+    // Declare the principal and record
+    let princ = ctx.declare_in_domain(ExprType::Principal, princ_id.clone());
     let rec = ctx.declare_in_domain(ExprType::Object(coll.clone()), rec_id.clone());
 
     // Declare the now constant for datetimes
@@ -110,7 +110,7 @@ impl VarMap {
     fn from_schema(schema: &Schema) -> Self {
         Self(
             schema
-                .static_principles
+                .static_principals
                 .iter()
                 .map(|id| (id.clone(), id.coerce()))
                 .collect(),
@@ -151,7 +151,7 @@ impl SMTContext {
             Policy::Anyone => vec![define(id.clone(), &[], ExprType::Bool, true)],
             Policy::Func(f) => {
                 let vm = var_map.extend(f.param.clone(), rec.clone());
-                let f = self.lower_expr((princ, &ExprType::Principle), &f.body, &vm);
+                let f = self.lower_expr((princ, &ExprType::Principal), &f.body, &vm);
                 let func = define(id.clone(), &[], ExprType::Bool, &f.expr);
 
                 let mut out = f.stmts;
@@ -173,7 +173,7 @@ impl SMTContext {
 
         // We need to downcast if target is a Principal and body is a list of concrete type
         match body.type_of() {
-            ExprType::Set(id) if *target.1 == ExprType::Principle => {
+            ExprType::Set(id) if *target.1 == ExprType::Principal => {
                 eprintln!("SHIFT!");
                 if let ExprType::Id(ref id) = *id {
                     let new_target = (&self.princ_casts[id].1, &ExprType::Object(id.clone()));
@@ -530,7 +530,7 @@ impl SMTContext {
                 let mut equalities = vec![];
                 for expr in exprs.iter() {
                     let elem_expr = match expr.type_of() {
-                        ExprType::Id(coll) if *target.1 == ExprType::Principle => {
+                        ExprType::Id(coll) if *target.1 == ExprType::Principal => {
                             let new_target =
                                 (&self.princ_casts[&coll].1, &ExprType::Object(coll.clone()));
                             let low = self.lower_expr(new_target, expr, vm);
@@ -605,7 +605,7 @@ impl SMTContext {
     /// Lowers the schema to a String containing an SMT2LIB script
     fn lower_schema(&mut self, equivs: &[Equiv], schema: &Schema) -> Vec<Statement> {
         let princ_ids: Vec<_> = schema
-            .dynamic_principles
+            .dynamic_principals
             .iter()
             .map(|princ_coll| {
                 (
@@ -616,9 +616,9 @@ impl SMTContext {
             })
             .collect();
         let princ_decl = Statement::Hack(format!(
-            "(declare-datatypes () ((Principle unauth {} {})))",
+            "(declare-datatypes () ((Principal unauth {} {})))",
             schema
-                .static_principles
+                .static_principals
                 .iter()
                 .map(ident)
                 .collect::<Vec<_>>()
@@ -845,7 +845,7 @@ pub fn type_name(typ: &ExprType) -> String {
 
         // Ids and objects are the same in SMT land
         ExprType::Id(t) | ExprType::Object(t) => ident(t),
-        ExprType::Principle => "Principle".to_owned(),
+        ExprType::Principal => "Principal".to_owned(),
     }
 }
 
@@ -860,7 +860,7 @@ fn contains_unknown(typ: &ExprType) -> bool {
         | ExprType::I64
         | ExprType::F64
         | ExprType::DateTime
-        | ExprType::Principle
+        | ExprType::Principal
         | ExprType::Bool => false,
         ExprType::Unknown(_) => true,
         ExprType::Set(t) | ExprType::Option(t) => contains_unknown(t),

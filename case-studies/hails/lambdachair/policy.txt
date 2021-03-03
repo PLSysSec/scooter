@@ -1,7 +1,7 @@
-@static-principle
+@static-principal
 Root
 
-@principle
+@principal
 PCUser {
     create: public,
     delete: u -> [u.id],
@@ -12,7 +12,7 @@ PCUser {
     },
 }
 
-@principle
+@principal
 Author {
     create: public,
     delete: u -> [u.id],

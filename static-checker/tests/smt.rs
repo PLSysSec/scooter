@@ -19,7 +19,7 @@ fn func(schema: &Schema, func: &str, from: ExprType, to: ExprType) -> Policy {
 fn foo() {
     let before_policy = schema_policy(
         r#"
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -67,7 +67,7 @@ fn foo() {
 fn unauth() {
     let before_policy = schema_policy(
         r#"
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -101,7 +101,7 @@ fn unauth() {
 fn find() {
     let before_policy = schema_policy(
         r#"
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -163,7 +163,7 @@ fn find() {
 fn friends() {
     let before_policy = schema_policy(
         r#"
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -220,10 +220,10 @@ fn friends() {
 fn static_princ() {
     let before_policy = schema_policy(
         r#"
-        @static-principle
+        @static-principal
         Authenticator
 
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -242,7 +242,7 @@ fn static_princ() {
         &schema,
         "u -> [Authenticator, u.id]",
         ExprType::Object(user.name.clone()),
-        ExprType::set(ExprType::Principle),
+        ExprType::set(ExprType::Principal),
     );
     let after = func(
         &schema,
@@ -265,7 +265,7 @@ fn static_princ() {
 fn domains() {
     let before_policy = schema_policy(
         r#"
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -284,7 +284,7 @@ fn domains() {
         &schema,
         "u -> User::Find({}).map(u -> u.id)",
         ExprType::Object(user.name.clone()),
-        ExprType::set(ExprType::Principle),
+        ExprType::set(ExprType::Principal),
     );
     let after = func(
         &schema,
@@ -306,7 +306,7 @@ fn domains() {
 fn set_ident() {
     let before_policy = schema_policy(
         r#"
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -325,13 +325,13 @@ fn set_ident() {
         &schema,
         "u -> u.friends",
         ExprType::Object(user.name.clone()),
-        ExprType::set(ExprType::Principle),
+        ExprType::set(ExprType::Principal),
     );
     let after = func(
         &schema,
         "u -> u.friends",
         ExprType::Object(user.name.clone()),
-        ExprType::set(ExprType::Principle),
+        ExprType::set(ExprType::Principal),
     );
 
     match is_as_strict(&schema, &vec![], &user.name, &before, &after) {
@@ -344,7 +344,7 @@ fn set_ident() {
 fn set_domains() {
     let before_policy = schema_policy(
         r#"
-        @principle
+        @principal
         User {
             create: public,
             delete: none,
@@ -363,13 +363,13 @@ fn set_domains() {
         &schema,
         "u -> u.friends.flat_map(u_id -> User::ById(u_id).friends + [u_id])",
         ExprType::Object(user.name.clone()),
-        ExprType::set(ExprType::Principle),
+        ExprType::set(ExprType::Principal),
     );
     let after = func(
         &schema,
         "u -> u.friends",
         ExprType::Object(user.name.clone()),
-        ExprType::set(ExprType::Principle),
+        ExprType::set(ExprType::Principal),
     );
 
     match is_as_strict(&schema, &vec![], &user.name, &before, &after) {

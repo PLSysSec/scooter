@@ -204,8 +204,8 @@ fn interpret_migration(
             | MigrationCommand::LoosenCollectionPolicy { .. } => {}
             // Creates and deletes actually only operate at the type system level
             MigrationCommand::Create { .. } | MigrationCommand::Delete { .. } => {}
-            // Principle changing also operates at the type system and policy level
-            MigrationCommand::AddStaticPrinciple { .. } | MigrationCommand::AddPrinciple { .. } => {
+            // Principal changing also operates at the type system and policy level
+            MigrationCommand::AddStaticPrincipal { .. } | MigrationCommand::AddPrincipal { .. } => {
             }
         }
     }

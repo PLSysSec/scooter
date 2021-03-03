@@ -7,8 +7,8 @@ use std::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schema {
-    pub static_principles: Vec<Ident<Var>>,
-    pub dynamic_principles: Vec<Ident<Collection>>,
+    pub static_principals: Vec<Ident<Var>>,
+    pub dynamic_principals: Vec<Ident<Collection>>,
     pub collections: Vec<Collection>,
 }
 
@@ -18,17 +18,17 @@ impl Schema {
     }
     pub fn merge(s1: &Self, s2: &Self) -> Self {
         Schema {
-            static_principles: s1
-                .static_principles
+            static_principals: s1
+                .static_principals
                 .iter()
                 .cloned()
-                .chain(s2.static_principles.clone().into_iter())
+                .chain(s2.static_principals.clone().into_iter())
                 .collect(),
-            dynamic_principles: s1
-                .dynamic_principles
+            dynamic_principals: s1
+                .dynamic_principals
                 .iter()
                 .cloned()
-                .chain(s2.dynamic_principles.iter().cloned())
+                .chain(s2.dynamic_principals.iter().cloned())
                 .collect(),
             collections: s1
                 .collections
@@ -144,19 +144,19 @@ impl ExtractionContext {
         Self { coll_idents }
     }
 
-    fn find_principles(gp: &ast::GlobalPolicy) -> Vec<String> {
-        let mut principles = Vec::new();
+    fn find_principals(gp: &ast::GlobalPolicy) -> Vec<String> {
+        let mut principals = Vec::new();
         for cp in gp.collections.iter() {
             match cp.annotations.as_slice() {
-                [ast::Annotation::Principle] => principles.push(cp.name.clone()),
+                [ast::Annotation::Principal] => principals.push(cp.name.clone()),
                 [] => {}
                 _ => panic!(
-                    "Error on {}. Only a single annotation (`@principle`) is allowed.",
+                    "Error on {}. Only a single annotation (`@principal`) is allowed.",
                     &cp.name
                 ),
             }
         }
-        principles
+        principals
     }
 
     fn extract_schema(&mut self, gp: &ast::GlobalPolicy) -> Schema {
@@ -165,12 +165,12 @@ impl ExtractionContext {
             .iter()
             .map(|cp| self.extract_collection(cp))
             .collect();
-        let static_principles = gp
-            .static_principles
+        let static_principals = gp
+            .static_principals
             .iter()
             .map(|sp| Ident::new(&sp.name))
             .collect();
-        let dynamic_principles = Self::find_principles(gp)
+        let dynamic_principals = Self::find_principals(gp)
             .iter()
             .map(|name| {
                 colls
@@ -182,8 +182,8 @@ impl ExtractionContext {
             })
             .collect();
         Schema {
-            static_principles: static_principles,
-            dynamic_principles: dynamic_principles,
+            static_principals: static_principals,
+            dynamic_principals: dynamic_principals,
             collections: colls,
         }
     }
