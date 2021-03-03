@@ -42,24 +42,24 @@ pub enum MigrationCommand {
         field: Ident<Field>,
         new_name: Ident<Field>,
     },
-    LoosenFieldPolicy {
+    WeakenFieldPolicy {
         coll: Ident<Collection>,
         field: Ident<Field>,
         kind: FieldPolicyKind,
         new_policy: Policy,
     },
-    TightenFieldPolicy {
+    UpdateFieldPolicy {
         coll: Ident<Collection>,
         field: Ident<Field>,
         kind: FieldPolicyKind,
         new_policy: Policy,
     },
-    LoosenCollectionPolicy {
+    WeakenPolicy {
         coll: Ident<Collection>,
         kind: CollectionPolicyKind,
         new_policy: Policy,
     },
-    TightenCollectionPolicy {
+    UpdatePolicy {
         coll: Ident<Collection>,
         kind: CollectionPolicyKind,
         new_policy: Policy,
@@ -178,10 +178,10 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
         MigrationCommand::AddPrincipal { table_name } => {
             output.dynamic_principals.push(table_name.clone());
         }
-        MigrationCommand::LoosenFieldPolicy { .. }
-        | MigrationCommand::TightenFieldPolicy { .. }
-        | MigrationCommand::LoosenCollectionPolicy { .. }
-        | MigrationCommand::TightenCollectionPolicy { .. }
+        MigrationCommand::WeakenFieldPolicy { .. }
+        | MigrationCommand::UpdateFieldPolicy { .. }
+        | MigrationCommand::WeakenPolicy { .. }
+        | MigrationCommand::UpdatePolicy { .. }
         | MigrationCommand::DataCommand(_) => (),
     };
     output
@@ -274,47 +274,47 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
                         new_name: Ident::new(new_field),
                     }
                 }
-                ast::MigrationAction::LoosenFieldPolicy { field, kind, pol } => {
+                ast::MigrationAction::WeakenFieldPolicy { field, kind, pol } => {
                     let field = coll.find_field(&field).expect(&format!(
                         "Unable to loosen field policy {}::{} because it does not exist",
                         &table, &field
                     ));
                     let pol = extract_policy(schema, &coll.name, &pol);
 
-                    MigrationCommand::LoosenFieldPolicy {
+                    MigrationCommand::WeakenFieldPolicy {
                         coll: coll.name.clone(),
                         field: field.name.clone(),
                         kind,
                         new_policy: pol,
                     }
                 }
-                ast::MigrationAction::TightenFieldPolicy { field, kind, pol } => {
+                ast::MigrationAction::UpdateFieldPolicy { field, kind, pol } => {
                     let field = coll.find_field(&field).expect(&format!(
                         "Unable to loosen field policy {}::{} because it does not exist",
                         &table, &field
                     ));
                     let pol = extract_policy(schema, &coll.name, &pol);
 
-                    MigrationCommand::TightenFieldPolicy {
+                    MigrationCommand::UpdateFieldPolicy {
                         coll: coll.name.clone(),
                         field: field.name.clone(),
                         kind,
                         new_policy: pol,
                     }
                 }
-                ast::MigrationAction::LoosenCollectionPolicy { kind, pol } => {
+                ast::MigrationAction::WeakenPolicy { kind, pol } => {
                     let pol = extract_policy(schema, &coll.name, &pol);
 
-                    MigrationCommand::LoosenCollectionPolicy {
+                    MigrationCommand::WeakenPolicy {
                         coll: coll.name.clone(),
                         kind,
                         new_policy: pol,
                     }
                 }
-                ast::MigrationAction::TightenCollectionPolicy { kind, pol } => {
+                ast::MigrationAction::UpdatePolicy { kind, pol } => {
                     let pol = extract_policy(schema, &coll.name, &pol);
 
-                    MigrationCommand::TightenCollectionPolicy {
+                    MigrationCommand::UpdatePolicy {
                         coll: coll.name.clone(),
                         kind,
                         new_policy: pol,

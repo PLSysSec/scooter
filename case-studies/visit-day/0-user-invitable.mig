@@ -40,4 +40,4 @@ User::AddField(invited_by: Option(Id(User)) {
     ),
 }, _ -> None)
 
-User::TightenCollectionPolicy(create, u -> User::Find({}).map(u -> u.id))
+User::UpdatePolicy(create, u -> User::Find({}).map(u -> u.id))

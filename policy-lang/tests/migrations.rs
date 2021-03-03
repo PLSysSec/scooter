@@ -4,10 +4,10 @@ use policy_lang::parse_migration;
 fn simple_valid() {
     let _mig = parse_migration(
         r#"
-        User::LoosenCollectionPolicy(create, u -> [u.id])
-        User::TightenCollectionPolicy(delete, none)
-        User::TightenFieldPolicy(name, read, public)
-        User::LoosenFieldPolicy(age, write, a_ -> [])
+        User::WeakenPolicy(create, u -> [u.id])
+        User::UpdatePolicy(delete, none)
+        User::UpdateFieldPolicy(name, read, public)
+        User::WeakenFieldPolicy(age, write, a_ -> [])
     "#,
     )
     .unwrap();

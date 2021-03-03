@@ -3,28 +3,28 @@ User::AddField(is_admin: Bool {
     write: _ -> User::Find({is_admin: true}).map(u -> u.id),
 }, _ -> false)
 
-User::TightenCollectionPolicy(create, u -> User::Find({is_admin: true}).map(u -> u.id))
-User::LoosenCollectionPolicy(delete, u -> [u.id] + User::Find({is_admin: true}).map(u -> u.id))
+User::UpdatePolicy(create, u -> User::Find({is_admin: true}).map(u -> u.id))
+User::WeakenPolicy(delete, u -> [u.id] + User::Find({is_admin: true}).map(u -> u.id))
 
-User::TightenFieldPolicy(invitation_token, write, u -> (
+User::UpdateFieldPolicy(invitation_token, write, u -> (
         match u.invitation_accepted_at as _
         in []
         else User::Find({is_admin: true}).map(u -> u.id)
     ))
 
-User::TightenFieldPolicy(invitation_created_at, write, u -> (
+User::UpdateFieldPolicy(invitation_created_at, write, u -> (
         match u.invitation_accepted_at as _
         in []
         else User::Find({is_admin: true}).map(u -> u.id)
     ))
 
-User::TightenFieldPolicy(invitation_sent_at, write, u -> (
+User::UpdateFieldPolicy(invitation_sent_at, write, u -> (
         match u.invitation_accepted_at as _
         in []
         else User::Find({is_admin: true}).map(u -> u.id)
     ))
 
-User::TightenFieldPolicy(invited_by, write, u -> (
+User::UpdateFieldPolicy(invited_by, write, u -> (
         match u.invitation_accepted_at as _
         in []
         else User::Find({is_admin: true}).map(u -> u.id)

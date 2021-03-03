@@ -207,7 +207,7 @@ fn interpret_migration_on_policy(
                 );
                 renamed_fields.insert(old_field_id, new_field_id);
             }
-            MigrationCommand::LoosenFieldPolicy {
+            MigrationCommand::WeakenFieldPolicy {
                 coll: _,
                 field,
                 kind,
@@ -217,7 +217,7 @@ fn interpret_migration_on_policy(
                 result_policy
                     .add_field_policy(field, field_policy_lens_set(old_policy, kind, new_policy));
             }
-            MigrationCommand::TightenFieldPolicy {
+            MigrationCommand::UpdateFieldPolicy {
                 coll,
                 field,
                 kind,
@@ -241,7 +241,7 @@ fn interpret_migration_on_policy(
                 result_policy.remove_field_policy(field.clone());
                 result_policy.add_field_policy(field, new_policy);
             }
-            MigrationCommand::LoosenCollectionPolicy {
+            MigrationCommand::WeakenPolicy {
                 coll,
                 kind,
                 new_policy,
@@ -252,7 +252,7 @@ fn interpret_migration_on_policy(
                     coll_policy_lens_set(old_policy, kind, new_policy),
                 );
             }
-            MigrationCommand::TightenCollectionPolicy {
+            MigrationCommand::UpdatePolicy {
                 coll,
                 kind,
                 new_policy,
@@ -870,8 +870,8 @@ User {
     },
 }
 ";
-        let migration_text = r#"User::LoosenFieldPolicy(username, read, public)
-User::LoosenFieldPolicy(username, write, public)"#;
+        let migration_text = r#"User::WeakenFieldPolicy(username, read, public)
+User::WeakenFieldPolicy(username, write, public)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"@principal
 User {
@@ -899,8 +899,8 @@ User {
     },
 }
 ";
-        let migration_text = r#"User::TightenFieldPolicy(username, read, none)
-User::TightenFieldPolicy(username, write, none)"#;
+        let migration_text = r#"User::UpdateFieldPolicy(username, read, none)
+User::UpdateFieldPolicy(username, write, none)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"@principal
 User {
@@ -945,7 +945,7 @@ Message {
     },
 }
 ";
-        let migration_text = r#"Message::TightenFieldPolicy(contents, read, m -> [m.from])"#;
+        let migration_text = r#"Message::UpdateFieldPolicy(contents, read, m -> [m.from])"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"@principal
 User {
@@ -990,8 +990,8 @@ User {
     },
 }
 ";
-        let migration_text = r#"User::LoosenCollectionPolicy(create, public)
-User::LoosenCollectionPolicy(delete, public)"#;
+        let migration_text = r#"User::WeakenPolicy(create, public)
+User::WeakenPolicy(delete, public)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"@principal
 User {
@@ -1019,7 +1019,7 @@ User {
     },
 }
 ";
-        let migration_text = r#"User::TightenCollectionPolicy(create, none)"#;
+        let migration_text = r#"User::UpdatePolicy(create, none)"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
         let expected_result_text = r"@principal
 User {
@@ -1106,7 +1106,7 @@ User {
         let migration = r#"
             User::AddField(privilege: I64 {read: public, write: none,},
                            p -> (if p.is_admin then 3 else 1))
-            User::TightenFieldPolicy(name, write, u -> User::Find({privilege: 3}).map(u -> u.id))
+            User::UpdateFieldPolicy(name, write, u -> User::Find({privilege: 3}).map(u -> u.id))
             User::RemoveField(is_admin)
             "#;
         let after_policy = migrate_policy(before_policy, migration).unwrap();
@@ -1157,7 +1157,7 @@ Phone {
             # Allow for the possibility of phone liberation
             Phone::AddField(owner_1: Option(Id(User)) {read: public, write: none,},
                             p -> Some(p.owner))
-            Phone::TightenFieldPolicy(secret, read, p -> (match p.owner_1 as o in
+            Phone::UpdateFieldPolicy(secret, read, p -> (match p.owner_1 as o in
                                                           [o] else []))
             Phone::RemoveField(owner)
             Phone::RenameField(owner_1, owner)
@@ -1208,7 +1208,7 @@ User {
         write: none,
     },
 }"#;
-        let migration = r#"User::TightenFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
+        let migration = r#"User::UpdateFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
         let after_policy = migrate_policy(before_policy, migration).unwrap();
         let expected_after_policy = r#"@static-principal
 Authenticator
@@ -1248,8 +1248,8 @@ User {
 ";
         let migration_text = r#"AddStaticPrincipal(Authenticator)
 AddPrincipal(User)
-User::LoosenFieldPolicy(pass_hash, write, u -> [u.id])
-User::TightenFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
+User::WeakenFieldPolicy(pass_hash, write, u -> [u.id])
+User::UpdateFieldPolicy(pass_hash, read, u -> [Authenticator])"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
         let expected_result_text = r"@static-principal
@@ -1303,7 +1303,7 @@ Message {
 }
 ";
         let migration_text =
-            r#"Message::TightenFieldPolicy(from, read, m -> Message::Find({}).map(m -> m.from))"#;
+            r#"Message::UpdateFieldPolicy(from, read, m -> Message::Find({}).map(m -> m.from))"#;
         let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
         let expected_result_text = r"@principal

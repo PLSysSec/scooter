@@ -172,14 +172,14 @@ MigrationAction: MigrationAction = {
     "RenameField" "(" <f_old:Ident> "," <f_new:Ident> ")" =>
         MigrationAction::RenameField{old_field:f_old, new_field: f_new},
 
-    "LoosenFieldPolicy" "(" <f:Ident> "," <k:FieldPolicyKind> "," <p:Policy>")" =>
-        MigrationAction::LoosenFieldPolicy{field:f, kind: k, pol: p},
-    "TightenFieldPolicy" "(" <f:Ident> "," <k:FieldPolicyKind> "," <p:Policy>")" =>
-        MigrationAction::TightenFieldPolicy{field:f, kind: k, pol: p},
-    "LoosenCollectionPolicy" "(" <k:CollectionPolicyKind> "," <p:Policy> ")" =>
-        MigrationAction::LoosenCollectionPolicy{kind: k, pol: p},
-    "TightenCollectionPolicy" "(" <k:CollectionPolicyKind> "," <p:Policy> ")" =>
-        MigrationAction::TightenCollectionPolicy{kind: k, pol: p},
+    "WeakenFieldPolicy" "(" <f:Ident> "," <k:FieldPolicyKind> "," <p:Policy>")" =>
+        MigrationAction::WeakenFieldPolicy{field:f, kind: k, pol: p},
+    "UpdateFieldPolicy" "(" <f:Ident> "," <k:FieldPolicyKind> "," <p:Policy>")" =>
+        MigrationAction::UpdateFieldPolicy{field:f, kind: k, pol: p},
+    "WeakenPolicy" "(" <k:CollectionPolicyKind> "," <p:Policy> ")" =>
+        MigrationAction::WeakenPolicy{kind: k, pol: p},
+    "UpdatePolicy" "(" <k:CollectionPolicyKind> "," <p:Policy> ")" =>
+        MigrationAction::UpdatePolicy{kind: k, pol: p},
 }
 
 MigrationCommand: MigrationCommand = {

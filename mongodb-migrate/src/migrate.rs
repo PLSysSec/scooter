@@ -198,10 +198,10 @@ fn interpret_migration(
                 let mut evaluator = Evaluator::new(&schema_before);
                 interpret_data_command(&db_conn, &schema_before, &mut evaluator, &cmd);
             }
-            MigrationCommand::TightenFieldPolicy { .. }
-            | MigrationCommand::LoosenFieldPolicy { .. }
-            | MigrationCommand::TightenCollectionPolicy { .. }
-            | MigrationCommand::LoosenCollectionPolicy { .. } => {}
+            MigrationCommand::UpdateFieldPolicy { .. }
+            | MigrationCommand::WeakenFieldPolicy { .. }
+            | MigrationCommand::UpdatePolicy { .. }
+            | MigrationCommand::WeakenPolicy { .. } => {}
             // Creates and deletes actually only operate at the type system level
             MigrationCommand::Create { .. } | MigrationCommand::Delete { .. } => {}
             // Principal changing also operates at the type system and policy level

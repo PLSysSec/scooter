@@ -198,21 +198,21 @@ pub enum MigrationAction {
         old_field: String,
         new_field: String,
     },
-    LoosenFieldPolicy {
+    WeakenFieldPolicy {
         field: String,
         kind: FieldPolicyKind,
         pol: Policy,
     },
-    TightenFieldPolicy {
+    UpdateFieldPolicy {
         field: String,
         kind: FieldPolicyKind,
         pol: Policy,
     },
-    LoosenCollectionPolicy {
+    WeakenPolicy {
         kind: CollectionPolicyKind,
         pol: Policy,
     },
-    TightenCollectionPolicy {
+    UpdatePolicy {
         kind: CollectionPolicyKind,
         pol: Policy,
     },

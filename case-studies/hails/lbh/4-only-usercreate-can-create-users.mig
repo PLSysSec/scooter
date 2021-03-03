@@ -1,2 +1,2 @@
 AddStaticPrincipal(UserCreator)
-User::TightenCollectionPolicy(create, p -> [UserCreator])
+User::UpdatePolicy(create, p -> [UserCreator])

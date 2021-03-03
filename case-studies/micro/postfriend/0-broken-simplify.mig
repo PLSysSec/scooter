@@ -1,2 +1,2 @@
 
-Post::TightenFieldPolicy(title, read, p -> [p.author] + User::ById(p.author).friends)
+Post::UpdateFieldPolicy(title, read, p -> [p.author] + User::ById(p.author).friends)

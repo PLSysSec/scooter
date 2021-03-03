@@ -1,11 +1,11 @@
 AddStaticPrincipal(GitStar)
-Project::LoosenFieldPolicy(owner, read,
+Project::WeakenFieldPolicy(owner, read,
         p -> (if p.is_public then public else [p.owner, GitStar] + p.readers + p.collaborators))
-Project::LoosenFieldPolicy(name, read,
+Project::WeakenFieldPolicy(name, read,
         p -> (if p.is_public then public else [p.owner, GitStar] + p.readers + p.collaborators))
-Project::LoosenFieldPolicy(is_public, read,
+Project::WeakenFieldPolicy(is_public, read,
         p -> (if p.is_public then public else [p.owner, GitStar] + p.readers + p.collaborators))
-Project::LoosenFieldPolicy(readers, read,
+Project::WeakenFieldPolicy(readers, read,
         p -> (if p.is_public then public else [p.owner, GitStar] + p.readers + p.collaborators))
-Project::LoosenFieldPolicy(collaborators, read,
+Project::WeakenFieldPolicy(collaborators, read,
         p -> (if p.is_public then public else [p.owner, GitStar] + p.readers + p.collaborators))
