@@ -1336,4 +1336,57 @@ Message {
 ";
         assert_eq!(expected_result_text, out_text);
     }
+    #[test]
+    fn constraints_test(){
+        let policy_text = r"@principle
+User {
+    create: none,
+    delete: none,
+}
+Post {
+    create: none,
+    delete: none,
+
+    author: Id(User) {
+        read: public,
+        write: none,
+    },
+    coauthor: Id(User) {
+        read: public,
+        write: none,
+    },
+    secret: String {
+        read: p -> [p.author],
+        write: none,
+    },
+}
+";
+        let migration = r#"
+Post::TightenFieldPolicy(secret, read, p -> [p.author, p.coauthor].map(u -> User::ById(u).id))
+"#;
+        let out_text = migrate_policy(policy_text, migration).unwrap();
+        let expected_out_text = r"@principle
+User {
+    create: none,
+    delete: none,
+}
+Post {
+    create: none,
+    delete: none,
+
+    author: Id(User) {
+        read: public,
+        write: none,
+    },
+    coauthor: Id(User) {
+        read: public,
+        write: none,
+    },
+    secret: String {
+        read: p -> [p.author, p.coauthor].map(u -> User::ById(u).id),
+        write: none,
+    },
+}
+";
+    }
 }
