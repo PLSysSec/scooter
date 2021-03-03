@@ -11,3 +11,4 @@ edition = "2018"
 policy-lang = {path = "../policy-lang"}
 chrono = "*"
 lazy_static = "*"
+regex = "1"

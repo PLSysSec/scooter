@@ -4,13 +4,9 @@ use policy_lang::ir::{
     schema::{Collection, Field, Schema},
     Ident,
 };
-use std::{
-    collections::HashMap,
-    fmt::Display,
-    io::{BufRead, BufReader, Write},
-    process::{Command, Stdio},
-};
-
+use std::{collections::HashMap, fmt::{Debug, Display}, io::{BufRead, BufReader, Write}, process::{Command, Stdio}};
+use lazy_static::lazy_static;
+use regex::Regex;
 use translate::*;
 mod translate;
 
@@ -80,7 +76,7 @@ pub fn is_as_strict(
             .unwrap();
         line = String::new();
         reader.read_line(&mut line).unwrap();
-        let princ = line.trim().to_owned();
+        let princ = parse(&ExprType::Principle, line.trim());
 
         let mut model = Model {
             princ,
@@ -99,8 +95,7 @@ pub fn is_as_strict(
                 None => continue,
             };
             for field in coll.fields() {
-                match &field.typ {
-                    ExprType::Set(_inner_ty) => {
+                    if let ExprType::Set(_inner_ty) = &field.typ {
                         let mut lines = Vec::new();
                         let (join_coll_id, _from_id, to_id, _typ) =
                             &verif_problem.join_tables[&field.name];
@@ -119,8 +114,7 @@ pub fn is_as_strict(
                         }
 
                         fields.push((field.name.clone(), format!("[{}]", lines.join(", "))));
-                    }
-                    ExprType::I64 => {
+                    } else {
                         input
                             .write_all(
                                 format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
@@ -129,28 +123,30 @@ pub fn is_as_strict(
                             .unwrap();
                         line = String::new();
                         reader.read_line(&mut line).unwrap();
-                        let raw = line.trim().trim_start_matches("#x");
-                        fields.push((
-                            field.name.clone(),
-                            format!(
-                                "{}",
-                                i64::from_str_radix(raw, 16)
-                                    .expect(&format!("Couldn't parse hex {}", raw))
-                            ),
-                        ))
+
+                        let clean_value = parse(&field.typ, &line.trim());
+                        fields.push((field.name.clone(), clean_value));
+
                     }
-                    _ => {
-                        input
-                            .write_all(
-                                format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
-                                    .as_bytes(),
-                            )
-                            .unwrap();
-                        line = String::new();
-                        reader.read_line(&mut line).unwrap();
-                        fields.push((field.name.clone(), line.trim().to_owned()));
-                    }
-                };
+                    // ExprType::I64 => {
+                    //     input
+                    //         .write_all(
+                    //             format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
+                    //                 .as_bytes(),
+                    //         )
+                    //         .unwrap();
+                    //     line = String::new();
+                    //     reader.read_line(&mut line).unwrap();
+                    //     let raw = line.trim().trim_start_matches("#x");
+                    //     fields.push((
+                    //         field.name.clone(),
+                    //         format!(
+                    //             "{}",
+                    //             i64::from_str_radix(raw, 16)
+                    //                 .expect(&format!("Couldn't parse hex {}", raw))
+                    //         ),
+                    //     ))
+                    // }
             }
             let obj = ModelObject {
                 coll: coll.name.clone(),
@@ -161,6 +157,33 @@ pub fn is_as_strict(
         }
 
         Err(model)
+    }
+}
+
+fn parse(typ: &ExprType, text: &str) -> String {
+    match typ {
+        ExprType::I64 => {
+            i64::from_str_radix(text.trim_start_matches("#x"), 16).expect(&format!("Couldn't parse hex from SMT {}", text)).to_string()
+        }
+        ExprType::Id(_) => {
+            lazy_static! {
+                static ref ID_RE: Regex = Regex::new(r#"_i\d+!val!(?P<id>\d+)"#).unwrap();
+            }
+            ID_RE.replace_all(text, "($id)").into()
+        },
+        ExprType::Principle => {
+            lazy_static! {
+                static ref ID_PRINC: Regex = Regex::new(r#"\(\S+ (?P<id>[^)]*)\)"#).unwrap();
+            }
+            if (ID_PRINC.is_match(text)) {
+                parse(&ExprType::Id(Ident::new("dummy")), &ID_PRINC.replace_all(text, "$id"))
+            } else {
+                text.to_owned()
+            }
+        }
+        _ => {
+            text.to_owned()
+        }
     }
 }
 
@@ -237,11 +260,11 @@ impl Model {
 impl Display for Model {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let rec = self.rec();
-        write!(f, "Model:\nprinc: {}\nrec: {}\n", self.princ, rec)?;
+        write!(f, "Model:\nprinc: {}\nrec: {:#}\n", self.princ, rec)?;
 
         for obj in self.objects.iter() {
             if obj.id() != rec.id() {
-                write!(f, "{}\n", obj)?;
+                write!(f, "{:#}\n", obj)?;
             }
         }
         Ok(())
@@ -289,8 +312,15 @@ impl Display for ModelObject {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut dbug_struct = f.debug_struct(&self.coll.orig_name);
         for (f_id, val) in self.fields.iter() {
-            dbug_struct.field(&f_id.orig_name, val);
+            dbug_struct.field(&f_id.orig_name, &Literal(val));
         }
         dbug_struct.finish()
+    }
+}
+
+struct Literal<'a>(&'a str);
+impl<'a> Debug for Literal<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
