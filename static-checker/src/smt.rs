@@ -175,7 +175,7 @@ fn parse(typ: &ExprType, text: &str) -> String {
             lazy_static! {
                 static ref ID_PRINC: Regex = Regex::new(r#"\(\S+ (?P<id>[^)]*)\)"#).unwrap();
             }
-            if (ID_PRINC.is_match(text)) {
+            if ID_PRINC.is_match(text) {
                 parse(&ExprType::Id(Ident::new("dummy")), &ID_PRINC.replace_all(text, "$id"))
             } else {
                 text.to_owned()
@@ -260,7 +260,7 @@ impl Model {
 impl Display for Model {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let rec = self.rec();
-        write!(f, "Model:\nprinc: {}\nrec: {:#}\n", self.princ, rec)?;
+        write!(f, "Principal: {}\n\nCAN NOW ACCESS:\n\n{:#}\n\nOTHER RECORDS:\n\n", self.princ, rec)?;
 
         for obj in self.objects.iter() {
             if obj.id() != rec.id() {

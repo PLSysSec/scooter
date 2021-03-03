@@ -234,7 +234,7 @@ fn interpret_migration_on_policy(
                 };
                 if let Err(model) = res {
                     return Err(
-                        format!("Cannot determine that the new {} policy for {} is tighter than the old one. Counterexample:\n{}", kind, &field.orig_name, model)
+                        format!("Migration unsafe! Cannot determine that the new {} policy for {} is stricter than the old one.\nCOUNTEREXAMPLE:\n{}", kind, &field.orig_name, model)
                     );
                 }
                 let new_policy = field_policy_lens_set(old_policy.clone(), kind, new_policy);
@@ -272,7 +272,7 @@ fn interpret_migration_on_policy(
                     Result::Ok(_) => (),
                     Result::Err(model) =>
                         return Err(
-                            format!("Cannot determine that the new collection policy for {} is tighter than the old one. Counterexample:\n{}", &coll.orig_name, model)
+                            format!("Migration unsafe! Cannot determine that the new collection policy for {} is stricter than the old one.\nCOUNTEREXAMPLE:\n{}", &coll.orig_name, model)
                         )
                 }
                 result_policy.remove_collection_policy(coll.clone());

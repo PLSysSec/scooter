@@ -694,7 +694,7 @@ impl SMTContext {
             None
         });
 
-        let (join_sorts, mut join_fields): (Vec<_>, Vec<_>) = joins.map(|lc| (lc.sorts, lc.body)).unzip();
+        let (join_sorts, join_fields): (Vec<_>, Vec<_>) = joins.map(|lc| (lc.sorts, lc.body)).unzip();
         sorts.extend(join_sorts.into_iter().flatten());
 
         let fields = coll.fields().flat_map(move |f| {
