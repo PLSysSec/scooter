@@ -84,7 +84,9 @@ fn two_principals() {
 }
 
 #[test]
-#[should_panic(expected = "Type error: Expression `[u.id]` is expected to have type Set(Principle), but it has type Set(Id(User))")]
+#[should_panic(
+    expected = "Type error: Expression `[u.id]` is expected to have type Set(Principal), but it has type Set(Id(User))"
+)]
 fn wrong_principal() {
     test_policy(
         r"User {

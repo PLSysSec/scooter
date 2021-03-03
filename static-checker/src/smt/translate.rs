@@ -1,4 +1,9 @@
-use policy_lang::ir::{Ident, expr::{ExprType, FieldComparison, IRExpr, Var}, policy::Policy, schema::{Collection, Field, Schema}};
+use policy_lang::ir::{
+    expr::{ExprType, FieldComparison, IRExpr, Var},
+    policy::Policy,
+    schema::{Collection, Field, Schema},
+    Ident,
+};
 
 use std::{collections::HashMap, fmt::Display, iter};
 
@@ -48,8 +53,9 @@ pub(crate) fn gen_assert(
     let var_map = VarMap::from_schema(schema);
 
     // Lower the functions
-    let mut before = ctx.lower_policy(&princ_id, &rec_id, &var_map, before);
-    let mut after = ctx.lower_policy(&princ_id, &rec_id, &var_map, after);
+    let fields_with_equivs = equivs.iter().map(|equiv| equiv.0.clone()).collect();
+    let mut before = ctx.lower_policy(&princ_id, &rec_id, &var_map, before, &fields_with_equivs);
+    let mut after = ctx.lower_policy(&princ_id, &rec_id, &var_map, after, &fields_with_equivs);
 
     let safety_assertion =
         Statement::Assert(format!("(and {} (not {}))", &after.expr, &before.expr,));
@@ -78,6 +84,8 @@ pub(crate) struct SMTVar;
 struct SMTResult {
     stmts: Vec<Statement>,
     expr: String,
+    domain_exprs: Vec<(String, ExprType)>,
+    validity_predicates: Vec<String>,
 }
 
 impl SMTResult {
@@ -85,13 +93,22 @@ impl SMTResult {
         Self {
             stmts: vec![],
             expr: e.to_string(),
+            domain_exprs: vec![],
+            validity_predicates: vec![],
         }
     }
 
-    fn new(stmts: Vec<Statement>, expr: impl ToString) -> Self {
+    fn new(
+        stmts: Vec<Statement>,
+        expr: impl ToString,
+        domain_exprs: Vec<(String, ExprType)>,
+        validity_predicates: Vec<String>,
+    ) -> Self {
         Self {
             stmts,
             expr: expr.to_string(),
+            domain_exprs,
+            validity_predicates,
         }
     }
 }
@@ -143,6 +160,7 @@ impl SMTContext {
         rec: &Ident<SMTVar>,
         var_map: &VarMap,
         pol: &Policy,
+        fields_with_equivs: &Vec<Ident<Field>>,
     ) -> SMTResult {
         let id = Ident::new("policy");
         eprintln!("----POLICY-----");
@@ -151,16 +169,44 @@ impl SMTContext {
             Policy::Anyone => vec![define(id.clone(), &[], ExprType::Bool, true)],
             Policy::Func(f) => {
                 let vm = var_map.extend(f.param.clone(), rec.clone());
-                let f = self.lower_expr((princ, &ExprType::Principal), &f.body, &vm);
+                let f = self.lower_expr(
+                    (princ, &ExprType::Principal),
+                    &f.body,
+                    &vm,
+                    fields_with_equivs,
+                );
                 let func = define(id.clone(), &[], ExprType::Bool, &f.expr);
 
-                let mut out = f.stmts;
+                let mut out: Vec<Statement> = f
+                    .domain_exprs
+                    .into_iter()
+                    .map(|(d_expr, ty)| {
+                        Statement::Assert(format!(
+                            "(or {})",
+                            match self.domains.get(&ty) {
+                                Some(domain_vars) =>
+                                    spaced(domain_vars.iter().map(|d_id| format!(
+                                        "(= {} {})",
+                                        d_expr,
+                                        ident(d_id)
+                                    ))),
+                                None => "false".to_string(),
+                            }
+                        ))
+                    })
+                    .collect();
+                out.extend(f.stmts.into_iter());
+                out.extend(
+                    f.validity_predicates
+                        .into_iter()
+                        .map(|pred| Statement::Assert(pred)),
+                );
                 out.push(func);
                 out
             }
         };
 
-        SMTResult::new(stmts, ident(&id))
+        SMTResult::new(stmts, ident(&id), vec![], vec![])
     }
 
     fn lower_expr(
@@ -168,6 +214,7 @@ impl SMTContext {
         target: (&Ident<SMTVar>, &ExprType),
         body: &IRExpr,
         vm: &VarMap,
+        fields_with_equivs: &Vec<Ident<Field>>,
     ) -> SMTResult {
         debug_assert!(!contains_unknown(&body.type_of()));
 
@@ -177,7 +224,7 @@ impl SMTContext {
                 eprintln!("SHIFT!");
                 if let ExprType::Id(ref id) = *id {
                     let new_target = (&self.princ_casts[id].1, &ExprType::Object(id.clone()));
-                    let low = self.lower_expr(new_target, body, vm);
+                    let low = self.lower_expr(new_target, body, vm, fields_with_equivs);
                     let expr = format!(
                         "(and (= {} ({} {})) {})",
                         ident(&target.0),
@@ -185,33 +232,62 @@ impl SMTContext {
                         ident(new_target.0),
                         &low.expr
                     );
-                    return SMTResult::new(low.stmts, expr);
+                    return SMTResult::new(
+                        low.stmts,
+                        expr,
+                        low.domain_exprs,
+                        low.validity_predicates,
+                    );
                 }
             }
             _ => eprintln!("{:?}", body.type_of()),
         };
 
         match body {
-            IRExpr::AppendS(l, r) => self.simple_nary_op("str.++", target, &[l, r], vm),
-            IRExpr::AddI(l, r) => self.simple_nary_op("bvadd", target, &[l, r], vm),
-            IRExpr::AddD(l, r) => self.simple_nary_op("+", target, &[l, r], vm),
-            IRExpr::AddF(l, r) => self.simple_nary_op("fp.add", target, &[l, r], vm),
-            IRExpr::SubI(l, r) => self.simple_nary_op("bvsub", target, &[l, r], vm),
-            IRExpr::SubD(l, r) => self.simple_nary_op("-", target, &[l, r], vm),
-            IRExpr::SubF(l, r) => self.simple_nary_op("fp.sub", target, &[l, r], vm),
-            IRExpr::IsEq(ExprType::F64, l, r) => self.simple_nary_op("fp.eq", target, &[l, r], vm),
-            // In policylang, equality is not defined for lists so no special handling is needed
-            IRExpr::IsEq(_, l, r) => self.simple_nary_op("=", target, &[l, r], vm),
-            IRExpr::Not(b) => self.simple_nary_op("not", target, &[b], vm),
-            IRExpr::IsLessI(l, r) => self.simple_nary_op("bvslt", target, &[l, r], vm),
-            IRExpr::IsLessD(l, r) => self.simple_nary_op("<", target, &[l, r], vm),
-            IRExpr::IsLessF(l, r) => self.simple_nary_op("fp.lt", target, &[l, r], vm),
-            IRExpr::IntToFloat(b) => {
-                self.simple_nary_op("(_ to_fp 11 53) roundNearestTiesToEven", target, &[b], vm)
+            IRExpr::AppendS(l, r) => {
+                self.simple_nary_op("str.++", target, &[l, r], vm, fields_with_equivs)
             }
+            IRExpr::AddI(l, r) => {
+                self.simple_nary_op("bvadd", target, &[l, r], vm, fields_with_equivs)
+            }
+            IRExpr::AddD(l, r) => self.simple_nary_op("+", target, &[l, r], vm, fields_with_equivs),
+            IRExpr::AddF(l, r) => {
+                self.simple_nary_op("fp.add", target, &[l, r], vm, fields_with_equivs)
+            }
+            IRExpr::SubI(l, r) => {
+                self.simple_nary_op("bvsub", target, &[l, r], vm, fields_with_equivs)
+            }
+            IRExpr::SubD(l, r) => self.simple_nary_op("-", target, &[l, r], vm, fields_with_equivs),
+            IRExpr::SubF(l, r) => {
+                self.simple_nary_op("fp.sub", target, &[l, r], vm, fields_with_equivs)
+            }
+            IRExpr::IsEq(ExprType::F64, l, r) => {
+                self.simple_nary_op("fp.eq", target, &[l, r], vm, fields_with_equivs)
+            }
+            // In policylang, equality is not defined for lists so no special handling is needed
+            IRExpr::IsEq(_, l, r) => {
+                self.simple_nary_op("=", target, &[l, r], vm, fields_with_equivs)
+            }
+            IRExpr::Not(b) => self.simple_nary_op("not", target, &[b], vm, fields_with_equivs),
+            IRExpr::IsLessI(l, r) => {
+                self.simple_nary_op("bvslt", target, &[l, r], vm, fields_with_equivs)
+            }
+            IRExpr::IsLessD(l, r) => {
+                self.simple_nary_op("<", target, &[l, r], vm, fields_with_equivs)
+            }
+            IRExpr::IsLessF(l, r) => {
+                self.simple_nary_op("fp.lt", target, &[l, r], vm, fields_with_equivs)
+            }
+            IRExpr::IntToFloat(b) => self.simple_nary_op(
+                "(_ to_fp 11 53) roundNearestTiesToEven",
+                target,
+                &[b],
+                vm,
+                fields_with_equivs,
+            ),
             IRExpr::Path(ty, obj, f) => match ty {
                 ExprType::Set(ref _inner_ty) => {
-                    let lower = self.lower_expr(target, obj, vm);
+                    let lower = self.lower_expr(target, obj, vm, fields_with_equivs);
                     let (coll, from, to, _typ) = self.join_tables[f].clone();
                     let domain_ids = self.domains[&ExprType::Object(coll.clone())].clone();
                     let domain_clauses: Vec<_> = domain_ids
@@ -229,23 +305,49 @@ impl SMTContext {
                         })
                         .collect();
                     let expr = format!("(or {})", domain_clauses.join(" "));
-                    SMTResult::new(lower.stmts, expr)
+                    let mut validity_predicates = lower.validity_predicates;
+                    if fields_with_equivs.contains(&f) {
+                        validity_predicates.push(format!(
+                            "({} {})",
+                            ident(&validity_function_ident(f)),
+                            lower.expr
+                        ))
+                    }
+                    // TODO: This might not be the right set of domain_exprs
+                    SMTResult::new(lower.stmts, expr, lower.domain_exprs, validity_predicates)
                 }
-                _ => self.simple_nary_op(&ident(f), target, &[obj], vm),
+                _ => {
+                    let lowered = self.lower_expr(target, obj, vm, fields_with_equivs);
+
+                    let mut validity_predicates = lowered.validity_predicates;
+                    if fields_with_equivs.contains(&f) {
+                        validity_predicates.push(format!(
+                            "({} {})",
+                            ident(&validity_function_ident(f)),
+                            lowered.expr
+                        ))
+                    }
+                    SMTResult::new(
+                        lowered.stmts,
+                        format!("({} {})", &ident(f), lowered.expr),
+                        lowered.domain_exprs,
+                        validity_predicates,
+                    )
+                }
             },
             IRExpr::Var(_, i) => SMTResult::expr(ident(&vm.lookup(i))),
             // Because id's and object types are the same, find is a no-op
             IRExpr::LookupById(coll, b) => {
-                let lower = self.lower_expr(target, b, vm);
-                let lookup_id = Ident::new("lookup");
-                let assert = format!("(= {} {})", ident(&lookup_id), &lower.expr);
-                let mut stmts = lower.stmts;
-                stmts.append(
-                    &mut self.domain_ident(lookup_id.clone(), ExprType::Object(coll.clone())),
-                );
-                stmts.push(Statement::Assert(assert));
+                let lower = self.lower_expr(target, b, vm, fields_with_equivs);
+                let mut out_domain_exprs = lower.domain_exprs;
+                out_domain_exprs.push((format!("{}", &lower.expr), ExprType::Object(coll.clone())));
 
-                SMTResult::new(stmts, ident(&lookup_id))
+                SMTResult::new(
+                    lower.stmts,
+                    lower.expr,
+                    out_domain_exprs,
+                    lower.validity_predicates,
+                )
             }
             IRExpr::Now => SMTResult::expr(ident(&NOW_IDENT)),
             IRExpr::DateTimeConst(datetime) => SMTResult::expr(datetime.timestamp()),
@@ -259,9 +361,13 @@ impl SMTContext {
             IRExpr::Find(_coll, fields) => {
                 let mut stmts = vec![];
                 let mut field_checks = vec![];
+                let mut domain_exprs = vec![];
+                let mut validity_predicates = vec![];
                 for (comp, f, fty, expr) in fields.iter() {
-                    let field_expr = self.lower_expr(target, expr, vm);
+                    let field_expr = self.lower_expr(target, expr, vm, fields_with_equivs);
                     stmts.extend(field_expr.stmts);
+                    domain_exprs.extend(field_expr.domain_exprs);
+                    validity_predicates.extend(field_expr.validity_predicates);
                     match comp {
                         FieldComparison::Equals => {
                             field_checks.push(format!(
@@ -401,20 +507,26 @@ impl SMTContext {
 
                 let anded_eqs = format!("(and {} true)", spaced(field_checks.into_iter()));
 
-                SMTResult::new(stmts, anded_eqs)
+                SMTResult::new(stmts, anded_eqs, domain_exprs, validity_predicates)
             }
             IRExpr::Object(coll, fields, template) => {
                 let obj_id = Ident::new("obj_lit");
                 let obj = declare(obj_id.clone(), &[], ExprType::Object(coll.clone()));
-                let template_expr = template.as_ref().map(|t| self.lower_expr(target, t, vm));
+                let template_expr = template
+                    .as_ref()
+                    .map(|t| self.lower_expr(target, t, vm, fields_with_equivs));
 
                 let mut stmts = vec![obj];
                 let mut exprs = vec![];
+                let mut domain_exprs = vec![];
+                let mut validity_predicates = vec![];
                 for (_f_id, f_expr) in fields.iter() {
                     if let Some(e) = f_expr {
-                        let low_e = self.lower_expr(target, e, vm);
+                        let low_e = self.lower_expr(target, e, vm, fields_with_equivs);
                         exprs.push(format!("(= {} {})", ident(&obj_id), &low_e.expr));
                         stmts.extend(low_e.stmts);
+                        domain_exprs.extend(low_e.domain_exprs);
+                        validity_predicates.extend(low_e.validity_predicates)
                     } else {
                         exprs.push(format!(
                             "(= {} {})",
@@ -429,11 +541,13 @@ impl SMTContext {
                     spaced(exprs.into_iter())
                 )));
 
-                SMTResult::new(stmts, ident(&obj_id))
+                SMTResult::new(stmts, ident(&obj_id), domain_exprs, validity_predicates)
             }
             IRExpr::Map(list_expr, func) => {
                 let mut elems = vec![];
                 let mut preamble = vec![];
+                let mut domain_exprs = vec![];
+                let mut validity_predicates = vec![];
                 let ids: Box<dyn Iterator<Item = Ident<SMTVar>>> = match func.param_type {
                     ExprType::Object(ref coll) | ExprType::Id(ref coll) => Box::new(
                         self.domains[&ExprType::Object(coll.clone())]
@@ -447,12 +561,18 @@ impl SMTContext {
                     }
                 };
                 for id in ids {
-                    let list_expr = self.lower_expr((&id, &func.param_type), &list_expr, &vm);
+                    let list_expr = self.lower_expr(
+                        (&id, &func.param_type),
+                        &list_expr,
+                        &vm,
+                        fields_with_equivs,
+                    );
                     preamble.extend(list_expr.stmts);
                     let func_expr = self.lower_expr(
                         target,
                         &func.body,
                         &vm.extend(func.param.clone(), id.clone()),
+                        fields_with_equivs,
                     );
                     preamble.extend(func_expr.stmts);
                     let elem = format!(
@@ -462,14 +582,22 @@ impl SMTContext {
                         ident(target.0)
                     );
                     elems.push(elem);
+                    domain_exprs.extend(list_expr.domain_exprs);
+                    validity_predicates.extend(list_expr.validity_predicates);
+
+                    // TODO: really not sure these two lines are right
+                    domain_exprs.extend(func_expr.domain_exprs);
+                    validity_predicates.extend(func_expr.validity_predicates);
                 }
 
                 let expr = format!("(or {})", spaced(elems.into_iter()));
-                SMTResult::new(preamble, expr)
+                SMTResult::new(preamble, expr, domain_exprs, validity_predicates)
             }
             IRExpr::FlatMap(set_expr, func) => {
                 let mut elems = vec![];
                 let mut preamble = vec![];
+                let mut domain_exprs = vec![];
+                let mut validity_predicates = vec![];
                 let ids: Box<dyn Iterator<Item = Ident<SMTVar>>> = match func.param_type {
                     ExprType::Object(ref coll) | ExprType::Id(ref coll) => Box::new(
                         self.domains[&ExprType::Object(coll.clone())]
@@ -483,58 +611,87 @@ impl SMTContext {
                     }
                 };
                 for id in ids {
-                    let set_expr = self.lower_expr((&id, &func.param_type), &set_expr, &vm);
+                    let set_expr = self.lower_expr(
+                        (&id, &func.param_type),
+                        &set_expr,
+                        &vm,
+                        fields_with_equivs,
+                    );
                     preamble.extend(set_expr.stmts);
+                    domain_exprs.extend(set_expr.domain_exprs);
+                    validity_predicates.extend(set_expr.validity_predicates);
                     let func_expr = self.lower_expr(
                         target,
                         &func.body,
                         &vm.extend(func.param.clone(), id.clone()),
+                        fields_with_equivs,
                     );
                     preamble.extend(func_expr.stmts);
+
+                    // TODO: Really not sure these two lines are right
+                    domain_exprs.extend(func_expr.domain_exprs);
+                    validity_predicates.extend(func_expr.validity_predicates);
+
                     let elem = format!("(and {} {})", &set_expr.expr, &func_expr.expr,);
                     elems.push(elem);
                 }
 
                 let expr = format!("(or {})", spaced(elems.into_iter()));
-                SMTResult::new(preamble, expr)
+                SMTResult::new(preamble, expr, domain_exprs, validity_predicates)
             }
             IRExpr::AppendL(_, l, r) => {
-                let left = self.lower_expr(target, l, vm);
-                let right = self.lower_expr(target, r, vm);
+                let left = self.lower_expr(target, l, vm, fields_with_equivs);
+                let right = self.lower_expr(target, r, vm, fields_with_equivs);
                 let expr = format!("(or {} {})", &left.expr, &right.expr);
 
                 let mut stmts = left.stmts;
                 stmts.extend(right.stmts);
-                SMTResult::new(stmts, expr)
+                let mut domain_exprs = left.domain_exprs;
+                domain_exprs.extend(right.domain_exprs);
+                let mut validity_predicates = left.validity_predicates;
+                validity_predicates.extend(right.validity_predicates);
+                SMTResult::new(stmts, expr, domain_exprs, validity_predicates)
             }
             IRExpr::DiffL(_, l, r) => {
-                let left = self.lower_expr(target, l, vm);
-                let right = self.lower_expr(target, r, vm);
+                let left = self.lower_expr(target, l, vm, fields_with_equivs);
+                let right = self.lower_expr(target, r, vm, fields_with_equivs);
                 let expr = format!("(and {} (not {}))", &left.expr, &right.expr);
 
                 let mut stmts = left.stmts;
                 stmts.extend(right.stmts);
-                SMTResult::new(stmts, expr)
+                let mut domain_exprs = left.domain_exprs;
+                domain_exprs.extend(right.domain_exprs);
+                let mut validity_predicates = left.validity_predicates;
+                validity_predicates.extend(right.validity_predicates);
+                SMTResult::new(stmts, expr, domain_exprs, validity_predicates)
             }
             IRExpr::Intersect(_, l, r) => {
-                let left = self.lower_expr(target, l, vm);
-                let right = self.lower_expr(target, r, vm);
+                let left = self.lower_expr(target, l, vm, fields_with_equivs);
+                let right = self.lower_expr(target, r, vm, fields_with_equivs);
                 let expr = format!("(and {} {})", &left.expr, &right.expr);
 
                 let mut stmts = left.stmts;
                 stmts.extend(right.stmts);
-                SMTResult::new(stmts, expr)
+                let mut domain_exprs = left.domain_exprs;
+                domain_exprs.extend(right.domain_exprs);
+                let mut validity_predicates = left.validity_predicates;
+                validity_predicates.extend(right.validity_predicates);
+                SMTResult::new(stmts, expr, domain_exprs, validity_predicates)
             }
             IRExpr::Set(_, exprs) => {
                 let mut stmts = vec![];
                 let mut equalities = vec![];
+                let mut domain_exprs = vec![];
+                let mut validity_predicates = vec![];
                 for expr in exprs.iter() {
                     let elem_expr = match expr.type_of() {
                         ExprType::Id(coll) if *target.1 == ExprType::Principal => {
                             let new_target =
                                 (&self.princ_casts[&coll].1, &ExprType::Object(coll.clone()));
-                            let low = self.lower_expr(new_target, expr, vm);
+                            let low = self.lower_expr(new_target, expr, vm, fields_with_equivs);
                             stmts.extend(low.stmts);
+                            domain_exprs.extend(low.domain_exprs);
+                            validity_predicates.extend(low.validity_predicates);
                             format!(
                                 "(and (= {} ({} {})) (= {} {}))",
                                 ident(&target.0),
@@ -545,8 +702,10 @@ impl SMTContext {
                             )
                         }
                         _ => {
-                            let low = self.lower_expr(target, expr, vm);
+                            let low = self.lower_expr(target, expr, vm, fields_with_equivs);
                             stmts.extend(low.stmts);
+                            domain_exprs.extend(low.domain_exprs);
+                            validity_predicates.extend(low.validity_predicates);
                             format!("(= {} {})", ident(target.0), low.expr)
                         }
                     };
@@ -559,17 +718,26 @@ impl SMTContext {
                 } else {
                     format!("(or {})", spaced(equalities.into_iter()))
                 };
-                SMTResult::new(stmts, expr)
+                SMTResult::new(stmts, expr, domain_exprs, validity_predicates)
             }
-            IRExpr::If(_, c, t, e) => self.simple_nary_op("ite", target, &[c, t, e], vm),
-            IRExpr::Public => SMTResult::expr(true),
+            IRExpr::If(_, c, t, e) => {
+                self.simple_nary_op("ite", target, &[c, t, e], vm, fields_with_equivs)
+            }
+            IRExpr::Public => SMTResult::expr("true"),
             IRExpr::None(ty) => SMTResult::expr(format!("(as none (Option {}))", type_name(&ty))),
             IRExpr::Some(_ty, inner_expr) => {
-                let elem_expr = self.lower_expr(target, inner_expr, vm);
-                SMTResult::new(elem_expr.stmts, format!("(some {})", &elem_expr.expr))
+                let elem_expr = self.lower_expr(target, inner_expr, vm, fields_with_equivs);
+                SMTResult::new(
+                    elem_expr.stmts,
+                    format!("(some {})", &elem_expr.expr),
+                    elem_expr.domain_exprs,
+                    elem_expr.validity_predicates,
+                )
             }
             IRExpr::Match(_ty, opt_expr, var, some_expr, none_expr) => {
                 let mut stmts = Vec::new();
+                let mut domain_exprs = Vec::new();
+                let mut validity_predicates = Vec::new();
                 let match_smt_var = Ident::new("match_var");
                 stmts.push(declare(
                     match_smt_var.clone(),
@@ -579,16 +747,23 @@ impl SMTContext {
                         _ => panic!("Type error"),
                     },
                 ));
-                let opt_expr = self.lower_expr(target, opt_expr, vm);
+                let opt_expr = self.lower_expr(target, opt_expr, vm, fields_with_equivs);
                 let some_expr = self.lower_expr(
                     target,
                     some_expr,
                     &vm.extend(var.clone(), match_smt_var.clone()),
+                    fields_with_equivs,
                 );
-                let none_expr = self.lower_expr(target, none_expr, vm);
+                let none_expr = self.lower_expr(target, none_expr, vm, fields_with_equivs);
                 stmts.extend(opt_expr.stmts);
                 stmts.extend(some_expr.stmts);
                 stmts.extend(none_expr.stmts);
+                domain_exprs.extend(opt_expr.domain_exprs);
+                domain_exprs.extend(some_expr.domain_exprs);
+                domain_exprs.extend(none_expr.domain_exprs);
+                validity_predicates.extend(opt_expr.validity_predicates);
+                validity_predicates.extend(some_expr.validity_predicates);
+                validity_predicates.extend(none_expr.validity_predicates);
 
                 let expr = format!(
                     "(match {} (((some {}) {}) (none {})))",
@@ -597,7 +772,7 @@ impl SMTContext {
                     &some_expr.expr,
                     none_expr.expr
                 );
-                SMTResult::new(stmts, expr)
+                SMTResult::new(stmts, expr, domain_exprs, validity_predicates)
             }
         }
     }
@@ -644,7 +819,12 @@ impl SMTContext {
             .map(|c| self.lower_collection(equivs, c));
 
         let (sorts, fields): (Vec<_>, Vec<_>) = colls.map(|lc| (lc.sorts, lc.body)).unzip();
-        let mut out: Vec<_> = sorts.into_iter().flatten().chain(fields.into_iter().flatten()).chain(iter::once(princ_decl)).collect();
+        let mut out: Vec<_> = sorts
+            .into_iter()
+            .flatten()
+            .chain(fields.into_iter().flatten())
+            .chain(iter::once(princ_decl))
+            .collect();
         for (_princ_cons, princ_obj, princ_coll) in princ_ids.iter() {
             let princ_obj_decl =
                 self.declare_in_domain(ExprType::Object(princ_coll.clone()), princ_obj.clone());
@@ -658,7 +838,9 @@ impl SMTContext {
     /// and each field is a function mapping that sort to either a native
     /// SMT sort or to another sort.
     fn lower_collection(&mut self, equivs: &[Equiv], coll: &Collection) -> LoweredColl {
-        let mut sorts = vec![Statement::DeclSort{id: coll.name.coerce() }];
+        let mut sorts = vec![Statement::DeclSort {
+            id: coll.name.coerce(),
+        }];
 
         let joins = coll.fields().filter_map(|f| {
             if let ExprType::Set(ref inner_ty) = f.typ {
@@ -694,50 +876,85 @@ impl SMTContext {
             None
         });
 
-        let (join_sorts, join_fields): (Vec<_>, Vec<_>) = joins.map(|lc| (lc.sorts, lc.body)).unzip();
+        let (join_sorts, join_fields): (Vec<_>, Vec<_>) =
+            joins.map(|lc| (lc.sorts, lc.body)).unzip();
         sorts.extend(join_sorts.into_iter().flatten());
 
-        let fields = coll.fields().flat_map(move |f| {
-            if f.is_id() {
-                let id = Ident::new("id");
-                return vec![define(
-                    f.name.coerce(),
-                    &[(id.clone(), ExprType::Object(coll.name.clone()))],
-                    f.typ.clone(),
-                    ident(&id),
-                )];
-            }
-
-            let equiv = equivs
-                .iter()
-                .find(|Equiv(e, _)| e == &f.name)
-                .map(|Equiv(_, l)| l);
-            match equiv {
-                None => vec![declare(
-                    f.name.coerce(),
-                    &[ExprType::Object(coll.name.clone())],
-                    f.typ.clone(),
-                )],
-                Some(lambda) => {
-                    let varmap =
-                        VarMap::default().extend(lambda.param.clone(), lambda.param.coerce());
-                    let body = self.lower_expr(
-                        (&Ident::new("bogus"), &ExprType::Bool),
-                        &lambda.body,
-                        &varmap,
-                    );
-                    vec![define(
+        let fields =
+            coll.fields().flat_map(move |f| {
+                if f.is_id() {
+                    let id = Ident::new("id");
+                    return vec![define(
                         f.name.coerce(),
-                        &[(lambda.param.coerce(), ExprType::Object(coll.name.clone()))],
+                        &[(id.clone(), ExprType::Object(coll.name.clone()))],
                         f.typ.clone(),
-                        body.expr,
-                    )]
+                        ident(&id),
+                    )];
                 }
-            }
-        });
+
+                let equiv = equivs
+                    .iter()
+                    .find(|Equiv(e, _)| e == &f.name)
+                    .map(|Equiv(_, l)| l);
+                match equiv {
+                    None => vec![declare(
+                        f.name.coerce(),
+                        &[ExprType::Object(coll.name.clone())],
+                        f.typ.clone(),
+                    )],
+                    Some(lambda) => {
+                        let varmap =
+                            VarMap::default().extend(lambda.param.clone(), lambda.param.coerce());
+                        let body = self.lower_expr(
+                            (&Ident::new("bogus"), &ExprType::Bool),
+                            &lambda.body,
+                            &varmap,
+                            &equivs.iter().map(|equiv| equiv.0.clone()).collect(),
+                        );
+
+                        let mut out = body.stmts;
+                        out.push(define(
+                            validity_function_ident(&f.name).coerce(),
+                            &[(lambda.param.coerce(), ExprType::Object(coll.name.clone()))],
+                            ExprType::Bool,
+                            format!(
+                                "(and (and {}) (and {}))",
+                                if body.domain_exprs.len() == 0 {
+                                    "true".to_string()
+                                } else {
+                                    spaced(body.domain_exprs.into_iter().map(|(dexpr, ty)| {
+                                        format!(
+                                            "(or {})",
+                                            match self.domains.get(&ty) {
+                                                Some(vec) => spaced(vec.iter().map(
+                                                    |d_id| format!("(= {} {})", dexpr, ident(d_id))
+                                                )),
+                                                None => "false".to_string(),
+                                            }
+                                        )
+                                    }))
+                                },
+                                if body.validity_predicates.len() == 0 {
+                                    "true".to_string()
+                                } else {
+                                    spaced(body.validity_predicates.into_iter())
+                                }
+                            ),
+                        ));
+
+                        out.push(define(
+                            f.name.coerce(),
+                            &[(lambda.param.coerce(), ExprType::Object(coll.name.clone()))],
+                            f.typ.clone(),
+                            body.expr,
+                        ));
+                        out
+                    }
+                }
+            });
         LoweredColl {
             sorts,
-            body: join_fields.into_iter().flatten().chain(fields).collect()
+            body: join_fields.into_iter().flatten().chain(fields).collect(),
         }
     }
 
@@ -747,56 +964,78 @@ impl SMTContext {
         target: (&Ident<SMTVar>, &ExprType),
         exprs: &[&IRExpr],
         vm: &VarMap,
+        fields_with_equivs: &Vec<Ident<Field>>,
     ) -> SMTResult {
-        let (stmts, exprs): (Vec<Vec<Statement>>, Vec<String>) = exprs
+        let results: Vec<SMTResult> = exprs
             .into_iter()
-            .map(|e| self.lower_expr(target, e, vm))
-            .map(|r| (r.stmts, r.expr))
-            .unzip();
-        let body = format!("({} {})", op, spaced(exprs.iter()));
-        SMTResult::new(stmts.concat(), body)
+            .map(|e| self.lower_expr(target, e, vm, fields_with_equivs))
+            .collect();
+        let exprs = results.iter().map(|r| r.expr.clone());
+        let stmt_lsts: Vec<Vec<Statement>> = results.iter().map(|r| r.stmts.clone()).collect();
+        let dexpr_lsts: Vec<Vec<(String, ExprType)>> =
+            results.iter().map(|r| r.domain_exprs.clone()).collect();
+        let vpred_lsts: Vec<Vec<String>> = results
+            .iter()
+            .map(|r| r.validity_predicates.clone())
+            .collect();
+        let body = format!("({} {})", op, spaced(exprs));
+        SMTResult::new(
+            stmt_lsts.concat(),
+            body,
+            dexpr_lsts.concat(),
+            vpred_lsts.concat(),
+        )
+    }
+
+    fn predeclare_expr(&mut self, e: &IRExpr) -> Vec<Statement> {
+        let mut out = vec![];
+        for se in e.subexprs_preorder() {
+            match se {
+                IRExpr::LookupById(coll, ..) => {
+                    out.push(self.declare_in_domain(
+                        ExprType::Object(coll.clone()),
+                        Ident::new("domain_var"),
+                    ));
+                }
+                IRExpr::Path(ExprType::Set(_inner_ty), _obj, f) => {
+                    let (coll, _from, _to, _typ) = self
+                        .join_tables
+                        .get(f)
+                        .expect(&format!(
+                            "Couldn't find a join table for field {}",
+                            f.orig_name
+                        ))
+                        .clone();
+                    out.push(self.declare_in_domain(
+                        ExprType::Object(coll.clone()),
+                        Ident::new("domain_var"),
+                    ));
+                }
+                IRExpr::Find(coll, fields) => {
+                    out.push(self.declare_in_domain(
+                        ExprType::Object(coll.clone()),
+                        Ident::new("domain_var"),
+                    ));
+                    for (comp, field, _fty, _expr) in fields.iter() {
+                        if *comp == FieldComparison::Contains {
+                            let (coll, _from, _to, _typ) = self.join_tables[field].clone();
+                            out.push(self.declare_in_domain(
+                                ExprType::Object(coll.clone()),
+                                Ident::new("join_var"),
+                            ));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
     }
 
     fn predeclare(&mut self, pol: &Policy) -> Vec<Statement> {
         match pol {
             Policy::None | Policy::Anyone => vec![],
-            Policy::Func(f) => {
-                let mut out = vec![];
-                for e in f.body.subexprs_preorder() {
-                    match e {
-                        IRExpr::LookupById(coll, ..) => {
-                            out.push(self.declare_in_domain(
-                                ExprType::Object(coll.clone()),
-                                Ident::new("domain_var"),
-                            ));
-                        }
-                        IRExpr::Path(ExprType::Set(_inner_ty), _obj, f) => {
-                            let (coll, _from, _to, _typ) = self.join_tables[f].clone();
-                            out.push(self.declare_in_domain(
-                                ExprType::Object(coll.clone()),
-                                Ident::new("domain_var"),
-                            ));
-                        }
-                        IRExpr::Find(coll, fields) => {
-                            out.push(self.declare_in_domain(
-                                ExprType::Object(coll.clone()),
-                                Ident::new("domain_var"),
-                            ));
-                            for (comp, field, _fty, _expr) in fields.iter() {
-                                if *comp == FieldComparison::Contains {
-                                    let (coll, _from, _to, _typ) = self.join_tables[field].clone();
-                                    out.push(self.declare_in_domain(
-                                        ExprType::Object(coll.clone()),
-                                        Ident::new("join_var"),
-                                    ));
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                out
-            }
+            Policy::Func(f) => self.predeclare_expr(&f.body),
         }
     }
 
@@ -830,6 +1069,10 @@ impl SMTContext {
 
 pub fn ident<T>(ident: &Ident<T>) -> String {
     format!("{}_i{}", ident.orig_name, ident.index)
+}
+
+pub fn validity_function_ident<T>(id: &Ident<T>) -> Ident<T> {
+    Ident::unsafe_construct(0, format!("{}_valid", ident(id)))
 }
 
 pub fn type_name(typ: &ExprType) -> String {

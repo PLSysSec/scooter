@@ -1,12 +1,17 @@
+use lazy_static::lazy_static;
 use policy_lang::ir::{
     expr::{ExprType, Func},
     policy::Policy,
     schema::{Collection, Field, Schema},
     Ident,
 };
-use std::{collections::HashMap, fmt::{Debug, Display}, io::{BufRead, BufReader, Write}, process::{Command, Stdio}};
-use lazy_static::lazy_static;
 use regex::Regex;
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    io::{BufRead, BufReader, Write},
+    process::{Command, Stdio},
+};
 use translate::*;
 mod translate;
 
@@ -95,58 +100,57 @@ pub fn is_as_strict(
                 None => continue,
             };
             for field in coll.fields() {
-                    if let ExprType::Set(_inner_ty) = &field.typ {
-                        let mut lines = Vec::new();
-                        let (join_coll_id, _from_id, to_id, _typ) =
-                            &verif_problem.join_tables[&field.name];
-                        if let Some(vars) = tables_to_vars.get(&join_coll_id) {
-                            for var in vars {
-                                input
-                                    .write_all(
-                                        format!("(eval ({} {}))\n", ident(&to_id), ident(&var))
-                                            .as_bytes(),
-                                    )
-                                    .unwrap();
-                                line = String::new();
-                                reader.read_line(&mut line).unwrap();
-                                lines.push(line.trim().to_owned());
-                            }
+                if let ExprType::Set(_inner_ty) = &field.typ {
+                    let mut lines = Vec::new();
+                    let (join_coll_id, _from_id, to_id, _typ) =
+                        &verif_problem.join_tables[&field.name];
+                    if let Some(vars) = tables_to_vars.get(&join_coll_id) {
+                        for var in vars {
+                            input
+                                .write_all(
+                                    format!("(eval ({} {}))\n", ident(&to_id), ident(&var))
+                                        .as_bytes(),
+                                )
+                                .unwrap();
+                            line = String::new();
+                            reader.read_line(&mut line).unwrap();
+                            lines.push(line.trim().to_owned());
                         }
-
-                        fields.push((field.name.clone(), format!("[{}]", lines.join(", "))));
-                    } else {
-                        input
-                            .write_all(
-                                format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
-                                    .as_bytes(),
-                            )
-                            .unwrap();
-                        line = String::new();
-                        reader.read_line(&mut line).unwrap();
-
-                        let clean_value = parse(&field.typ, &line.trim());
-                        fields.push((field.name.clone(), clean_value));
-
                     }
-                    // ExprType::I64 => {
-                    //     input
-                    //         .write_all(
-                    //             format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
-                    //                 .as_bytes(),
-                    //         )
-                    //         .unwrap();
-                    //     line = String::new();
-                    //     reader.read_line(&mut line).unwrap();
-                    //     let raw = line.trim().trim_start_matches("#x");
-                    //     fields.push((
-                    //         field.name.clone(),
-                    //         format!(
-                    //             "{}",
-                    //             i64::from_str_radix(raw, 16)
-                    //                 .expect(&format!("Couldn't parse hex {}", raw))
-                    //         ),
-                    //     ))
-                    // }
+
+                    fields.push((field.name.clone(), format!("[{}]", lines.join(", "))));
+                } else {
+                    input
+                        .write_all(
+                            format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
+                                .as_bytes(),
+                        )
+                        .unwrap();
+                    line = String::new();
+                    reader.read_line(&mut line).unwrap();
+
+                    let clean_value = parse(&field.typ, &line.trim());
+                    fields.push((field.name.clone(), clean_value));
+                }
+                // ExprType::I64 => {
+                //     input
+                //         .write_all(
+                //             format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
+                //                 .as_bytes(),
+                //         )
+                //         .unwrap();
+                //     line = String::new();
+                //     reader.read_line(&mut line).unwrap();
+                //     let raw = line.trim().trim_start_matches("#x");
+                //     fields.push((
+                //         field.name.clone(),
+                //         format!(
+                //             "{}",
+                //             i64::from_str_radix(raw, 16)
+                //                 .expect(&format!("Couldn't parse hex {}", raw))
+                //         ),
+                //     ))
+                // }
             }
             let obj = ModelObject {
                 coll: coll.name.clone(),
@@ -162,33 +166,34 @@ pub fn is_as_strict(
 
 fn parse(typ: &ExprType, text: &str) -> String {
     match typ {
-        ExprType::I64 => {
-            i64::from_str_radix(text.trim_start_matches("#x"), 16).expect(&format!("Couldn't parse hex from SMT {}", text)).to_string()
-        }
+        ExprType::I64 => i64::from_str_radix(text.trim_start_matches("#x"), 16)
+            .expect(&format!("Couldn't parse hex from SMT {}", text))
+            .to_string(),
         ExprType::Id(_) => {
             lazy_static! {
                 static ref ID_RE: Regex = Regex::new(r#"_i\d+!val!(?P<id>\d+)"#).unwrap();
             }
             ID_RE.replace_all(text, "($id)").into()
-        },
+        }
         ExprType::Principal => {
             lazy_static! {
                 static ref ID_PRINC: Regex = Regex::new(r#"\(\S+ (?P<id>[^)]*)\)"#).unwrap();
             }
             if ID_PRINC.is_match(text) {
-                parse(&ExprType::Id(Ident::new("dummy")), &ID_PRINC.replace_all(text, "$id"))
+                parse(
+                    &ExprType::Id(Ident::new("dummy")),
+                    &ID_PRINC.replace_all(text, "$id"),
+                )
             } else {
                 text.to_owned()
             }
         }
-        _ => {
-            text.to_owned()
-        }
+        _ => text.to_owned(),
     }
 }
 
 fn db_objects<'a>(
-    vp: &'a VerifProblem
+    vp: &'a VerifProblem,
 ) -> impl Iterator<Item = (Ident<Collection>, Ident<SMTVar>)> + 'a {
     vp.stmts.iter().filter_map(move |stmt| match stmt {
         Statement::DeclFun {
@@ -260,7 +265,11 @@ impl Model {
 impl Display for Model {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let rec = self.rec();
-        write!(f, "Principal: {}\n\nCAN NOW ACCESS:\n\n{:#}\n\nOTHER RECORDS:\n\n", self.princ, rec)?;
+        write!(
+            f,
+            "Principal: {}\n\nCAN NOW ACCESS:\n\n{:#}\n\nOTHER RECORDS:\n\n",
+            self.princ, rec
+        )?;
 
         for obj in self.objects.iter() {
             if obj.id() != rec.id() {

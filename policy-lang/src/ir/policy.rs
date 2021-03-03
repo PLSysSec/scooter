@@ -71,11 +71,17 @@ impl Policy {
     pub fn expr_map(&self, f: &dyn Fn(IRExpr) -> IRExpr) -> Policy {
         match self {
             Policy::None | Policy::Anyone => self.clone(),
-            Policy::Func(Func{param, param_type, return_type, body}) =>
-                Policy::Func(Func{param: param.clone(),
-                                  param_type: param_type.clone(),
-                                  return_type: return_type.clone(),
-                                  body: Box::new(body.map(f))})
+            Policy::Func(Func {
+                param,
+                param_type,
+                return_type,
+                body,
+            }) => Policy::Func(Func {
+                param: param.clone(),
+                param_type: param_type.clone(),
+                return_type: return_type.clone(),
+                body: Box::new(body.map(f)),
+            }),
         }
     }
 }

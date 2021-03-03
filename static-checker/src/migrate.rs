@@ -1337,7 +1337,8 @@ Message {
         assert_eq!(expected_result_text, out_text);
     }
     #[test]
-    fn constraints_test(){
+    #[should_panic]
+    fn constraints_test() {
         let policy_text = r"@principle
 User {
     create: none,
@@ -1389,4 +1390,128 @@ Post {
 }
 ";
     }
+
+    #[test]
+    fn equivalences_crash() {
+        let policy_text = r"@principal
+User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: none,
+    },
+}
+Post {
+    create: none,
+    delete: none,
+
+    author : Id(User) {
+        read: public,
+        write: none,
+    },
+}
+";
+        let migration_text = r#"
+Post::AddField(summary: String {
+    read: public,
+    write: p -> [p.author],
+}, p -> "Post by " + User::ById(p.author).username)
+Post::UpdateFieldPolicy(summary, read, public)
+"#;
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
+
+        let expected_result_text = r"@principal
+User {
+    create: none,
+    delete: none,
+
+    username : String {
+        read: public,
+        write: none,
+    },
+}
+Post {
+    create: none,
+    delete: none,
+
+    author : Id(User) {
+        read: public,
+        write: none,
+    },
+    summary : String {
+        read: public,
+        write: p -> [p.author],
+    },
+}
+";
+
+        assert_eq!(out_text, expected_result_text)
+    }
+
+    //     #[test]
+    //     fn find_equivalences_crash() {
+    //         let policy_text = r"@principle
+    // User {
+    //     create: public,
+    //     delete: u -> [u.id],
+
+    //     is_admin : Bool {
+    //         read: public,
+    //         write: none,
+    //     },
+    //     site : Id(Site) {
+    //         read: public,
+    //         write: none,
+    //     },
+    // }
+    // Site {
+    //     create: public,
+    //     delete: none,
+
+    //     name : String {
+    //         read: public,
+    //         write: s -> User::Find({site: s.id, is_admin: true}).map(u -> u.id),
+    //     },
+    // }
+    // ";
+    //         let migration_text =
+    //             r#"
+    // Site::AddField(admins: Set(Id(User)) {
+    //   read: public,
+    //   write: s -> s.admins,
+    // },
+    //   s -> User::Find({site: s.id, is_admin: true}).map(u -> u.id)
+    // )
+    // Site::TightenFieldPolicy(name, write, s -> s.admins)
+    // "#;
+    //         let out_text = migrate_policy(policy_text, migration_text).unwrap();
+
+    //         let expected_result_text = r"@principle
+    // User {
+    //     create: public,
+    //     delete: u -> [u.id],
+
+    //     is_admin : Bool {
+    //         read: public,
+    //         write: none,
+    //     },
+    //     site : Id(Site) {
+    //         read: public,
+    //         write: none,
+    //     },
+    // }
+    // Site {
+    //     create: public,
+    //     delete: none,
+
+    //     name : String {
+    //         read: public,
+    //         write: s -> s.admins,
+    //     },
+    // }
+    // ";
+    //         assert_eq!(out_text, expected_result_text)
+    //     }
 }

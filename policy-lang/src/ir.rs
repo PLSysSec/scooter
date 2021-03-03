@@ -39,6 +39,13 @@ impl<T> Ident<T> {
             pd: PhantomData::default(),
         }
     }
+    pub fn unsafe_construct(index: u32, orig_name: String) -> Self {
+        Self {
+            index,
+            orig_name,
+            pd: PhantomData::default(),
+        }
+    }
 
     fn eq_str(&self, s: impl AsRef<str>) -> bool {
         self.orig_name == s.as_ref()
