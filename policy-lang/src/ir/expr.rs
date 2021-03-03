@@ -1008,7 +1008,9 @@ impl LoweringContext {
         }
         match (typ, &expr_typ) {
             (ExprType::F64, ExprType::I64) => Box::new(IRExpr::IntToFloat(expr)),
-            _ => panic!("Type error: unable to coerce {} to {}", expr_typ, typ),
+            _ => panic!("Type error: Expression `{}` is expected to have type {}, \
+                         but it has type {}",
+                        expr_to_string(expr), typ, expr_typ),
         }
     }
 
