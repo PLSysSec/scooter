@@ -15,8 +15,9 @@ test: mongod-exists
 case-studies: case-studies/hails/gitstar case-studies/hails/lambdachair case-studies/hails/lbh case-studies/lifty-conference case-studies/ur-calendar case-studies/visit-day
 
 case-studies/%: build
-	cd scripts && pwd && ./run_case_study.sh $*
-	@echo "Successfully validated case-study: $*"
+	@cd scripts && pwd && ./run_case_study.sh $*
+	scripts/summarize.sh case-studies/$*
+	@printf "Successfully validated case-study: $*\n\n"
 
 benchmark:
 	mkdir -p ./.db

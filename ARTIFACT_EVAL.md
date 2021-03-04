@@ -47,7 +47,7 @@ instructions](https://docs.mongodb.com/manual/administration/install-on-linux/)
 
 Once your environment is set up you can verify our results by running the following commands:
 
-1. Verifying Case Studies (Sec. 5.1)
+1. Verifying Case Studies (Sec. 5.1 & Fig. 5)
 
 ```
 make case-studies
@@ -67,4 +67,25 @@ These commands may require builds or rebuilds of the source. Those builds may ta
 Beyond what we present in the paper, feel free to experiment. Be warned the
 parser generator we use unfortunately produces... unhelpful error messages.
 
+### Playing with the ORM
 `mongodb-enforcement/example-project` contains a project set up and ready to experiment with.
+
+### Playing with Sidecar (the static checker)
+You can add your own case studies to the case studies folder for example:
+```
+mkdir case-studies/goofin-around
+```
+
+And create an initial policy and migration:
+
+```
+cd case-studies/goofin-around
+touch policy.txt
+touch 0.mig
+```
+
+And run them with:
+
+```
+make case-studies/goofin-around
+```

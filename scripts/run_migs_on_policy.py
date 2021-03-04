@@ -41,14 +41,14 @@ def main() -> None:
             cwd=args.outdir,  # Run from the script directory
             check=True)  # Fail if the exit code is non-zero
 
-        print(result.stderr, file=sys.stderr)
+        print(result.stderr, file=sys.stderr, end="")
 
         new_migpath.unlink()
 
         shutil.copyfile(args.outdir / "policy.txt",
                         args.outdir / f"policy.{idx}.txt")
         with (args.outdir / "policy.txt").open('w') as f:
-            print(result.stdout, file=f)
+            print(result.stdout, file=f, end="")
 
     (args.outdir / "policy.txt").rename(args.outdir /
                                         f"policy.{len(args.migrations)}.txt")
