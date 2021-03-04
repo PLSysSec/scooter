@@ -30,7 +30,8 @@ pub(crate) fn gen_assert(
     after: &Policy,
 ) -> VerifProblem {
     let mut ctx = SMTContext::default();
-    let low_schema_sorts = ctx.lower_schema_sorts(schema);
+    let fields_with_equivs: Vec<_> = equivs.iter().map(|equiv| equiv.0.clone()).collect();
+    let low_schema_sorts = ctx.lower_schema_sorts(schema, &fields_with_equivs);
     let princ_id = Ident::new("principal");
     let rec_id = Ident::new("rec");
 
@@ -46,8 +47,8 @@ pub(crate) fn gen_assert(
         Statement::Hack("(declare-datatypes (T) ((Option none (some (v T)))))".to_string());
 
     // Predeclare the functions
-    let mut before_decl = ctx.predeclare(before);
-    let mut after_decl = ctx.predeclare(after);
+    let mut before_decl = ctx.predeclare(before, &fields_with_equivs);
+    let mut after_decl = ctx.predeclare(after, &fields_with_equivs);
 
     // Lower the fields
     let mut low_schema_fields = ctx.lower_schema_fields(equivs, schema);
@@ -56,20 +57,19 @@ pub(crate) fn gen_assert(
     let var_map = VarMap::from_schema(schema);
 
     // Lower the functions
-    let fields_with_equivs = equivs.iter().map(|equiv| equiv.0.clone()).collect();
     let mut before = ctx.lower_policy(&princ_id, &rec_id, &var_map, before, &fields_with_equivs);
     let mut after = ctx.lower_policy(&princ_id, &rec_id, &var_map, after, &fields_with_equivs);
 
     let safety_assertion =
         Statement::Assert(format!("(and {} (not {}))", &after.expr, &before.expr,));
     let mut out = low_schema_sorts;
-    out.append(&mut low_schema_fields);
     out.insert(0, option_datatype);
     out.append(&mut before_decl);
     out.append(&mut after_decl);
     out.push(princ);
     out.push(rec);
     out.push(now);
+    out.append(&mut low_schema_fields);
     out.append(&mut before.stmts);
     out.append(&mut after.stmts);
     out.push(safety_assertion);
@@ -292,33 +292,43 @@ impl SMTContext {
             IRExpr::Path(ty, obj, f) => match ty {
                 ExprType::Set(ref _inner_ty) => {
                     let lower = self.lower_expr(target, obj, vm, fields_with_equivs);
-                    let (coll, from, to, _typ) = self.join_tables[f].clone();
-                    let domain_ids = self.domains[&ExprType::Object(coll.clone())].clone();
-                    let domain_clauses: Vec<_> = domain_ids
-                        .into_iter()
-                        .map(|id| {
-                            format!(
-                                "(and (= ({} {}) {}) (= ({} {}) {}))",
-                                ident(&from),
-                                ident(&id),
-                                &lower.expr,
-                                ident(&to),
-                                ident(&id),
-                                ident(&target.0)
-                            )
-                        })
-                        .collect();
-                    let expr = format!("(or {})", domain_clauses.join(" "));
-                    let mut validity_predicates = lower.validity_predicates;
                     if fields_with_equivs.contains(&f) {
+                        let expr = format!("({} {} {})", ident(&f), lower.expr, ident(target.0));
+                        let mut validity_predicates = lower.validity_predicates;
                         validity_predicates.push(format!(
                             "({} {})",
                             ident(&validity_function_ident(f)),
                             lower.expr
-                        ))
+                        ));
+                        SMTResult::new(lower.stmts, expr, lower.domain_exprs, validity_predicates)
+                    } else {
+                        let (coll, from, to, _typ) = self.join_tables[f].clone();
+                        let domain_ids = self.domains[&ExprType::Object(coll.clone())].clone();
+                        let domain_clauses: Vec<_> = domain_ids
+                            .into_iter()
+                            .map(|id| {
+                                format!(
+                                    "(and (= ({} {}) {}) (= ({} {}) {}))",
+                                    ident(&from),
+                                    ident(&id),
+                                    &lower.expr,
+                                    ident(&to),
+                                    ident(&id),
+                                    ident(&target.0)
+                                )
+                            })
+                            .collect();
+                        let expr = format!("(or {})", domain_clauses.join(" "));
+                        let mut validity_predicates = lower.validity_predicates;
+                        if fields_with_equivs.contains(&f) {
+                            validity_predicates.push(format!(
+                                "({} {})",
+                                ident(&validity_function_ident(f)),
+                                lower.expr
+                            ))
+                        }
+                        SMTResult::new(lower.stmts, expr, lower.domain_exprs, validity_predicates)
                     }
-                    // TODO: This might not be the right set of domain_exprs
-                    SMTResult::new(lower.stmts, expr, lower.domain_exprs, validity_predicates)
                 }
                 _ => {
                     let lowered = self.lower_expr(target, obj, vm, fields_with_equivs);
@@ -785,7 +795,11 @@ impl SMTContext {
     }
 
     /// Lowers the schema sorts to a String containing an SMT2LIB script
-    fn lower_schema_sorts(&mut self, schema: &Schema) -> Vec<Statement> {
+    fn lower_schema_sorts(
+        &mut self,
+        schema: &Schema,
+        fields_with_equivs: &[Ident<Field>],
+    ) -> Vec<Statement> {
         let princ_ids: Vec<_> = schema
             .dynamic_principals
             .iter()
@@ -823,7 +837,7 @@ impl SMTContext {
         let colls = schema
             .collections
             .iter()
-            .map(|c| self.lower_collection_sorts(c));
+            .map(|c| self.lower_collection_sorts(c, fields_with_equivs));
 
         let (sorts, bodies): (Vec<_>, Vec<_>) = colls.map(|lc| (lc.sorts, lc.body)).unzip();
         let mut out: Vec<_> = sorts
@@ -849,13 +863,20 @@ impl SMTContext {
             .concat()
     }
 
-    fn lower_collection_sorts(&mut self, coll: &Collection) -> LoweredColl {
+    fn lower_collection_sorts(
+        &mut self,
+        coll: &Collection,
+        fields_with_equivs: &[Ident<Field>],
+    ) -> LoweredColl {
         let mut sorts = vec![Statement::DeclSort {
             id: coll.name.coerce(),
         }];
 
         let joins = coll.fields().filter_map(|f| {
             if let ExprType::Set(ref inner_ty) = f.typ {
+                if fields_with_equivs.contains(&f.name) {
+                    return None;
+                }
                 let coll_name = Ident::new(coll.name.orig_name.clone() + &f.name.orig_name);
                 let from_name = Ident::new("from");
                 let to_name = Ident::new("to");
@@ -922,12 +943,37 @@ impl SMTContext {
                     Some(lambda) => {
                         let varmap =
                             VarMap::default().extend(lambda.param.clone(), lambda.param.coerce());
-                        let body = self.lower_expr(
-                            (&Ident::new("bogus"), &ExprType::Bool),
-                            &lambda.body,
-                            &varmap,
-                            &equivs.iter().map(|equiv| equiv.0.clone()).collect(),
-                        );
+
+                        let (params, body, rty): (
+                            Vec<(Ident<SMTVar>, ExprType)>,
+                            SMTResult,
+                            ExprType,
+                        ) = match f.typ {
+                            ExprType::Set(ref ty) => {
+                                let target_ident = Ident::new("target");
+                                let params = vec![
+                                    (lambda.param.coerce(), ExprType::Object(coll.name.clone())),
+                                    (target_ident.clone(), *ty.clone()),
+                                ];
+                                let body = self.lower_expr(
+                                    (&target_ident, &ty),
+                                    &lambda.body,
+                                    &varmap,
+                                    &equivs.iter().map(|equiv| equiv.0.clone()).collect(),
+                                );
+                                (params, body, ExprType::Bool)
+                            }
+                            _ => (
+                                vec![(lambda.param.coerce(), ExprType::Object(coll.name.clone()))],
+                                self.lower_expr(
+                                    (&Ident::new("bogus"), &ExprType::Bool),
+                                    &lambda.body,
+                                    &varmap,
+                                    &equivs.iter().map(|equiv| equiv.0.clone()).collect(),
+                                ),
+                                f.typ.clone(),
+                            ),
+                        };
 
                         let mut out = body.stmts;
                         out.push(define(
@@ -959,12 +1005,7 @@ impl SMTContext {
                             ),
                         ));
 
-                        out.push(define(
-                            f.name.coerce(),
-                            &[(lambda.param.coerce(), ExprType::Object(coll.name.clone()))],
-                            f.typ.clone(),
-                            body.expr,
-                        ));
+                        out.push(define(f.name.coerce(), &params, rty, body.expr));
                         out
                     }
                 }
@@ -977,7 +1018,8 @@ impl SMTContext {
     /// and each field is a function mapping that sort to either a native
     /// SMT sort or to another sort.
     fn lower_collection(&mut self, equivs: &[Equiv], coll: &Collection) -> LoweredColl {
-        let sorts = self.lower_collection_sorts(coll);
+        let fields_with_equivs: Vec<_> = equivs.iter().map(|equiv| equiv.0.clone()).collect();
+        let sorts = self.lower_collection_sorts(coll, &fields_with_equivs);
         let fields = self.lower_collection_fields(equivs, coll);
         LoweredColl {
             sorts: sorts.sorts,
@@ -1014,7 +1056,11 @@ impl SMTContext {
         )
     }
 
-    fn predeclare_expr(&mut self, e: &IRExpr) -> Vec<Statement> {
+    fn predeclare_expr(
+        &mut self,
+        e: &IRExpr,
+        fields_with_equivs: &[Ident<Field>],
+    ) -> Vec<Statement> {
         let mut out = vec![];
         for se in e.subexprs_preorder() {
             match se {
@@ -1025,18 +1071,20 @@ impl SMTContext {
                     ));
                 }
                 IRExpr::Path(ExprType::Set(_inner_ty), _obj, f) => {
-                    let (coll, _from, _to, _typ) = self
-                        .join_tables
-                        .get(f)
-                        .expect(&format!(
-                            "Couldn't find a join table for field {}",
-                            f.orig_name
-                        ))
-                        .clone();
-                    out.push(self.declare_in_domain(
-                        ExprType::Object(coll.clone()),
-                        Ident::new("domain_var"),
-                    ));
+                    if !fields_with_equivs.contains(f) {
+                        let (coll, _from, _to, _typ) = self
+                            .join_tables
+                            .get(f)
+                            .expect(&format!(
+                                "Couldn't find a join table for field {}",
+                                f.orig_name
+                            ))
+                            .clone();
+                        out.push(self.declare_in_domain(
+                            ExprType::Object(coll.clone()),
+                            Ident::new("domain_var"),
+                        ));
+                    }
                 }
                 IRExpr::Find(coll, fields) => {
                     out.push(self.declare_in_domain(
@@ -1059,10 +1107,10 @@ impl SMTContext {
         out
     }
 
-    fn predeclare(&mut self, pol: &Policy) -> Vec<Statement> {
+    fn predeclare(&mut self, pol: &Policy, fields_with_equivs: &[Ident<Field>]) -> Vec<Statement> {
         match pol {
             Policy::None | Policy::Anyone => vec![],
-            Policy::Func(f) => self.predeclare_expr(&f.body),
+            Policy::Func(f) => self.predeclare_expr(&f.body, fields_with_equivs),
         }
     }
 

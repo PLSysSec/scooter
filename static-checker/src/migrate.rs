@@ -1451,68 +1451,71 @@ Post {
         assert_eq!(out_text, expected_result_text)
     }
 
-    //     #[test]
-    //     fn find_equivalences_crash() {
-    //         let policy_text = r"@principle
-    // User {
-    //     create: public,
-    //     delete: u -> [u.id],
+    #[test]
+    fn find_equivalences_crash() {
+        let policy_text = r"@principal
+User {
+    create: public,
+    delete: u -> [u.id],
 
-    //     is_admin : Bool {
-    //         read: public,
-    //         write: none,
-    //     },
-    //     site : Id(Site) {
-    //         read: public,
-    //         write: none,
-    //     },
-    // }
-    // Site {
-    //     create: public,
-    //     delete: none,
+    is_admin : Bool {
+        read: public,
+        write: none,
+    },
+    site : Id(Site) {
+        read: public,
+        write: none,
+    },
+}
+Site {
+    create: public,
+    delete: none,
 
-    //     name : String {
-    //         read: public,
-    //         write: s -> User::Find({site: s.id, is_admin: true}).map(u -> u.id),
-    //     },
-    // }
-    // ";
-    //         let migration_text =
-    //             r#"
-    // Site::AddField(admins: Set(Id(User)) {
-    //   read: public,
-    //   write: s -> s.admins,
-    // },
-    //   s -> User::Find({site: s.id, is_admin: true}).map(u -> u.id)
-    // )
-    // Site::TightenFieldPolicy(name, write, s -> s.admins)
-    // "#;
-    //         let out_text = migrate_policy(policy_text, migration_text).unwrap();
+    name : String {
+        read: public,
+        write: s -> User::Find({site: s.id, is_admin: true}).map(u -> u.id),
+    },
+}
+";
+        let migration_text = r#"
+Site::AddField(admins: Set(Id(User)) {
+  read: public,
+  write: s -> s.admins,
+},
+  s -> User::Find({site: s.id, is_admin: true}).map(u -> u.id)
+)
+Site::UpdateFieldPolicy(name, write, s -> s.admins)
+"#;
+        let out_text = migrate_policy(policy_text, migration_text).unwrap();
 
-    //         let expected_result_text = r"@principle
-    // User {
-    //     create: public,
-    //     delete: u -> [u.id],
+        let expected_result_text = r"@principal
+User {
+    create: public,
+    delete: u -> [u.id],
 
-    //     is_admin : Bool {
-    //         read: public,
-    //         write: none,
-    //     },
-    //     site : Id(Site) {
-    //         read: public,
-    //         write: none,
-    //     },
-    // }
-    // Site {
-    //     create: public,
-    //     delete: none,
+    is_admin : Bool {
+        read: public,
+        write: none,
+    },
+    site : Id(Site) {
+        read: public,
+        write: none,
+    },
+}
+Site {
+    create: public,
+    delete: none,
 
-    //     name : String {
-    //         read: public,
-    //         write: s -> s.admins,
-    //     },
-    // }
-    // ";
-    //         assert_eq!(out_text, expected_result_text)
-    //     }
+    name : String {
+        read: public,
+        write: s -> s.admins,
+    },
+    admins : Set(Id(User)) {
+        read: public,
+        write: s -> s.admins,
+    },
+}
+";
+        assert_eq!(out_text, expected_result_text)
+    }
 }
