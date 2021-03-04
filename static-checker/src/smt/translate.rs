@@ -30,7 +30,7 @@ pub(crate) fn gen_assert(
     after: &Policy,
 ) -> VerifProblem {
     let mut ctx = SMTContext::default();
-    let low_schema = ctx.lower_schema(equivs, schema);
+    let low_schema_sorts = ctx.lower_schema_sorts(schema);
     let princ_id = Ident::new("principal");
     let rec_id = Ident::new("rec");
 
@@ -49,6 +49,9 @@ pub(crate) fn gen_assert(
     let mut before_decl = ctx.predeclare(before);
     let mut after_decl = ctx.predeclare(after);
 
+    // Lower the fields
+    let mut low_schema_fields = ctx.lower_schema_fields(equivs, schema);
+
     // Create initial variable mapping
     let var_map = VarMap::from_schema(schema);
 
@@ -59,7 +62,8 @@ pub(crate) fn gen_assert(
 
     let safety_assertion =
         Statement::Assert(format!("(and {} (not {}))", &after.expr, &before.expr,));
-    let mut out = low_schema;
+    let mut out = low_schema_sorts;
+    out.append(&mut low_schema_fields);
     out.insert(0, option_datatype);
     out.append(&mut before_decl);
     out.append(&mut after_decl);
@@ -780,8 +784,8 @@ impl SMTContext {
         }
     }
 
-    /// Lowers the schema to a String containing an SMT2LIB script
-    fn lower_schema(&mut self, equivs: &[Equiv], schema: &Schema) -> Vec<Statement> {
+    /// Lowers the schema sorts to a String containing an SMT2LIB script
+    fn lower_schema_sorts(&mut self, schema: &Schema) -> Vec<Statement> {
         let princ_ids: Vec<_> = schema
             .dynamic_principals
             .iter()
@@ -819,13 +823,13 @@ impl SMTContext {
         let colls = schema
             .collections
             .iter()
-            .map(|c| self.lower_collection(equivs, c));
+            .map(|c| self.lower_collection_sorts(c));
 
-        let (sorts, fields): (Vec<_>, Vec<_>) = colls.map(|lc| (lc.sorts, lc.body)).unzip();
+        let (sorts, bodies): (Vec<_>, Vec<_>) = colls.map(|lc| (lc.sorts, lc.body)).unzip();
         let mut out: Vec<_> = sorts
             .into_iter()
             .flatten()
-            .chain(fields.into_iter().flatten())
+            .chain(bodies.into_iter().flatten())
             .chain(iter::once(princ_decl))
             .collect();
         for (_princ_cons, princ_obj, princ_coll) in princ_ids.iter() {
@@ -834,6 +838,15 @@ impl SMTContext {
             out.push(princ_obj_decl);
         }
         out
+    }
+    /// Lowers the schema fields to a String containing an SMT2LIB script
+    fn lower_schema_fields(&mut self, equivs: &[Equiv], schema: &Schema) -> Vec<Statement> {
+        schema
+            .collections
+            .iter()
+            .map(|c| self.lower_collection_fields(equivs, c))
+            .collect::<Vec<_>>()
+            .concat()
     }
 
     fn lower_collection_sorts(&mut self, coll: &Collection) -> LoweredColl {
@@ -875,12 +888,12 @@ impl SMTContext {
             None
         });
 
-        let (join_sorts, join_fields): (Vec<_>, Vec<_>) =
+        let (join_sorts, join_bodies): (Vec<_>, Vec<_>) =
             joins.map(|lc| (lc.sorts, lc.body)).unzip();
         sorts.extend(join_sorts.into_iter().flatten());
         LoweredColl {
             sorts,
-            body: join_fields.concat(),
+            body: join_bodies.concat(),
         }
     }
     fn lower_collection_fields(&mut self, equivs: &[Equiv], coll: &Collection) -> Vec<Statement> {
