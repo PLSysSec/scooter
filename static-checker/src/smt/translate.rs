@@ -590,7 +590,6 @@ impl SMTContext {
                     domain_exprs.extend(list_expr.domain_exprs);
                     validity_predicates.extend(list_expr.validity_predicates);
 
-                    // TODO: really not sure these two lines are right
                     domain_exprs.extend(func_expr.domain_exprs);
                     validity_predicates.extend(func_expr.validity_predicates);
                 }
@@ -633,7 +632,6 @@ impl SMTContext {
                     );
                     preamble.extend(func_expr.stmts);
 
-                    // TODO: Really not sure these two lines are right
                     domain_exprs.extend(func_expr.domain_exprs);
                     validity_predicates.extend(func_expr.validity_predicates);
 
