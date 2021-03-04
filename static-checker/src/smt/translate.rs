@@ -16,6 +16,7 @@ pub(crate) struct VerifProblem {
     pub stmts: Vec<Statement>,
     pub join_tables:
         HashMap<Ident<Field>, (Ident<Collection>, Ident<Field>, Ident<Field>, ExprType)>,
+    pub domains: HashMap<ExprType, Vec<Ident<SMTVar>>>,
 }
 
 lazy_static! {
@@ -79,6 +80,7 @@ pub(crate) fn gen_assert(
         rec: rec_id,
         stmts: out,
         join_tables: ctx.join_tables,
+        domains: ctx.domains,
     }
 }
 

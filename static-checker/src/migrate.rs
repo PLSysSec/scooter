@@ -1452,6 +1452,7 @@ Post {
     }
 
     #[test]
+    #[should_panic = "Migration unsafe!"]
     fn find_equivalences_crash() {
         let policy_text = r"@principal
 User {
@@ -1475,6 +1476,10 @@ Site {
         read: public,
         write: s -> User::Find({site: s.id, is_admin: true}).map(u -> u.id),
     },
+    owner : Id(User) {
+        read: public,
+        write: none,
+    },
 }
 ";
         let migration_text = r#"
@@ -1482,7 +1487,7 @@ Site::AddField(admins: Set(Id(User)) {
   read: public,
   write: s -> s.admins,
 },
-  s -> User::Find({site: s.id, is_admin: true}).map(u -> u.id)
+  s -> User::Find({is_admin: true}).map(u -> u.id)
 )
 Site::UpdateFieldPolicy(name, write, s -> s.admins)
 "#;
@@ -1509,6 +1514,10 @@ Site {
     name : String {
         read: public,
         write: s -> s.admins,
+    },
+    owner : Id(User) {
+        read: public,
+        write: none,
     },
     admins : Set(Id(User)) {
         read: public,

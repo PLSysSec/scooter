@@ -99,24 +99,71 @@ pub fn is_as_strict(
                 None => continue,
             };
             for field in coll.fields() {
-                if let ExprType::Set(_inner_ty) = &field.typ {
+                if let ExprType::Set(inner_ty) = &field.typ {
                     let mut lines = Vec::new();
-                    let (join_coll_id, _from_id, to_id, _typ) =
-                        &verif_problem.join_tables[&field.name];
-                    if let Some(vars) = tables_to_vars.get(&join_coll_id) {
-                        for var in vars {
-                            input
-                                .write_all(
-                                    format!("(eval ({} {}))\n", ident(&to_id), ident(&var))
+                    let inner_domain_ty = if let ExprType::Id(x) = inner_ty.as_ref() {
+                        ExprType::Object(x.clone())
+                    } else {
+                        panic!(
+                            "We can't currently provide counterexamples for \
+                                sets of primitives that are constrained by \
+                                equivalences."
+                        )
+                    };
+                    match eqs
+                        .iter()
+                        .find(|Equiv(f_name, _val_expr)| field.name == *f_name)
+                    {
+                        Some(Equiv(_, _)) => {
+                            for domain_var in verif_problem
+                                .domains
+                                .get(&inner_domain_ty)
+                                .expect(&format!("Cannot find domain for {}", inner_ty))
+                            {
+                                input
+                                    .write_all(
+                                        format!(
+                                            "(eval ({} {} {}))\n",
+                                            ident(&field.name),
+                                            ident(&var_id),
+                                            ident(&domain_var)
+                                        )
                                         .as_bytes(),
-                                )
-                                .unwrap();
-                            line = String::new();
-                            reader.read_line(&mut line).unwrap();
-                            lines.push(line.trim().to_owned());
+                                    )
+                                    .unwrap();
+                                line = String::new();
+                                reader.read_line(&mut line).unwrap();
+                                if line.trim() == "true" {
+                                    input
+                                        .write_all(
+                                            format!("(eval {})\n", ident(&domain_var)).as_bytes(),
+                                        )
+                                        .unwrap();
+                                    line = String::new();
+                                    reader.read_line(&mut line).unwrap();
+                                    let clean_value = parse(&inner_ty, &line.trim());
+                                    lines.push(clean_value.to_owned())
+                                }
+                            }
+                        }
+                        None => {
+                            let (join_coll_id, _from_id, to_id, _typ) =
+                                &verif_problem.join_tables[&field.name];
+                            if let Some(vars) = tables_to_vars.get(&join_coll_id) {
+                                for var in vars {
+                                    input
+                                        .write_all(
+                                            format!("(eval ({} {}))\n", ident(&to_id), ident(&var))
+                                                .as_bytes(),
+                                        )
+                                        .unwrap();
+                                    line = String::new();
+                                    reader.read_line(&mut line).unwrap();
+                                    lines.push(line.trim().to_owned());
+                                }
+                            }
                         }
                     }
-
                     fields.push((field.name.clone(), format!("[{}]", lines.join(", "))));
                 } else {
                     input
