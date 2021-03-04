@@ -31,7 +31,6 @@ pub fn is_as_strict(
         .map(Statement::to_string)
         .collect::<Vec<_>>()
         .join("");
-    eprintln!("{}", assertion);
     let mut child = Command::new("z3")
         .arg("-smt2")
         .arg("-in")

@@ -167,7 +167,6 @@ impl SMTContext {
         fields_with_equivs: &Vec<Ident<Field>>,
     ) -> SMTResult {
         let id = Ident::new("policy");
-        eprintln!("----POLICY-----");
         let stmts = match pol {
             Policy::None => vec![define(id.clone(), &[], ExprType::Bool, false)],
             Policy::Anyone => vec![define(id.clone(), &[], ExprType::Bool, true)],
@@ -225,7 +224,6 @@ impl SMTContext {
         // We need to downcast if target is a Principal and body is a list of concrete type
         match body.type_of() {
             ExprType::Set(id) if *target.1 == ExprType::Principal => {
-                eprintln!("SHIFT!");
                 if let ExprType::Id(ref id) = *id {
                     let new_target = (&self.princ_casts[id].1, &ExprType::Object(id.clone()));
                     let low = self.lower_expr(new_target, body, vm, fields_with_equivs);
@@ -244,7 +242,7 @@ impl SMTContext {
                     );
                 }
             }
-            _ => eprintln!("{:?}", body.type_of()),
+            _ => (), //eprintln!("{:?}", body.type_of()),
         };
 
         match body {
@@ -909,12 +907,12 @@ impl SMTContext {
             None
         });
 
-        let (join_sorts, join_bodies): (Vec<_>, Vec<_>) =
+        let (join_sorts, join_fields): (Vec<_>, Vec<_>) =
             joins.map(|lc| (lc.sorts, lc.body)).unzip();
         sorts.extend(join_sorts.into_iter().flatten());
         LoweredColl {
             sorts,
-            body: join_bodies.concat(),
+            body: join_fields.concat(),
         }
     }
     fn lower_collection_fields(&mut self, equivs: &[Equiv], coll: &Collection) -> Vec<Statement> {

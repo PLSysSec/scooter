@@ -41,7 +41,7 @@ impl fmt::Display for TimeEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "[{:#?} caravan checked, {:#?} manually checked, {:#?} direct]",
+            "[{:#?} scooter checked, {:#?} manually checked, {:#?} direct]",
             self.time_checked, self.time_manually_checked, self.time_direct
         )
     }
