@@ -836,11 +836,7 @@ impl SMTContext {
         out
     }
 
-    /// Lowers each collection one by one.
-    /// Each collection gets its own sort named after its Ident,
-    /// and each field is a function mapping that sort to either a native
-    /// SMT sort or to another sort.
-    fn lower_collection(&mut self, equivs: &[Equiv], coll: &Collection) -> LoweredColl {
+    fn lower_collection_sorts(&mut self, coll: &Collection) -> LoweredColl {
         let mut sorts = vec![Statement::DeclSort {
             id: coll.name.coerce(),
         }];
@@ -882,9 +878,14 @@ impl SMTContext {
         let (join_sorts, join_fields): (Vec<_>, Vec<_>) =
             joins.map(|lc| (lc.sorts, lc.body)).unzip();
         sorts.extend(join_sorts.into_iter().flatten());
-
-        let fields =
-            coll.fields().flat_map(move |f| {
+        LoweredColl {
+            sorts,
+            body: join_fields.concat(),
+        }
+    }
+    fn lower_collection_fields(&mut self, equivs: &[Equiv], coll: &Collection) -> Vec<Statement> {
+        coll.fields()
+            .flat_map(move |f| {
                 if f.is_id() {
                     let id = Ident::new("id");
                     return vec![define(
@@ -954,10 +955,20 @@ impl SMTContext {
                         out
                     }
                 }
-            });
+            })
+            .collect()
+    }
+
+    /// Lowers each collection one by one.
+    /// Each collection gets its own sort named after its Ident,
+    /// and each field is a function mapping that sort to either a native
+    /// SMT sort or to another sort.
+    fn lower_collection(&mut self, equivs: &[Equiv], coll: &Collection) -> LoweredColl {
+        let sorts = self.lower_collection_sorts(coll);
+        let fields = self.lower_collection_fields(equivs, coll);
         LoweredColl {
-            sorts,
-            body: join_fields.into_iter().flatten().chain(fields).collect(),
+            sorts: sorts.sorts,
+            body: sorts.body.into_iter().chain(fields.into_iter()).collect(),
         }
     }
 
