@@ -550,7 +550,12 @@ impl SMTContext {
                 let mut validity_predicates = vec![];
                 let ids: Box<dyn Iterator<Item = Ident<SMTVar>>> = match func.param_type {
                     ExprType::Object(ref coll) | ExprType::Id(ref coll) => Box::new(
-                        self.domains[&ExprType::Object(coll.clone())]
+                        self.domains
+                            .get(&ExprType::Object(coll.clone()))
+                            .expect(&format!(
+                                "Couldn't find domain for object of type {}",
+                                coll.orig_name
+                            ))
                             .iter()
                             .cloned(),
                     ),
