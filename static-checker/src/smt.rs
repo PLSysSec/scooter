@@ -15,6 +15,7 @@ use std::{
 use translate::*;
 mod translate;
 
+#[derive(Clone)]
 pub struct Equiv(pub Ident<Field>, pub Func);
 
 pub fn is_as_strict(
@@ -24,7 +25,21 @@ pub fn is_as_strict(
     before: &Policy,
     after: &Policy,
 ) -> Result<(), Model> {
-    let verif_problem = gen_assert(schema, &eqs, coll, before, after);
+    let filtered_eqs: Vec<Equiv> = eqs.into_iter().filter(
+        |Equiv(_eq_field, eq_func)|
+        match &eq_func.return_type {
+            ExprType::Set(inner_ty) => {
+                match **inner_ty {
+                    ExprType::Id(_) => true,
+                    _ => {
+                        eprintln!("Warning: equivalences across sets of primitives break counter-example generation; dropping them.");
+                        false
+                    }
+                }
+            }
+            _ => true,
+        }).cloned().collect();
+    let verif_problem = gen_assert(schema, &filtered_eqs, coll, before, after);
     let assertion = verif_problem
         .stmts
         .iter()
