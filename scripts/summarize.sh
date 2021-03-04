@@ -1,5 +1,8 @@
-echo -n "Migr LoC: "
+echo -n "Migr LoC (with empty lines): "
 grep -rE '' $1/*.mig | wc -l
+
+echo -n "Migr LoC: "
+grep -rE '\S' $1/*.mig | wc -l
 
 echo -n "# Migr:   "
 ls -lR $1/*.mig | wc -l

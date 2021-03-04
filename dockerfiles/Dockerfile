@@ -6,6 +6,7 @@ RUN wget -qO - https://www.mongodb.org/static/pgp/server-4.4.asc | apt-key add -
     apt-get update && apt-get install mongodb-org -y
 
 RUN useradd -ms /bin/bash rust
+RUN apt-get install python3 -y
 
 USER rust
 ENV HOME /home/rust

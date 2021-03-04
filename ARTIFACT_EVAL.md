@@ -53,6 +53,9 @@ Once your environment is set up you can verify our results by running the follow
 make case-studies
 ```
 
+**Note:** Our LoC reported the submitted draft included empty lines. This will be fixed in the camera-ready. We have fixed the summary script to report the new lower line counts, but we
+also report the old number which should match the table value in the draft.
+
 2. ORM Performance Overhead (Sec. 5.3)
 
 ```
@@ -66,6 +69,15 @@ These commands may require builds or rebuilds of the source. Those builds may ta
 ## Playing around
 Beyond what we present in the paper, feel free to experiment. Be warned the
 parser generator we use unfortunately produces... unhelpful error messages.
+
+### Generating counterexamples
+We've included a case-study that is purposefully broken. Sidecar will report
+an unsafe migration.
+
+```
+make case-studies/admin_changes
+```
+
 
 ### Playing with the ORM
 `mongodb-enforcement/example-project` contains a project set up and ready to experiment with.
@@ -81,8 +93,11 @@ And create an initial policy and migration:
 ```
 cd case-studies/goofin-around
 touch policy.txt
-touch 0.mig
+touch 0-my-migration.mig
 ```
+
+Migrations will be executed in lexicographical order, so prepending them with a
+number ensures they execute in the proper order.
 
 And run them with:
 
