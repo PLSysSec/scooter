@@ -29,4 +29,4 @@ benchmark:
 mongod-exists: ; @which mongod > /dev/null
 
 docker-prompt:
-	docker run --rm -it --network=host -v `pwd`:/data --entrypoint=/bin/bash -w=/data scooter
+	docker run --rm -it --network=host -v `pwd`:/data --entrypoint=/bin/bash -w=/data scootersidecar/artifact_eval
