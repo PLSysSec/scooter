@@ -1337,9 +1337,9 @@ Message {
         assert_eq!(expected_result_text, out_text);
     }
     #[test]
-    #[should_panic]
+    #[should_panic = "Migration unsafe!"]
     fn constraints_test() {
-        let policy_text = r"@principle
+        let policy_text = r"@principal
 User {
     create: none,
     delete: none,
@@ -1363,7 +1363,7 @@ Post {
 }
 ";
         let migration = r#"
-Post::TightenFieldPolicy(secret, read, p -> [p.author, p.coauthor].map(u -> User::ById(u).id))
+Post::UpdateFieldPolicy(secret, read, p -> [p.author, p.coauthor].map(u -> User::ById(u).id))
 "#;
         let out_text = migrate_policy(policy_text, migration).unwrap();
         let expected_out_text = r"@principle
@@ -1389,6 +1389,7 @@ Post {
     },
 }
 ";
+        assert_eq!(expected_out_text, out_text);
     }
 
     #[test]
