@@ -174,7 +174,8 @@ pub fn is_as_strict(
                                         .unwrap();
                                     line = String::new();
                                     reader.read_line(&mut line).unwrap();
-                                    lines.push(line.trim().to_owned());
+                                    let clean_value = parse(&inner_ty, &line.trim());
+                                    lines.push(clean_value.to_owned());
                                 }
                             }
                         }
