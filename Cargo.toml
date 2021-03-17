@@ -9,3 +9,5 @@ members = [
     "cli",
     "bench/postfriend"
 ]
+
+exclude = ["case-studies/bibifi"]

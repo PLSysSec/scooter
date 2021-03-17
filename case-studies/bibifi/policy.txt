@@ -4,15 +4,16 @@
 # while we only support them during migrations.
 # * It also supports custom enumeration types. Where used, these are noted in comments.
 
-@static-principle
+@static-principal
 Admin
 
-@principle
+@principal
 User {
     create: public,
     delete: public,
 
-    ident: String { # Unique
+    # Unique
+    ident: String {
         read: public,
         write: public,
     },
@@ -24,23 +25,28 @@ User {
         read: public,
         write: public,
     },
-    email: String { # Unique
+    # Unique
+    email: String {
         read: public,
         write: public,
     },
-    created: DateTime { # default: now()
+    # default: now()
+    created: DateTime {
         read: public,
         write: public,
     },
-    admin: Bool { # default: false
+    # default: false
+    admin: Bool {
         read: public,
         write: public,
     },
-    consentForm: Option(Id(StoredFile)) { # default: None
+    # default: None
+    consentForm: Option(Id(StoredFile)) {
         read: public,
         write: public,
     },
-    resume: Option(Id(StoredFile)) { # default: None
+    # default: None
+    resume: Option(Id(StoredFile)) {
         read: public,
         write: public,
     },
@@ -50,11 +56,13 @@ CourseraUser {
     create: public,
     delete: public,
 
-    courseraId: String { # Unique
+    # Unique
+    courseraId: String {
         read: public,
         write: public,
     },
-    user: Id(User) { # Unique
+    # Unique
+    user: Id(User) {
         read: public,
         write: public,
     },
@@ -74,7 +82,8 @@ UserConfirmation {
         read: public,
         write: public,
     },
-    confirmation: String { # Unique
+    # Unique
+    confirmation: String {
         read: public,
         write: public,
     },
@@ -84,7 +93,8 @@ Contest {
     create: public,
     delete: public,
 
-    url: String { # Unique
+    # Unique
+    url: String {
         read: public,
         write: public,
     },
@@ -103,26 +113,28 @@ Contest {
     breakFixStart: DateTime {
         read: public,
         write: public,
-    }
+    },
     breakEnd: DateTime {
         read: public,
         write: public,
-    }
+    },
     fixEnd: DateTime {
         read: public,
         write: public,
-    }
-    dependencies: Set(Id(Post)) { # Inlined from PostDependency
+    },
+    # Inlined from PostDependency
+    dependencies: Set(Id(Post)) {
         read: public,
         write: public,
-    }
+    },
 }
 
 CourseraContest {
     create: public,
     delete: public,
 
-    contest: Id(Contest) { # Unique
+    # Unique
+    contest: Id(Contest) {
         read: public,
         write: public,
     },
@@ -148,7 +160,8 @@ Post {
         read: public,
         write: public,
     },
-    timestamp: DateTime { # default: now()
+    # default: now()
+    timestamp: DateTime {
         read: public,
         write: public,
     },
@@ -156,7 +169,8 @@ Post {
         read: public,
         write: public,
     },
-    content: String { # No "HTML" type available, using "String"
+    # No "HTML" type available, using "String"
+    content: String {
         read: public,
         write: u -> [Admin],
     },
@@ -166,23 +180,28 @@ Post {
     },
 }
 
+@principal
 Judge {
     create: public,
     delete: public,
 
-    judge: Id(User) { # Unique
+    # Unique
+    judge: Id(User) {
         read: public,
         write: public,
     },
-    contest: Id(Contest) { # Unique
+    # Unique
+    contest: Id(Contest) {
         read: public,
         write: public,
     },
-    assignedCount: I64 { # default: 0
+    # default: 0
+    assignedCount: I64 {
         read: public,
         write: public,
     },
-    conflicts: Set(Id(TeamContest)) { # Inlined from JudgeConflict
+    # Inlined from JudgeConflict
+    conflicts: Set(Id(TeamContest)) {
         read: public,
         write: public,
     },
@@ -196,7 +215,8 @@ BuildJudgement {
         read: public,
         write: public,
     },
-    submission: Id(BuildSubmission) { # Unique
+    # Unique
+    submission: Id(BuildSubmission) {
         read: public,
         write: public,
     },
@@ -218,7 +238,8 @@ BreakJudgement {
         read: public,
         write: public,
     },
-    submission: Id(BreakSubmission) { # Unique
+    # Unique
+    submission: Id(BreakSubmission) {
         read: public,
         write: public,
     },
@@ -240,7 +261,8 @@ FixJudgement {
         read: public,
         write: public,
     },
-    submission: Id(BreakSubmission) { # Unique
+    # Unique
+    submission: Id(BreakSubmission) {
         read: public,
         write: public,
     },
@@ -258,7 +280,8 @@ BreakDispute {
     create: public,
     delete: public,
 
-    break: Id(BreakSubmission) { # Unique
+    # Unique
+    break: Id(BreakSubmission) {
         read: public,
         write: public,
     },
@@ -272,41 +295,48 @@ Team {
     create: public,
     delete: public,
 
-    name: String { # Unique
+    # Unique
+    name: String {
         read: public,
         write: public,
-    }
+    },
     leader: Id(User) {
         read: public,
         write: public,
-    }
-    members: Set(Id(User)) { # Inlined from TeamMember
+    },
+    # Inlined from TeamMember
+    members: Set(Id(User)) {
         read: public,
         write: public,
-    }
+    },
 }
 
 TeamContest {
     create: public,
     delete: public,
 
-    team: Id(Team) { # Unique
+    # Unique
+    team: Id(Team) {
         read: public,
         write: public,
     },
-    contest: Id(Contest) { # Unique
+    # Unique
+    contest: Id(Contest) {
         read: public,
         write: public,
     },
-    gitUrl: String { # defualt=''
+    # default=''
+    gitUrl: String {
         read: public,
         write: public,
     },
-    languages: String { # default=''
+    # default=''
+    languages: String {
         read: public,
         write: public,
     },
-    professional: Bool { # default=false
+    # default=false
+    professional: Bool {
         read: public,
         write: public,
     },
@@ -314,7 +344,8 @@ TeamContest {
         read: public,
         write: public,
     },
-    gitRepositoryIdentifier: Option(String) {# external type: RepositoryIdentifier
+    # external type: RepositoryIdentifier
+    gitRepositoryIdentifier: Option(String) {
         read: public,
         write: public,
     },
@@ -324,7 +355,8 @@ TeamInvite {
     create: public,
     delete: public,
 
-    invite: String { # Unique
+    # Unique
+    invite: String {
         read: public,
         write: public,
     },
@@ -346,7 +378,8 @@ PasswordResetInvite {
         read: public,
         write: public,
     },
-    invite: String { # Unique
+    # Unique
+    invite: String {
         read: public,
         write: u -> [Admin],
     },
@@ -379,7 +412,7 @@ ContestCoreTest {
     testScript: String {
         read: public,
         write: public,
-    }
+    },
 }
 
 ContestPerformanceTest {
@@ -406,7 +439,8 @@ ContestPerformanceTest {
         read: public,
         write: public,
     },
-    optional: Bool { # default=false
+    # default=false
+    optional: Bool {
         read: public,
         write: public,
     },
@@ -435,7 +469,7 @@ ContestOptionalTest {
     testScript: String {
         read: public,
         write: public,
-    }
+    },
 }
 
 TeamBreakScore {
@@ -446,7 +480,8 @@ TeamBreakScore {
         read: public,
         write: public,
     },
-    buildScore: Option(F64) { # default=Some(0.0)
+    # default=Some(0.0)
+    buildScore: Option(F64) {
         read: public,
         write: public,
     },
@@ -514,7 +549,8 @@ OracleSubmission {
         read: public,
         write: public,
     },
-    status: String { # External type: OracleSubmissionStatus
+    # External type: OracleSubmissionStatus
+    status: String {
         read: public,
         write: public,
     },
@@ -535,19 +571,23 @@ BuildSubmission {
         read: public,
         write: public,
     },
-    status: String { # External type: BuildSubmissionStatus
+    # External type: BuildSubmissionStatus
+    status: String {
         read: public,
         write: public,
     },
-    stdout: Option(String) { # Textarea type? default=None
+    # Textarea type? default=None
+    stdout: Option(String) {
         read: public,
         write: public,
     },
-    stderr: Option(String) { # Textarea type? default=None
+    # Textarea type? default=None
+    stderr: Option(String) {
         read: public,
         write: public,
     },
-    file: Option(String) { # Inlined from BuildSubmissionFile
+    # Inlined from BuildSubmissionFile
+    file: Option(String) {
         read: public,
         write: public,
     },
@@ -571,7 +611,7 @@ BreakOracleSubmission {
     valid: Bool {
         read: public,
         write: u -> [Admin],
-    }
+    },
 }
 
 BreakSubmission {
@@ -594,15 +634,18 @@ BreakSubmission {
         read: public,
         write: public,
     },
-    name: String { # default=''
+    # default=''
+    name: String {
         read: public,
         write: public,
     },
-    status: String { # External type: BreakSubmissionStatus
+    # External type: BreakSubmissionStatus
+    status: String {
         read: public,
         write: public,
     },
-    breakType: Option(String) { # External type: BreakType
+    # External type: BreakType
+    breakType: Option(String) {
         read: public,
         write: public,
     },
@@ -614,11 +657,13 @@ BreakSubmission {
         read: public,
         write: public,
     },
-    stdout: Option(String) { # Textarea type? default=Some('')
+    # Textarea type? default=Some('')
+    stdout: Option(String) {
         read: public,
         write: public,
     },
-    stderr: Option(String) { # Textarea type? default=Some('')
+    # Textarea type? default=Some('')
+    stderr: Option(String) {
         read: public,
         write: public,
     },
@@ -626,7 +671,8 @@ BreakSubmission {
         read: public,
         write: public,
     },
-    file: Option(String) { # Inlined from BreakSubmissionFile
+    # Inlined from BreakSubmissionFile
+    file: Option(String) {
         read: public,
         write: public,
     },
@@ -644,7 +690,8 @@ BreakFixSubmission {
         read: public,
         write: public,
     },
-    result: String { # External type: BreakSubmissionResult
+    # External type: BreakSubmissionResult
+    result: String {
         read: public,
         write: public,
     },
@@ -666,11 +713,13 @@ FixSubmission {
         read: public,
         write: public,
     },
-    status: String { # External type: FixSubmissionStatus
+    # External type: FixSubmissionStatus
+    status: String {
         read: public,
         write: public,
     },
-    result: Option(String) { # External type: FixSubmissionResult
+    # External type: FixSubmissionResult
+    result: Option(String) {
         read: public,
         write: public,
     },
@@ -678,15 +727,18 @@ FixSubmission {
         read: public,
         write: public,
     },
-    stdout: Option(String) { # Textarea type? default=Some('')
+    # Textarea type? default=Some('')
+    stdout: Option(String) {
         read: public,
         write: public,
     },
-    stderr: Option(String) { # Textarea type? default=Some('')
+    # Textarea type? default=Some('')
+    stderr: Option(String) {
         read: public,
         write: public,
     },
-    file: Option(String) { # inlined from FixSubmissionFile
+    # inlined from FixSubmissionFile
+    file: Option(String) {
         read: public,
         write: public,
     },
@@ -696,11 +748,13 @@ BuildCoreResult {
     create: public,
     delete: public,
 
-    submission: Id(BuildSubmission) { # Unique
+    # Unique
+    submission: Id(BuildSubmission) {
         read: public,
         write: public,
     },
-    test: Id(ContestCoreTest) { # Unique
+    # Unique
+    test: Id(ContestCoreTest) {
         read: public,
         write: public,
     },
@@ -718,11 +772,13 @@ BuildPerformanceResult {
     create: public,
     delete: public,
 
-    submission: Id(BuildSubmission) { # Unique
+    # Unique
+    submission: Id(BuildSubmission) {
         read: public,
         write: public,
     },
-    test: Id(ContestPerformanceTest) { # Unique
+    # Unique
+    test: Id(ContestPerformanceTest) {
         read: public,
         write: public,
     },
@@ -740,11 +796,13 @@ BuildOptionalResult {
     create: public,
     delete: public,
 
-    submission: Id(BuildSubmission) { # Unique
+    # Unique
+    submission: Id(BuildSubmission) {
         read: public,
         write: public,
     },
-    test: Id(ContestOptionalTest) { # Unique
+    # Unique
+    test: Id(ContestOptionalTest) {
         read: public,
         write: public,
     },
@@ -762,11 +820,13 @@ FixCoreResult {
     create: public,
     delete: public,
 
-    submission: Id(FixSubmission) { # Unique
+    # Unique
+    submission: Id(FixSubmission) {
         read: public,
         write: public,
     },
-    test: Id(ContestCoreTest) { # Unique
+    # Unique
+    test: Id(ContestCoreTest) {
         read: public,
         write: public,
     },
@@ -784,11 +844,13 @@ FixPerformanceResult {
     create: public,
     delete: public,
 
-    submission: Id(FixSubmission) { # Unique
+    # Unique
+    submission: Id(FixSubmission) {
         read: public,
         write: public,
     },
-    test: Id(ContestPerformanceTest) { # Unique
+    # Unique
+    test: Id(ContestPerformanceTest) {
         read: public,
         write: public,
     },
@@ -806,11 +868,13 @@ FixOptionalResult {
     create: public,
     delete: public,
 
-    submission: Id(FixSubmission) { # Unique
+    # Unique
+    submission: Id(FixSubmission) {
         read: public,
         write: public,
     },
-    test: Id(ContestOptionalTest) { # Unique
+    # Unique
+    test: Id(ContestOptionalTest) {
         read: public,
         write: public,
     },
@@ -828,25 +892,28 @@ Configuration {
     create: u -> [Admin],
     delete: u -> [Admin],
 
-    key: String { # Unique
+    # Unique
+    key: String {
         read: public,
         write: u -> [Admin],
-    }
+    },
     value: String {
         read: public,
         write: u -> [Admin],
-    }
+    },
 }
 
 CacheExpiration {
     create: public,
     delete: public,
 
-    key: String { # Unique
+    # Unique
+    key: String {
         read: public,
         write: public,
     },
-    expiration: DateTime { # default=now()
+    # default=now()
+    expiration: DateTime {
         read: public,
         write: public,
     },
@@ -860,11 +927,13 @@ CacheBuildersCode {
         read: public,
         write: public,
     },
-    teamId: Id(TeamContest) { # Unique
+    # Unique
+    teamId: Id(TeamContest) {
         read: public,
         write: public,
     },
-    languages: String { # default=''
+    # default=''
+    languages: String {
         read: public,
         write: public,
     },
@@ -920,7 +989,8 @@ Error {
         read: public,
         write: public,
     },
-    time: DateTime { # default=now()
+    # default=now()
+    time: DateTime {
         read: public,
         write: public,
     },
@@ -938,7 +1008,8 @@ RateLimiting {
         read: public,
         write: public,
     },
-    time: DateTime { # default=now()
+    # default=now()
+    time: DateTime {
         read: public,
         write: public,
     },
@@ -948,11 +1019,13 @@ ScorePending {
     create: public,
     delete: public,
 
-    contest: Id(Contest) { # Unique
+    # Unique
+    contest: Id(Contest) {
         read: public,
         write: public,
     },
-    round: String { # Unique, External type: ContestRound
+    # Unique, External type: ContestRound
+    round: String {
         read: public,
         write: public,
     },

@@ -1,0 +1,24 @@
+[package]
+name = "bibifi"
+version = "0.1.0"
+authors = ["Alex Sanchez-Stern <alex.sanchezstern@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+enforcement = {path="../../mongodb-enforcement"}
+
+[dependencies]
+enforcement = {path="../../mongodb-enforcement"}
+rocket = "0.4.7"
+serde = { version = "1.0", features = ["derive"] }
+chrono = "*"
+
+[dependencies.rocket_contrib]
+version = "0.4.7"
+features = ["handlebars_templates"]
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
