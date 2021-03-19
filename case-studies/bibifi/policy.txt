@@ -281,7 +281,7 @@ BreakDispute {
     delete: public,
 
     # Unique
-    break: Id(BreakSubmission) {
+    breakSub: Id(BreakSubmission) {
         read: public,
         write: public,
     },
@@ -682,7 +682,7 @@ BreakFixSubmission {
     create: public,
     delete: public,
 
-    break: Id(BreakSubmission) {
+    breakSub: Id(BreakSubmission) {
         read: public,
         write: public,
     },
