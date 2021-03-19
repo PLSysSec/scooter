@@ -180,7 +180,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         };
         quote! {
-            #[derive(Debug)]
+            #[derive(Debug, Serialize)]
             #input_vis struct #partial_ident {
                 #(#optioned_fields),*,
                 pub id: Option<#enforcement_crate_name::TypedRecordId<#ident>>

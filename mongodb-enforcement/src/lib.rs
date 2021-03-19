@@ -21,6 +21,7 @@ pub mod gen_prelude {
     pub use ::bson::{self, bson, doc};
     pub use chrono::Utc;
     pub use mongodb;
+    pub use serde::Serialize;
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -36,35 +37,10 @@ pub enum PolicyValue {
     Set(Vec<Principal>),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum POption<T> {
     Some(T),
     None,
-}
-
-impl<T> ToBson for POption<T>
-where
-    T: ToBson,
-{
-    fn to_bson(&self) -> Bson {
-        match self {
-            POption::Some(val) => Bson::Document(doc! {"val": val.to_bson()}),
-            POption::None => Bson::Null,
-        }
-    }
-}
-
-impl<T> FromBson for POption<T>
-where
-    T: FromBson,
-{
-    fn from_bson(bson: Bson) -> Self {
-        match bson {
-            Bson::Document(d) => POption::Some(T::from_bson(d.get("val").unwrap().clone())),
-            Bson::Null => POption::None,
-            _ => panic!("Ahh!"),
-        }
-    }
 }
 
 impl From<Vec<RecordId>> for PolicyValue {
@@ -110,9 +86,35 @@ impl PolicyValue {
         }
     }
 }
+mod my_date_format {
+    use bson::Bson;
+    use chrono::offset::Utc;
+    use chrono::DateTime;
+    use serde::ser::Serialize;
+    use serde::Deserialize;
+    use serde::Deserializer;
+    use serde::Serializer;
 
-#[derive(Eq, PartialEq, Ord, PartialOrd)]
-pub struct DateTime(chrono::DateTime<chrono::Utc>);
+    pub fn serialize<S>(datetime: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let bson = Bson::UtcDatetime(datetime.to_owned());
+        bson.serialize(serializer)
+    }
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        match Bson::deserialize(deserializer)? {
+            Bson::UtcDatetime(datetime) => Ok(datetime),
+            _ => panic!("Only Support chrono's DateTime<UTC>."),
+        }
+    }
+}
+
+#[derive(Eq, PartialEq, Ord, PartialOrd, Serialize, Clone, Deserialize, Debug)]
+pub struct DateTime(#[serde(with = "my_date_format")] chrono::DateTime<chrono::Utc>);
 
 impl DateTime {
     pub fn now() -> Self {
@@ -280,8 +282,8 @@ where
 {
     fn from(optional_val: POption<T>) -> Bson {
         match optional_val {
-            POption::Some(val) => Bson::Document(doc! {"val": val.into()}),
-            POption::None => Bson::Null,
+            POption::Some(val) => Bson::Document(doc! {"Some": val.into()}),
+            POption::None => Bson::String("None".to_string()),
         }
     }
 }

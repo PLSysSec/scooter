@@ -12,6 +12,7 @@ enforcement = {path=".."}
 mongodb = '0.9.0'
 enforcement = {path=".."}
 bson = "0.14.0"
+serde = "*"
 
 [[bin]]
 name = "main"

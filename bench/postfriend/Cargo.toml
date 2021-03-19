@@ -16,6 +16,7 @@ bson = "0.14.0"
 hyper = "0.13"
 tokio = { version = "0.2", features = ["full"] }
 serde_json = "1.0"
+serde = "*"
 
 [[bin]]
 name = "postfriend-server"

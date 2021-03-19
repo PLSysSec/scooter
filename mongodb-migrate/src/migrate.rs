@@ -317,13 +317,16 @@ impl From<Bson> for Value {
         match b {
             Bson::I64(i) => Value::Int(i),
             Bson::FloatingPoint(f) => Value::Float(f),
-            Bson::String(s) => Value::String(s),
+            Bson::String(s) => match s.as_str() {
+                "None" => Value::Option(None),
+                _ => Value::String(s),
+            },
             Bson::ObjectId(i) => Value::Id(i),
             Bson::Boolean(b) => Value::Bool(b),
             Bson::Array(l) => Value::Set(l.into_iter().map(|v| v.into()).collect()),
             Bson::Null => Value::Option(None),
             Bson::Document(d) => Value::Option(Some(Box::new(
-                d.get("val")
+                d.get("Some")
                     .expect("Invalid document in database.")
                     .clone()
                     .into(),

@@ -11,6 +11,7 @@ mongodb = '0.9.0'
 policy-lang = {path = "../policy-lang"}
 bson = "0.14.0"
 chrono = "*"
+serde = "*"
 
 [dev-dependencies]
 enforcement = {path="../mongodb-enforcement"}
