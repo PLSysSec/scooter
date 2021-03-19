@@ -229,11 +229,20 @@ fn translate_queryexpr(schema: &Schema, expr: &IRExpr) -> String {
             mangled_ident(&func.param),
             translate_queryexpr(schema, &func.body)
         ),
-        IRExpr::Set(_ty, exprs) => {
+        IRExpr::Set(ty, exprs) => {
             let mut out = "vec![".to_string();
             for expr in exprs.into_iter() {
-                out += &translate_queryexpr(schema, expr);
-                out += ", ";
+                match (ty, expr.type_of()) {
+                    (ExprType::Principal, ExprType::Id(..)) => {
+                        out += "Principal::Id(";
+                        out += &translate_queryexpr(schema, expr);
+                        out += ".into()), ";
+                    }
+                    _ => {
+                        out += &translate_queryexpr(schema, expr);
+                        out += ", ";
+                    }
+                }
             }
             out += "]";
             out
