@@ -120,6 +120,9 @@ impl DateTime {
     pub fn now() -> Self {
         DateTime(chrono::Utc::now())
     }
+    pub fn to_string(&self) -> String {
+        self.0.to_rfc3339()
+    }
 }
 impl Add for DateTime {
     type Output = DateTime;
