@@ -29,7 +29,6 @@ struct AnnouncedPost {
 struct Context {
     dates: Vec<AnnouncedDate>,
     posts: Vec<AnnouncedPost>,
-    contest: PartialContest,
 }
 
 #[get("/")]
@@ -98,7 +97,6 @@ fn announcements() -> Template {
         Context {
             dates: dates,
             posts: posts,
-            contest: most_recent_contest,
         },
     )
 }
