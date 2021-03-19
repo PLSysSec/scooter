@@ -136,6 +136,12 @@ impl Sub for DateTime {
     }
 }
 
+impl From<DateTime> for Bson {
+    fn from(datetime: DateTime) -> Bson {
+        Bson::UtcDatetime(datetime.0.to_owned())
+    }
+}
+
 pub trait MongoDocument {
     fn from_document(doc: Document) -> Self;
     fn to_document(&self) -> Document;
