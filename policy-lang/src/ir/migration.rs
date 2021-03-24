@@ -163,7 +163,9 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
             old_field.name = new_name.clone();
         }
         MigrationCommand::Create { pol } => {
-            output.collections.push(pol.schema.collections[0].clone());
+            output
+                .collections
+                .extend(pol.schema.collections.iter().cloned());
         }
         MigrationCommand::Delete { name } => {
             output.collections = output
