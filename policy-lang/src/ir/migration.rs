@@ -171,7 +171,7 @@ pub fn interpret_command(schema: &Schema, mc: &MigrationCommand) -> Schema {
             output.collections = output
                 .collections
                 .into_iter()
-                .filter(|c| c.name == *name)
+                .filter(|c| c.name != *name)
                 .collect();
         }
         MigrationCommand::AddStaticPrincipal { name } => {
@@ -194,8 +194,8 @@ pub fn extract_migration_command(schema: &Schema, cmd: ast::MigrationCommand) ->
     match cmd {
         ast::MigrationCommand::CollAction { table, action } => {
             let coll = schema.find_collection(&table).expect(&format!(
-                "Unable to modify collection `{}` because it does not exist.",
-                &table
+                "Unable to modify collection `{}` because it does not exist.\n{:?}",
+                &table, action
             ));
 
             match action {
