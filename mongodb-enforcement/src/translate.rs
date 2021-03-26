@@ -61,6 +61,7 @@ fn gen_schema_macros(sp: SchemaPolicy) -> String {
     for (coll, coll_policy) in sp.collection_policies.iter() {
         let mut col_struct = format!(
             r#"
+#[allow(warnings)]
 #[collection(policy_module="{}_policies")]
 pub struct {} {{
 "#,
@@ -75,7 +76,7 @@ mod {}_policies {{
 "#,
             coll.orig_name.to_ascii_lowercase()
         );
-        pol_mod += &format!("    #[allow(unused_variables)]").to_string();
+        pol_mod += &format!("    #[allow(warnings, unused_variables)]").to_string();
 
         pol_mod += &format!(
             "    pub fn create({}: &{}, conn: &AuthConn) -> PolicyValue {{\n",
@@ -84,7 +85,7 @@ mod {}_policies {{
         )
         .to_string();
         pol_mod += &gen_policy_body(&sp.schema, &coll_policy.create);
-        pol_mod += &format!("    #[allow(unused_variables)]").to_string();
+        pol_mod += &format!("    #[allow(warnings, unused_variables)]").to_string();
         pol_mod += &format!(
             "    pub fn delete({}: &{}, conn: &AuthConn) -> PolicyValue {{\n",
             policy_binder_var(&coll_policy.delete),
@@ -99,7 +100,7 @@ mod {}_policies {{
             let field_policy = &sp.field_policies[&field.name];
             col_struct +=
                 &format!("    {}: {},\n", field.name.orig_name, lower_ty(&field.typ)).to_string();
-            pol_mod += &format!("    #[allow(unused_variables)]").to_string();
+            pol_mod += &format!("    #[allow(warnings, unused_variables)]").to_string();
             pol_mod += &format!(
                 "    pub fn read_{}({}: &{}, conn: &AuthConn) -> PolicyValue {{\n",
                 field.name.orig_name,
@@ -108,7 +109,7 @@ mod {}_policies {{
             )
             .to_string();
             pol_mod += &gen_policy_body(&sp.schema, &field_policy.read);
-            pol_mod += &format!("    #[allow(unused_variables)]").to_string();
+            pol_mod += &format!("    #[allow(warnings, unused_variables)]").to_string();
             pol_mod += &format!(
                 "    pub fn write_{}({}: &{}, conn: &AuthConn) -> PolicyValue {{\n",
                 field.name.orig_name,

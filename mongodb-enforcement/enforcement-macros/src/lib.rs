@@ -56,7 +56,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         let method_ident = format_ident!("get_{}", field_ident);
         let reader_ident = format_ident!("read_{}", field_ident);
         quote! {
-            #[allow(dead_code)]
+            #[allow(warnings, dead_code)]
             pub fn #method_ident(&self, conn: &AuthConn) -> Option<&#field_type> {
                 if #policy_module::#reader_ident(self, conn).accessible_by(&conn.principal()) {
                     Some(&self.#field_ident)
@@ -76,7 +76,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
         let field_type = &field.ty;
         let method_ident = format_ident!("set_{}", field_ident);
         quote! {
-            #[allow(dead_code)]
+            #[allow(warnings, dead_code)]
             pub fn #method_ident(&mut self, val : #field_type) {
                 self.#field_ident = val;
             }
@@ -105,6 +105,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         });
         quote! {
+            #[allow(warnings)]
             pub struct #prop_ident {
                 #(#pub_fields),*
             }

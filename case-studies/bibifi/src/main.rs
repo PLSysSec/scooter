@@ -1,6 +1,8 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(proc_macro_hygiene, decl_macro, never_type)]
 
 mod types;
+mod session;
+use session::*;
 
 use rocket_contrib::templates::Template;
 use serde::Serialize;
@@ -37,9 +39,8 @@ fn index() -> &'static str {
 }
 
 #[get("/announcements")]
-fn announcements() -> Template {
-    let db_conn = DBConn::new("localhost", 27017, "BIBIFI-caravan");
-    let auth_conn = &db_conn.clone().as_princ(Principal::Unauthenticated);
+fn announcements(conn: SessionConn) -> Template {
+    let SessionConn(ref auth_conn) = conn;
     let all_contests = Contest::find_all(auth_conn);
     let most_recent_contest: PartialContest = all_contests
         .expect("Can't get contests!")
@@ -100,6 +101,9 @@ fn announcements() -> Template {
         },
     )
 }
+
+// #[post("/announcements/update")]
+// fn announcements() -> Template {
 
 fn setup_db() {
     let db_conn = DBConn::new("localhost", 27017, "BIBIFI-caravan");

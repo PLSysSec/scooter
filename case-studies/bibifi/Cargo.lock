@@ -186,9 +186,11 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "enforcement",
+ "lazy_static",
  "rocket",
  "rocket_contrib",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
