@@ -176,6 +176,7 @@ BreakDispute {
 
 }
 
+@principal
 Team {
     create: public,
     delete: public,
