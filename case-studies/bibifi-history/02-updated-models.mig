@@ -1,0 +1,95 @@
+# Source Diff (update models): https://github.com/plum-umd/bibifi-code/commit/4591635188f28912f95fb8c3121577568ac96327#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+
+BreakSubmission::AddField(
+  valid: Bool { read: public, write: public, },
+  self -> (match self.result as result in
+            result != 1
+            else false)
+)
+
+CreateCollection(BreakFixSubmission {
+    create: public,
+    delete: public,
+
+    breakk: Id(BreakSubmission) { read: public, write: public, },
+
+    # If this is Nothing, this run is against the latest build submission.
+    fix: Option(Id(FixSubmission))  { read: public, write: public, },
+})
+
+# We'd like to create a BreakFixSubmission for each BreakSubmission but this requires
+# creating new records during a migration which Scooter does not support. Typically,
+# this would be done by writing a script.
+#
+# Note: BIBIFI also does not do this, meaning they suffered dataloss or had an out of band
+# script that is not in the repo. For the purposes of data retention we've written the rest
+# of the migration so that *if* those objects were created, the data would be retained
+
+BreakFixSubmission::AddField(
+    # PORT: BIBIFI uses an ADT for this: BreakSucceeded | BreakFailed
+    result: Option(Bool) { read: public, write: public, },
+    self -> Some(BreakSubmission::ById(self.breakk).valid)
+)
+
+BreakFixSubmission::AddField(
+    # PORT: This is an ADT: BreakPullFail | BreakPending | BreakTesting | BreakTested | BreakRejected | BreakTimeout | BreakJudging | BreakJudged
+    status: I64 { read: public, write: public, },
+    self -> BreakSubmission::ById(self.breakk).status
+)
+
+BreakFixSubmission::AddField(
+    stdout: Option(String) { read: public, write: public, },
+    self -> BreakSubmission::ById(self.breakk).stdout
+)
+
+BreakFixSubmission::AddField(
+    stderr: Option(String) { read: public, write: public, },
+    self -> BreakSubmission::ById(self.breakk).stderr
+)
+
+BreakSubmission::RemoveField(status)
+BreakSubmission::RemoveField(result)
+BreakSubmission::RemoveField(fixed)
+BreakSubmission::RemoveField(stdout)
+BreakSubmission::RemoveField(stderr)
+BreakSubmission::RemoveField(bayesianScore)
+
+
+DeleteCollection(BreakTimeline)
+DeleteCollection(FixSubmissionBugs)
+
+CreateCollection(
+  FixCoreResult {
+      create: public,
+      delete: public,
+
+      submission: Id(FixSubmission) { read: public, write: public, },
+      test: Id(ContestCoreTest) { read: public, write: public, },
+      pass: Bool { read: public, write: public, },
+      message: Option(String) { read: public, write: public, },
+  }
+)
+
+CreateCollection(
+  FixPerformanceResult {
+      create: public,
+      delete: public,
+
+      submission: Id(FixSubmission) { read: public, write: public, },
+      test: Id(ContestPerformanceTest) { read: public, write: public, },
+      time: Option(F64) { read: public, write: public, },
+      message: Option(String) { read: public, write: public, },
+  }
+)
+
+CreateCollection(
+  FixOptionalResult {
+      create: public,
+      delete: public,
+
+      submission: Id(FixSubmission) { read: public, write: public, },
+      test: Id(ContestOptionalTest) { read: public, write: public, },
+      pass: Bool { read: public, write: public, },
+      message: Option(String) { read: public, write: public, },
+  }
+)

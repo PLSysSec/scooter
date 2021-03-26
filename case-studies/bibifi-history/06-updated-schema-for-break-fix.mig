@@ -1,0 +1,20 @@
+# Source diff (updated schema for break/fix) https://github.com/plum-umd/bibifi-code/commit/bc618ded6fe48431841184e7f94dd378ee5a06f7#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+
+BreakSubmission::AddField(
+    # PORT: This is an ADT: BreakPullFail | BreakPending | BreakTesting | BreakTested | BreakRejected | BreakTimeout | BreakJudging | BreakJudged
+    status: I64 { read: public, write: public, },
+    _ -> 1
+)
+
+BreakSubmission::AddField(
+  targetFix: Option(Id(FixSubmission)) { read: public, write: public, },
+  _ -> None
+)
+
+BreakFixSubmission::RemoveField(status)
+
+# It's unclear how they did this migration. One must assume they either weren't retaining data
+# or all occurrences actually had a value and unwrapping worked
+BreakFixSubmission::ChangeField(result, Bool,
+  self -> (match self.result as result in result else false)
+)

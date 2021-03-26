@@ -1,0 +1,11 @@
+# Source diff (make fix-it end after break-it): https://github.com/plum-umd/bibifi-code/commit/bf306b3c363b294e0e39013752e8af2ab2f2bd4d#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+
+Contest::AddField(
+    breakFixStart: DateTime { read: public, write: public, },
+    _ -> now()
+)
+
+Contest::AddField(
+    fixEnd: DateTime { read: public, write: public, },
+    _ -> now()
+)

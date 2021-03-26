@@ -1,0 +1,13 @@
+# Source diff ( load break json in DB in webhook ): https://github.com/plum-umd/bibifi-code/commit/b9be71b140a92fea4798f608a912206f0e7c6c89#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+
+CreateCollection(
+  BreakSubmissionFile{
+    create: public,
+    delete: public,
+
+    breakk: Id(BreakSubmission) { read: public, write: public, },
+    file: String { read: public, write: public, },
+  }
+)
+
+BreakSubmission::RemoveField(targetFix)

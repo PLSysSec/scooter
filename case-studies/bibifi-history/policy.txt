@@ -1,0 +1,476 @@
+@static-principal
+Admin
+
+@principal
+User {
+    create: public,
+    delete: public,
+
+    ident: String { read: public, write: public, },
+    password: String { read: public, write: public, },
+    salt: String { read: public, write: public, },
+    email: String { read: public, write: public, },
+
+    # default: now() UTC
+    created: DateTime { read: public, write: public, },
+    admin: Bool { read: public, write: public, },
+    consentForm: Option(Id(StoredFile)) { read: public, write: public, },
+    resume: Option(Id(StoredFile)) { read: public, write: public, },
+}
+
+CourseraUser {
+    create: public,
+    delete: public,
+
+    courseraId: String { read: public, write: public, },
+    user: Id(User) { read: public, write: public, },
+    token: String { read: public, write: public, },
+}
+
+UserInformation {
+    create: public,
+    delete: public,
+
+    user: Id(User) { read: public, write: public, },
+    school: Option(String) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    major: Option(String) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    minor: Option(String) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    degreesHeld: Option(String) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    degree: String {read: u -> [Admin, u.user], write: u -> [u.user], },
+    yearsInProgram: Option(I64) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    yearsOfExperience: Option(I64) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    languages: Option(String) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    favoriteLanguages: Option(String) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    yearsOfWork: Option(I64) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    experienceClass: Option(Bool) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    experiencePersonal: Option(Bool) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    experienceInternship: Option(Bool) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    experienceJob: Option(Bool) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    securityTraining: Option(Bool) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    securityExperience: Option(Bool) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    softwareEngineering: Option(Bool) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    securityClass: Option(Bool) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    previousContest: Option(Bool) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    resumePermission: Bool {read: u -> [Admin, u.user], write: u -> [u.user], },
+    age: Option(I64) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    nationality: Option(String) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    gender: Option(String) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    agreeToParticipate: Bool {read: u -> [Admin, u.user], write: u -> [u.user], },
+    graduationYear: Option(I64) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    programmerRating: Option(I64) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    attackerRating: Option(I64) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    language: Option(String) {read: u -> [Admin, u.user], write: u -> [u.user], },
+    timezone: Option(String) {read: u -> [Admin, u.user], write: u -> [u.user], },
+}
+
+UserConfirmation {
+    create: public,
+    delete: public,
+
+    user: Id(User) { read: public, write: public, },
+    confirmation: String { read: public, write: public, },
+}
+
+Contest {
+    create: public,
+    delete: public,
+
+    url: String { read: public, write: public, },
+    title: String { read: public, write: public, },
+    buildStart: DateTime { read: public, write: public, },
+    buildEnd: DateTime { read: public, write: public, },
+    breakEnd: DateTime { read: public, write: public, },
+}
+
+CourseraContest {
+    create: public,
+    delete: public,
+
+    contest: Id(Contest) { read: public, write: public, },
+    courseId: I64 { read: public, write: public, },
+    sessionId: I64 {read: public, write: public, },
+}
+
+Post {
+    create: _ -> [Admin],
+    delete: _ -> [Admin],
+
+    title: String { read: public, write: _ -> [Admin],},
+    contest: Id(Contest) { read: public, write: public, },
+    timestamp: DateTime { read: public, write: public, },
+    draft: Bool { read: public, write: public, },
+    content: String { read: public, write: _ -> [Admin], },
+    markdown: String { read: public, write: _ -> [Admin], },
+}
+
+PostDependency {
+    create: public,
+    delete: public,
+
+    contest: Id(Contest) { read: public, write: public, },
+    post: Id(Post) { read: public, write: public, },
+
+    # PORT: BIBIFI uses an ADT: Round1Start | Round1End | Round2Start | Round2End | Round3Start | Round3End
+    dependency: I64 { read: public, write: public, },
+}
+
+@principal
+Judge {
+    create: public,
+    delete: public,
+
+    judge: Id(User) { read: public, write: public, },
+    contest: Id(Contest) { read: public, write: public, },
+
+    assignedCount: I64 { read: public, write: public, },
+}
+
+JudgeConflict {
+    create: public,
+    delete: public,
+
+    judge: Id(Judge) { read: public, write: public, },
+    team: Id(TeamContest) { read: public, write: public, },
+}
+
+BuildJudgement {
+    create: _ -> [Admin],
+    delete: public,
+
+    judge: Id(Judge) { read: public, write: public, },
+    submission: Id(BuildSubmission) { read: public, write: public, },
+
+    # True means pass/accepted
+    ruling: Option(Bool) { read: public, write: b -> [b.judge, Admin], },
+    comments: Option(String) { read: public, write: b -> [b.judge, Admin], },
+
+}
+
+BreakJudgement {
+    create: _ -> [Admin],
+    delete: public,
+
+    judge: Id(Judge) { read: public, write: public, },
+    submission: Id(BreakSubmission) { read: public, write: public, },
+    ruling: Option(Bool) { read: public, write: b -> [b.judge, Admin], },
+    comments: Option(String) { read: public, write: b -> [b.judge, Admin], },
+
+}
+
+FixJudgement {
+    create: _ -> [Admin],
+    delete: public,
+
+    judge: Id(Judge) { read: public, write: public, },
+    submission: Id(BreakSubmission) { read: public, write: public, },
+    ruling: Option(Bool) { read: public, write: b -> [b.judge, Admin], },
+    comments: Option(String) { read: public, write: b -> [b.judge, Admin], },
+}
+
+BreakDispute {
+    create: public,
+    delete: public,
+
+    breakk: Id(BreakSubmission) { read: public, write: public, },
+    justification: String { read: public, write: public, },
+
+}
+
+Team {
+    create: public,
+    delete: public,
+
+    name: String { read: public, write: public, },
+    leader: Id(User) { read: public, write: public, },
+}
+
+TeamContest {
+    create: public,
+    delete: public,
+
+    team: Id(Team) { read: public, write: public, },
+    contest: Id(Contest) { read: public, write: public, },
+    gitUrl: String { read: public, write: public, },
+    languages: String { read: public, write: public, },
+
+    professional: Bool { read: public, write: public, },
+}
+
+TeamMember {
+    create: public,
+    delete: public,
+
+    team: Id(Team) { read: public, write: public, },
+    user: Id(User) { read: public, write: public, },
+
+}
+
+TeamInvite {
+    create: public,
+    delete: public,
+
+    invite: String { read: public, write: public, },
+    team: Id(Team) { read: public, write: public, },
+    email: String { read: public, write: public, },
+
+}
+
+PasswordResetInvite {
+    create: _ -> [Admin],
+    delete: public,
+
+    account: Id(User) { read: public, write: public, },
+    invite: String { read: public, write: public, },
+    expiration: DateTime { read: public, write: public, },
+
+}
+
+ContestCoreTest {
+    create: public,
+    delete: public,
+
+    contest: Id(Contest) { read: public, write: public, },
+    name: String { read: public, write: public, },
+    inputFile: String { read: public, write: public, },
+    outputFile: String { read: public, write: public, },
+    testScript: String { read: public, write: public, },
+}
+
+ContestPerformanceTest {
+    create: public,
+    delete: public,
+
+    contest: Id(Contest) { read: public, write: public, },
+    name: String { read: public, write: public, },
+    inputFile: String { read: public, write: public, },
+    outputFile: String { read: public, write: public, },
+    testScript: String { read: public, write: public, },
+    optional: Bool { read: public, write: public, },
+}
+
+ContestOptionalTest {
+    create: public,
+    delete: public,
+
+    contest: Id(Contest) { read: public, write: public, },
+    name: String { read: public, write: public, },
+    inputFile: String { read: public, write: public, },
+    outputFile: String { read: public, write: public, },
+    testScript: String { read: public, write: public, },
+}
+
+
+TeamBreakScore {
+    create: public,
+    delete: public,
+
+    team: Id(TeamContest) { read: public, write: public, },
+    buildScore: Option(F64) { read: public, write: public, },
+    breakScore: Option(F64) { read: public, write: public, },
+    fixScore: Option(F64) { read: public, write: public, },
+    timestamp: DateTime { read: public, write: public, },
+}
+
+TeamBuildScore {
+    create: public,
+    delete: public,
+
+    team: Id(TeamContest) { read: public, write: public, },
+    # Nothing means not qualified
+    buildScore: Option(F64) { read: public, write: public, },
+    breakScore: Option(F64) { read: public, write: public, },
+    fixScore: Option(F64) { read: public, write: public, },
+    timestamp: DateTime { read: public, write: public, },
+}
+
+OracleSubmission {
+    create: public,
+    delete: public,
+
+    team: Id(TeamContest) { read: public, write: public, },
+    timestamp: DateTime { read: public, write: public, },
+    name: String { read: public, write: public, },
+    input: String { read: public, write: public, },
+    output: Option(String) { read: public, write: public, },
+
+    # PORT: This is an ADT: OraclePending | OracleRunning | OracleFinished | OracleError
+    status: I64 { read: public, write: public, },
+}
+
+BuildSubmission {
+    create: public,
+    delete: public,
+
+    team: Id(TeamContest) { read: public, write: public, },
+    timestamp: DateTime { read: public, write: public, },
+    commitHash: String { read: public, write: public, },
+
+    # PORT: This is an ADT: BuildPullFail | BuildPending | BuildBuilding | BuildBuildFail | BuildBuilt | BuildTimeout
+    status: I64 { read: public, write: public, },
+    stdout: Option(String) { read: public, write: public, },
+    stderr: Option(String) { read: public, write: public, },
+}
+
+BreakOracleSubmission {
+    create: _ -> [Admin],
+    delete: public,
+
+    team: Id(TeamContest) { read: public, write: public, },
+    timestamp: DateTime { read: public, write: public, },
+    description: String { read: public, write: public, },
+    valid: Bool { read: public, write: public, },
+}
+
+BreakSubmission {
+    create: public,
+    delete: public,
+
+    team: Id(TeamContest) { read: public, write: public, },
+    targetTeam: Id(TeamContest) { read: public, write: public, },
+    timestamp: DateTime { read: public, write: public, },
+    commitHash: String { read: public, write: public, },
+    name: String { read: public, write: public, },
+
+    # PORT: This is an ADT: BreakPullFail | BreakPending | BreakTesting | BreakTested | BreakRejected | BreakTimeout | BreakJudging | BreakJudged
+    status: I64 { read: public, write: public, },
+
+    # PORT: This is an DT: BreakCorrect | BreakIncorrect | BreakExploit
+    result: Option(I64) { read: public, write: public, },
+    fixed: Bool { read: public, write: public, },
+    bayesianScore: Option(F64) { read: public, write: public, },
+
+    # PORT: This is an ADT: BreakCorrectness | BreakCrash | BreakConfidentiality | BreakIntegrity | BreakAvailability | BreakSecurity
+    breakType: Option(I64) { read: public, write: public, },
+    message: Option(String) { read: public, write: public, },
+    json: Option(String) { read: public, write: public, },
+    stdout: Option(String) { read: public, write: public, },
+    stderr: Option(String) { read: public, write: public, },
+}
+
+FixSubmission {
+    create: public,
+    delete: public,
+
+    team: Id(TeamContest) { read: public, write: public, },
+    timestamp: DateTime { read: public, write: public, },
+    commitHash: String { read: public, write: public, },
+
+    # PORT: This is an ADT: FixPending | FixBuilding | FixBuilt | FixJudging | FixJudged | FixTimeout | FixRejected
+    status: I64 { read: public, write: public, },
+
+    # PORT: This is an ADT: FixFixed | FixNotFixed
+    result: Option(Bool) { read: public, write: public, },
+    message: Option(String) { read: public, write: public, },
+    stdout: Option(String) { read: public, write: public, },
+    stderr: Option(String) { read: public, write: public, },
+}
+
+FixSubmissionBugs {
+  create: public,
+  delete: public,
+
+  fix: Id(FixSubmission) { read: public, write: public, },
+  bugId: Id(BreakSubmission) { read: public, write: public, },
+}
+
+BuildCoreResult {
+    create: public,
+    delete: public,
+
+    submission: Id(BuildSubmission) { read: public, write: public, },
+    test: Id(ContestCoreTest) { read: public, write: public, },
+    pass: Bool { read: public, write: public, },
+    message: Option(String) { read: public, write: public, },
+}
+
+BuildPerformanceResult {
+    create: public,
+    delete: public,
+
+    submission: Id(BuildSubmission) { read: public, write: public, },
+    test: Id(ContestPerformanceTest) { read: public, write: public, },
+     # pass is implicitly false when Nothing
+    time: Option(F64) { read: public, write: public, },
+    message: Option(String) { read: public, write: public, },
+}
+
+BuildOptionalResult {
+    create: public,
+    delete: public,
+
+    submission: Id(BuildSubmission) { read: public, write: public, },
+    test: Id(ContestOptionalTest) { read: public, write: public, },
+    pass: Bool { read: public, write: public, },
+    message: Option(String) { read: public, write: public, },
+}
+
+
+
+Configuration {
+    create: _ -> [Admin],
+    delete: public,
+
+    key: String { read: public, write: _ -> [Admin], },
+    value: String { read: public, write: _ -> [Admin], },
+}
+
+CacheExpiration {
+    create: public,
+    delete: public,
+
+    key: String { read: public, write: public, },
+    expiration: DateTime { read: public, write: public, },
+}
+
+CacheBuildersCode {
+    create: public,
+    delete: public,
+
+    team: String { read: public, write: public, },
+    teamId: Id(TeamContest) { read: public, write: public, },
+
+    languages: String { read: public, write: public, },
+    contestId: Id(Contest) { read: public, write: public, },
+    builderScore: F64 { read: public, write: public, },
+    bugsFound: I64 { read: public, write: public, },
+    vulnerabilitiesFound: I64 { read: public, write: public, },
+}
+
+StoredFile {
+    create: public,
+    delete: public,
+
+    owner: Option(Id(User)) { read: public, write: public, },
+    name: String { read: public, write: public, },
+    contentType: String { read: public, write: public, },
+    content: String { read: public, write: public, },
+}
+
+Error {
+    create: public,
+    delete: public,
+
+    handlerName: String { read: public, write: public, },
+    errorString: String { read: public, write: public, },
+    time: DateTime { read: public, write: public, },
+}
+
+RateLimitLog {
+    create: public,
+    delete: public,
+
+    action: I64 { read: public, write: public, },
+    limiter: I64 { read: public, write: public, },
+    time: DateTime { read: public, write: public, },
+}
+
+# If one of these exists for a contest, a score request is pending.
+ScorePending {
+    create: public,
+    delete: public,
+
+    contest: Id(Contest) { read: public, write: public, },
+
+    # PORT: This is an ADT: ContestRoundBuild | ContestRoundBreak | ContestRoundFix
+    round: I64 { read: public, write: public, },
+}

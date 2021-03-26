@@ -1,0 +1,24 @@
+# Source diff ( move stdout and stderr back to breaksubmission ): https://github.com/plum-umd/bibifi-code/commit/deb17fb409f71dab17b078c78a79dddd0dc1e810#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+
+# This migration loses data :(
+# There's no explicit one-to-one relationship between BreakFixSubmission and BreakSubmission
+# but it looks like there is one intended. If this is the case, these should be populatable
+# by looking up the BreakFixSubmission and copying to BreakSubmission.
+
+# Even if such a relationship were explicit, Scooter only lets you traverse from the record
+# with the field, not vice-versa.
+#
+# So we just default to None here :(
+
+BreakSubmission::AddField(
+    stdout: Option(String) { read: public, write: public, },
+    _ -> None
+)
+
+BreakSubmission::AddField(
+    stderr: Option(String) { read: public, write: public, },
+    _ -> None
+)
+
+BreakFixSubmission::RemoveField(stdout)
+BreakFixSubmission::RemoveField(stderr)

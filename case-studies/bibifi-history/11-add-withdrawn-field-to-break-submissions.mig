@@ -1,0 +1,4 @@
+# Source diff (add withdrawn field to break submissions): https://github.com/plum-umd/bibifi-code/commit/239b4e4d7560eace6a3e81af2413623c1a242221#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+# This migration also includes the subsequent diff which establishes a default for the field
+# Second diff ( set break valid on failure ): https://github.com/plum-umd/bibifi-code/commit/28def96d9357f367c48029fd33a5a84c0956ef6d#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+BreakSubmission::AddField(withdrawn: Bool {read: public, write: public,}, _ -> false)

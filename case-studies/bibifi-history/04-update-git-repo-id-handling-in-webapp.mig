@@ -1,0 +1,7 @@
+# Source diff (update git repo id handling in webapp): https://github.com/plum-umd/bibifi-code/commit/4465859224f0c37a4d8106e91786df5c7db79838#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+
+TeamContest::AddField(
+    # PORT: In BIBIFI they use a newtype for this called RepositoryIdentifier. It's just an Int under the hood
+    gitRepositoryIdentifier: Option(I64) { read: public, write: public, },
+    _ -> None
+)

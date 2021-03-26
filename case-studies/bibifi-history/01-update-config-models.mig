@@ -1,0 +1,25 @@
+# Initial (broken) diff: https://github.com/plum-umd/bibifi-code/commit/9958b5bb734ab153af9a7a55776eb00d588af092#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+# Intermediary diff (adding nonce): https://github.com/plum-umd/bibifi-code/commit/ee3dffe78f07603b42a2fbf546c329c01d5bcd9c#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+# Repair diff: https://github.com/plum-umd/bibifi-code/commit/9578913bf03b3a1317e684cdc9bb832480c7545a#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+# The original diff breaks the build by referring to "Break" rather than "BreakSubmission"
+# In the meantime a nonce field gets added to TeamContext
+# The break is fixed in the third commit
+# Because of this convoluted relationship we combine these 3 into a single migration
+
+TeamContest::AddField(githookNonce: String {
+  read: public,
+  write: public,
+}, _ -> "")
+
+CreateCollection(BreakTimeline {
+  create: public,
+  delete: public,
+
+  breakk: Id(BreakSubmission) { read: public, write: public, },
+
+  # If Nothing, break targets latest build submission.
+  brokenFix: Option(Id(FixSubmission)) { read: public, write: public, },
+
+  # If Nothing, break has not been fixed yet.
+  fixedFix: Option(Id(FixSubmission)) { read: public, write: public, },
+})

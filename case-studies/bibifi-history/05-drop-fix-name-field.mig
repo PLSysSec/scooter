@@ -1,0 +1,5 @@
+# Source diff (drop fix name field. make break target teams optional. start addressing ): https://github.com/plum-umd/bibifi-code/commit/fc8b837e3aba58124083589ea5a694983217dd7d#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
+
+BreakSubmission::ChangeField(targetTeam, Option(Id(TeamContest)), self -> Some(self.targetTeam))
+
+BreakSubmission::RemoveField(name)
