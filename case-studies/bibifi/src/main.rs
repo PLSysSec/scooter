@@ -1,4 +1,5 @@
 #![feature(proc_macro_hygiene, decl_macro, never_type)]
+use std::collections::HashMap;
 
 mod types;
 mod session;
@@ -102,8 +103,18 @@ fn announcements(conn: SessionConn) -> Template {
     )
 }
 
-// #[post("/announcements/update")]
-// fn announcements() -> Template {
+#[get("/profile/account")]
+fn profile_account(user: UserId) -> Template {
+    Template::render(
+        "profile",
+        HashMap::<(), ()>::new(),
+    )
+}
+
+#[catch(404)]
+fn not_found(req: &rocket::request::Request) -> String {
+    format!("I couldn't find '{}'. Try something else?", req.uri())
+}
 
 fn setup_db() {
     let db_conn = DBConn::new("localhost", 27017, "BIBIFI-caravan");
@@ -141,7 +152,8 @@ fn setup_db() {
 fn main() {
     setup_db();
     rocket::ignite()
-        .mount("/", routes![index, announcements])
+        .mount("/", routes![index, announcements, profile_account])
+        .register(catchers![not_found])
         .attach(Template::fairing())
         .launch();
 }

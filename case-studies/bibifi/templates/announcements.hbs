@@ -1,129 +1,53 @@
-<html class="no-js" lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <title>Announcements - Fall 2016 Contest</title>
-    <meta name="description" content="The Build It Break It Fix It programming contest challenges participants to develop secure, but efficient software.">
-    <meta name="author" content="UMD, Department of Computer Science, PLUM, James Parker, Andrew Ruef, Michael Hicks"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <link rel="stylesheet" href="https://builditbreakit.org/static/combined/8-PBxbni.css">
-    <link rel="stylesheet" href="https://builditbreakit.org/static/tmp/PtT2QSag.css">
-    <script>
-      document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/,'js');
-    </script>
-  </head>
-  <body>
-    <div class="navbar" role="navigation">
-      <div class="container">
-        <div class="collapse navbar-collapse navbar-ex1-collapse linksbar">
-          <ul class="nav nav-pills navbar-right">
-            <li>
-              <a href="https://builditbreakit.org/sponsorships">
-                SPONSORSHIP OPPORTUNITIES
-              </a>
-            </li>
-            <li>
-              <a href="https://builditbreakit.org/contest/fall2016/announcements">
-                ANNOUNCEMENTS
-              </a>
-            </li>
-            <li>
-              <a href="https://builditbreakit.org/contest/fall2016/scoreboard">
-                SCOREBOARD
-              </a>
-            </li>
-            <li>
-              <a href="https://builditbreakit.org/details">
-                DETAILS
-              </a>
-            </li>
-            <li class="seperator">
-            </li>
-            <li>
-              <a href="https://builditbreakit.org/auth/login">
-                LOGIN
-              </a>
-            </li>
-            <li>
-              <a href="https://builditbreakit.org/register">
-                REGISTER
-              </a>
-            </li>
-          </ul>
+{{#*inline "content"}}
+<div class="row">
+  <div class="col-md-12">
+    <div class="page-header">
+      <h1>Announcements <small>Fall 2016 Contest</small></h1>
+    </div>
+  </div>
+</div>
+<div class="row">
+  <div class="col-md-9">
+    <div class="row">
+      <div class="col-md-12">
+        {{#each posts}}
+        <div class="post-ident">
+          <h4>
+            {{ title }}
+            <div>
+              <small> {{ timestamp_str }} </small>
+            </div>
+          </h4>
+          <div>
+            {{ content }}
+          </div>
         </div>
-        <div class="navbar-header"><button class="navbar-toggle" type="button" data-toggle="collapse" data-target=".navbar-ex1-collapse"><span class="sr-only">Toggle navigation</span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
-          <a class="brand" href="/"><img src="https://builditbreakit.org/static/img/builditbreakitfixit.svg?etag=3duNvwTN">
-          </a>
+        {{/each}}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Dates</h3>
+      </div>
+      <div class="panel-body">
+        <div>
+          {{ #each dates}}
+          <strong>{{ name }}</strong>
+          <p class="text-muted">
+            <small>{{ start_str }} - {{ end_str }}</small>
+          </p>
+          {{ /each}}
         </div>
       </div>
     </div>
-    <div id="main" role="main">
-      <div class="container">
-        <div class="row">
-          <div class="col-md-12">
-            <div class="page-header">
-              <h1>Announcements <small>Fall 2016 Contest</small></h1>
-            </div>
-          </div>
-        </div>
-        <div class="row">
-          <div class="col-md-9">
-            <div class="row">
-              <div class="col-md-12">
-                {{#each posts}}
-                <div class="post-ident">
-                  <h4>
-                    {{ title }}
-                    <div>
-                      <small> {{ timestamp_str }} </small>
-                    </div>
-                  </h4>
-                  <div>
-                    {{ content }}
-                  </div>
-                </div>
-                {{/each}}
-              </div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="panel panel-default">
-              <div class="panel-heading">
-                <h3 class="panel-title">Dates</h3>
-              </div>
-              <div class="panel-body">
-                <div>
-                  {{ #each dates}}
-                  <strong>{{ name }}</strong>
-                  <p class="text-muted">
-                    <small>{{ start_str }} - {{ end_str }}</small>
-                  </p>
-                  {{ /each}}
-                </div>
-              </div>
-            </div>
-            <div class="signup">
-              <a class="btn btn-danger btn-block" href="https://builditbreakit.org/contest/fall2016/participation">
-                PARTICIPANTS
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="push container"></div>
+    <div class="signup">
+      <a class="btn btn-danger btn-block" href="https://builditbreakit.org/contest/fall2016/participation">
+        PARTICIPANTS
+      </a>
     </div>
-    <footer>
-      <div class="container">
-        <ul>
-          <li> <a href="https://builditbreakit.org/support">Support</a> </li>
-          <li class="seperator"></li>
-          <li><a href="https://builditbreakit.org/feedback">Feedback</a> </li>
-          <li class="seperator"></li>
-          <li><a href="https://builditbreakit.org/contests">Past Contests</a> </li>
-        </ul>
-      </div>
-    </footer>
-  </body>
-</html>
+  </div>
+</div>
+{{/inline}}
+{{~> layout~}}
