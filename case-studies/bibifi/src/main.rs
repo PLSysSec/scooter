@@ -1,14 +1,16 @@
 #![feature(proc_macro_hygiene, decl_macro, never_type)]
 use std::collections::HashMap;
 
-mod types;
 mod session;
+mod types;
 use session::*;
 
 use rocket_contrib::templates::Template;
 use serde::Serialize;
+use serde_json::to_string;
 
 use enforcement::*;
+use rocket::http::{Cookie, Cookies};
 use types::*;
 
 #[macro_use]
@@ -104,11 +106,46 @@ fn announcements(conn: SessionConn) -> Template {
 }
 
 #[get("/profile/account")]
-fn profile_account(user: UserId) -> Template {
-    Template::render(
-        "profile",
-        HashMap::<(), ()>::new(),
+fn profile_account(user: UserId, conn: SessionConn) -> Template {
+    let user = user.0.lookup(&conn.0).unwrap();
+
+    let info = &UserInformation::find_full_by_template(
+        &conn.0,
+        BuildUserInformationQuery::new()
+            .user(user.id.clone().unwrap())
+            .finalize(),
     )
+    .unwrap()[0];
+
+    #[derive(Serialize)]
+    struct Context<'r> {
+        user: User,
+        info: &'r UserInformation,
+    }
+
+    let ctx = Context { user, info };
+    Template::render("profile", ctx)
+}
+
+#[get("/login/<uname>")]
+fn login(conn: SessionConn, mut cookies: Cookies, uname: String) -> &'static str {
+    let u = User::find_full_by_template(
+        &conn.0,
+        BuildUserQuery::new().ident(uname.into()).finalize(),
+    );
+
+    match u {
+        Some(u) if u.len() > 0 => {
+            eprintln!("{:?}", u.len());
+            let id = u[0].id.clone().unwrap();
+            cookies.add_private(Cookie::new(
+                "user_id",
+                to_string(&RecordId::from(id)).unwrap(),
+            ));
+            "Successfully logged in"
+        }
+        _ => "Error username not found",
+    }
 }
 
 #[catch(404)]
@@ -116,43 +153,9 @@ fn not_found(req: &rocket::request::Request) -> String {
     format!("I couldn't find '{}'. Try something else?", req.uri())
 }
 
-fn setup_db() {
-    let db_conn = DBConn::new("localhost", 27017, "BIBIFI-caravan");
-    let auth_conn = &db_conn.clone().as_princ(Principal::Unauthenticated);
-    let admin_conn = &db_conn.clone().as_princ(Principal::Static("Admin"));
-    db_conn.mongo_conn.collection("Contest").drop(None).ok();
-    db_conn.mongo_conn.collection("Post").drop(None).ok();
-    let contest_uid = Contest::insert_one(
-        auth_conn,
-        contest! {
-            url: "".to_string(),
-            title: "caravan-contest".to_string(),
-            buildStart: DateTime::now(),
-            buildEnd: DateTime::now(),
-            breakFixStart: DateTime::now(),
-            breakEnd: DateTime::now(),
-            fixEnd: DateTime::now(),
-            dependencies: vec![],
-        },
-    )
-    .expect("Could not insert contest!");
-    let post_uid = Post::insert_one(
-        admin_conn,
-        post! {
-            title: "This is a test post!".to_string(),
-            contest: contest_uid,
-            timestamp: DateTime::now(),
-            draft: false,
-            content: "This post is retrieved from the database using Scooter".to_string(),
-            markdown: "".to_string(),
-        },
-    ).expect("Couldt not insert post");
-}
-
 fn main() {
-    setup_db();
     rocket::ignite()
-        .mount("/", routes![index, announcements, profile_account])
+        .mount("/", routes![index, announcements, profile_account, login])
         .register(catchers![not_found])
         .attach(Template::fairing())
         .launch();

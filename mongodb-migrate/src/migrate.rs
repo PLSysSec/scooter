@@ -1,4 +1,4 @@
-use policy_lang;
+use policy_lang::{self, ir::expr::ExprType};
 use std::iter;
 
 use policy_lang::ir::expr::{FieldComparison, Func, IRExpr, Var};
@@ -307,8 +307,8 @@ impl From<Value> for Bson {
             Value::Set(vs) => Bson::Array(vs.into_iter().map(|v| v.into()).collect()),
             Value::Bool(b) => Bson::Boolean(b),
             Value::DateTime(datetime) => Bson::UtcDatetime(datetime),
-            Value::Option(Some(val)) => Bson::Document(doc! {"val": Bson::from(*val)}),
-            Value::Option(None) => Bson::Null,
+            Value::Option(Some(val)) => Bson::from(*val),
+            Value::Option(None) => Bson::Document(doc! {"OPTION_exist": false}),
         }
     }
 }
@@ -511,7 +511,7 @@ impl Evaluator<'_> {
                 }
             }
             // Paths are field lookups on an object.
-            IRExpr::Path(_ty, obj_expr, field) => {
+            IRExpr::Path(ty, obj_expr, field) => {
                 // Look up the object
                 let obj = self.eval_expr(db_conn, obj_expr);
                 // Get the string name of the field, using the col_id
@@ -526,14 +526,23 @@ impl Evaluator<'_> {
                 };
 
                 // Get the field value.
-                match obj {
+                let mut val: Value = match obj {
                     Value::Object(d) => d
                         .get(normalized_field_name)
                         .expect("Retrieved value doesn't have the right field")
                         .clone()
                         .into(),
                     _ => panic!("Cannot get fields of non-object values"),
+                };
+
+                if val != Value::Option(None) {
+                    let mut outer_ty = ty;
+                    while let ExprType::Option(inner_ty) = outer_ty {
+                        outer_ty = *inner_ty;
+                        val = Value::Option(Some(Box::new(val)));
+                    }
                 }
+                val
             }
             // Variable lookup
             IRExpr::Var(_ty, id) => self
@@ -701,7 +710,7 @@ impl Evaluator<'_> {
                     Result::Ok(Some(doc)) => Value::Object(doc),
                     _ => panic!("Couldn't find doc matching id {}", id),
                 },
-                _ => panic!("Runtime type error: lookup argument isn't an id"),
+                t => panic!("Runtime type error: lookup argument isn't an id: {:?}", t),
             },
             // Sets
             IRExpr::Set(_ty, subexprs) => Value::Set(

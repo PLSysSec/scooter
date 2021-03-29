@@ -43,6 +43,7 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
     let input_with_id = {
         let fields_iter = fields.iter();
         quote! {
+            #[derive(Serialize)]
             #input_vis struct #ident {
                 #(#fields_iter),*,
                 pub id: Option<#enforcement_crate_name::TypedRecordId<Self>>
@@ -105,7 +106,9 @@ pub fn collection(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         });
         quote! {
+
             #[allow(warnings)]
+            #[derive(Serialize)]
             pub struct #prop_ident {
                 #(#pub_fields),*
             }

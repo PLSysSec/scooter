@@ -1,556 +1,648 @@
-# Notes:
-# * Yesod supports uniqueness constraints on any type, which we don't.
-# * It also supports default values for fields in the model file,
-# while we only support them during migrations.
-# * It also supports custom enumeration types. Where used, these are noted in comments.
-
 @static-principal
 Admin
-
 @principal
 User {
     create: public,
     delete: public,
 
-    # Unique
-    ident: String {
+    ident : String {
         read: public,
         write: public,
     },
-    password: String {
+    password : String {
         read: public,
         write: public,
     },
-    salt: String {
+    salt : String {
         read: public,
         write: public,
     },
-    # Unique
-    email: String {
+    email : String {
         read: public,
         write: public,
     },
-    # default: now()
-    created: DateTime {
+    created : DateTime {
         read: public,
         write: public,
     },
-    # default: false
-    admin: Bool {
+    admin : Bool {
         read: public,
         write: public,
     },
-    # default: None
-    consentForm: Option(Id(StoredFile)) {
+    consentForm : Option(Id(StoredFile)) {
         read: public,
         write: public,
     },
-    # default: None
-    resume: Option(Id(StoredFile)) {
+    resume : Option(Id(StoredFile)) {
         read: public,
         write: public,
     },
 }
-
 CourseraUser {
     create: public,
     delete: public,
 
-    # Unique
-    courseraId: String {
+    courseraId : String {
         read: public,
         write: public,
     },
-    # Unique
-    user: Id(User) {
+    user : Id(User) {
         read: public,
         write: public,
     },
-    token: String {
+    token : String {
         read: public,
         write: public,
     },
 }
+UserInformation {
+    create: public,
+    delete: public,
 
-# Skipping UserInformation, does not appear to be policy-relevant
-
+    user : Id(User) {
+        read: public,
+        write: public,
+    },
+    school : Option(String) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    major : Option(String) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    minor : Option(String) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    degreesHeld : Option(String) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    degree : String {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    yearsInProgram : Option(I64) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    yearsOfExperience : Option(I64) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    languages : Option(String) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    favoriteLanguages : Option(String) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    yearsOfWork : Option(I64) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    experienceClass : Option(Bool) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    experiencePersonal : Option(Bool) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    experienceInternship : Option(Bool) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    experienceJob : Option(Bool) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    securityTraining : Option(Bool) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    securityExperience : Option(Bool) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    softwareEngineering : Option(Bool) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    securityClass : Option(Bool) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    previousContest : Option(Bool) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    resumePermission : Bool {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    age : Option(I64) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    nationality : Option(String) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    gender : Option(String) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    agreeToParticipate : Bool {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    graduationYear : Option(I64) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    programmerRating : Option(I64) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    attackerRating : Option(I64) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    language : Option(String) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+    timezone : Option(String) {
+        read: u -> [Admin,u.user],
+        write: u -> [u.user],
+    },
+}
 UserConfirmation {
     create: public,
     delete: public,
 
-    user: Id(User) {
+    user : Id(User) {
         read: public,
         write: public,
     },
-    # Unique
-    confirmation: String {
+    confirmation : String {
         read: public,
         write: public,
     },
 }
-
 Contest {
     create: public,
     delete: public,
 
-    # Unique
-    url: String {
+    url : String {
         read: public,
         write: public,
     },
-    title: String {
+    title : String {
         read: public,
         write: public,
     },
-    buildStart: DateTime {
+    buildStart : DateTime {
         read: public,
         write: public,
     },
-    buildEnd: DateTime {
+    buildEnd : DateTime {
         read: public,
         write: public,
     },
-    breakFixStart: DateTime {
+    breakEnd : DateTime {
         read: public,
         write: public,
     },
-    breakEnd: DateTime {
+    breakFixStart : DateTime {
         read: public,
         write: public,
     },
-    fixEnd: DateTime {
-        read: public,
-        write: public,
-    },
-    # Inlined from PostDependency
-    dependencies: Set(Id(Post)) {
+    fixEnd : DateTime {
         read: public,
         write: public,
     },
 }
-
 CourseraContest {
     create: public,
     delete: public,
 
-    # Unique
-    contest: Id(Contest) {
+    contest : Id(Contest) {
         read: public,
         write: public,
     },
-    courseId: I64 {
+    courseId : I64 {
         read: public,
         write: public,
     },
-    sessionId: I64 {
+    sessionId : I64 {
         read: public,
         write: public,
     },
 }
-
 Post {
-    create: u -> [Admin],
-    delete: u -> [Admin],
+    create: _ -> [Admin],
+    delete: _ -> [Admin],
 
-    title: String {
-         read: public,
-         write: u -> [Admin],
+    title : String {
+        read: public,
+        write: _ -> [Admin],
     },
-    contest: Id(Contest) {
+    contest : Id(Contest) {
         read: public,
         write: public,
     },
-    # default: now()
-    timestamp: DateTime {
+    timestamp : DateTime {
         read: public,
         write: public,
     },
-    draft: Bool {
+    draft : Bool {
         read: public,
         write: public,
     },
-    # No "HTML" type available, using "String"
-    content: String {
+    content : String {
         read: public,
-        write: u -> [Admin],
+        write: _ -> [Admin],
     },
-    markdown: String {
+    markdown : String {
         read: public,
-        write: u -> [Admin],
+        write: _ -> [Admin],
     },
 }
+PostDependency {
+    create: public,
+    delete: public,
 
+    contest : Id(Contest) {
+        read: public,
+        write: public,
+    },
+    post : Id(Post) {
+        read: public,
+        write: public,
+    },
+    dependency : I64 {
+        read: public,
+        write: public,
+    },
+}
 @principal
 Judge {
     create: public,
     delete: public,
 
-    # Unique
-    judge: Id(User) {
+    judge : Id(User) {
         read: public,
         write: public,
     },
-    # Unique
-    contest: Id(Contest) {
+    contest : Id(Contest) {
         read: public,
         write: public,
     },
-    # default: 0
-    assignedCount: I64 {
-        read: public,
-        write: public,
-    },
-    # Inlined from JudgeConflict
-    conflicts: Set(Id(TeamContest)) {
+    assignedCount : I64 {
         read: public,
         write: public,
     },
 }
+JudgeConflict {
+    create: public,
+    delete: public,
 
+    judge : Id(Judge) {
+        read: public,
+        write: public,
+    },
+    team : Id(TeamContest) {
+        read: public,
+        write: public,
+    },
+}
 BuildJudgement {
-    create: bj -> [Admin],
-    delete: bj -> [bj.judge, Admin],
+    create: _ -> [Admin],
+    delete: public,
 
-    judge: Id(Judge) {
+    judge : Id(Judge) {
         read: public,
         write: public,
     },
-    # Unique
-    submission: Id(BuildSubmission) {
+    submission : Id(BuildSubmission) {
         read: public,
         write: public,
     },
-    ruling: Option(Bool) {
+    ruling : Option(Bool) {
         read: public,
-        write: bj -> [bj.judge, Admin],
+        write: b -> [b.judge,Admin],
     },
-    comments: Option(String) {
+    comments : Option(String) {
         read: public,
-        write: bj -> [bj.judge, Admin],
+        write: b -> [b.judge,Admin],
     },
 }
-
 BreakJudgement {
-    create: bj -> [Admin],
-    delete: bj -> [bj.judge, Admin],
+    create: _ -> [Admin],
+    delete: public,
 
-    judge: Id(Judge) {
+    judge : Id(Judge) {
         read: public,
         write: public,
     },
-    # Unique
-    submission: Id(BreakSubmission) {
+    submission : Id(BreakSubmission) {
         read: public,
         write: public,
     },
-    ruling: Option(Bool) {
+    ruling : Option(Bool) {
         read: public,
-        write: bj -> [bj.judge, Admin],
+        write: b -> [b.judge,Admin],
     },
-    comments: Option(String) {
+    comments : Option(String) {
         read: public,
-        write: bj -> [bj.judge, Admin],
+        write: b -> [b.judge,Admin],
     },
 }
-
 FixJudgement {
-    create: bj -> [Admin],
-    delete: bj -> [bj.judge, Admin],
+    create: _ -> [Admin],
+    delete: public,
 
-    judge: Id(Judge) {
+    judge : Id(Judge) {
         read: public,
         write: public,
     },
-    # Unique
-    submission: Id(BreakSubmission) {
+    submission : Id(BreakSubmission) {
         read: public,
         write: public,
     },
-    ruling: Option(Bool) {
+    ruling : Option(Bool) {
         read: public,
-        write: bj -> [bj.judge, Admin],
+        write: b -> [b.judge,Admin],
     },
-    comments: Option(String) {
+    comments : Option(String) {
         read: public,
-        write: bj -> [bj.judge, Admin],
+        write: b -> [b.judge,Admin],
     },
 }
-
 BreakDispute {
     create: public,
     delete: public,
 
-    # Unique
-    breakSub: Id(BreakSubmission) {
+    breakk : Id(BreakSubmission) {
         read: public,
         write: public,
     },
-    justification: String {
+    justification : String {
         read: public,
         write: public,
     },
 }
-
 Team {
     create: public,
     delete: public,
 
-    # Unique
-    name: String {
+    name : String {
         read: public,
         write: public,
     },
-    leader: Id(User) {
-        read: public,
-        write: public,
-    },
-    # Inlined from TeamMember
-    members: Set(Id(User)) {
+    leader : Id(User) {
         read: public,
         write: public,
     },
 }
-
 TeamContest {
     create: public,
     delete: public,
 
-    # Unique
-    team: Id(Team) {
+    team : Id(Team) {
         read: public,
         write: public,
     },
-    # Unique
-    contest: Id(Contest) {
+    contest : Id(Contest) {
         read: public,
         write: public,
     },
-    # default=''
-    gitUrl: String {
+    gitUrl : String {
         read: public,
         write: public,
     },
-    # default=''
-    languages: String {
+    languages : String {
         read: public,
         write: public,
     },
-    # default=false
-    professional: Bool {
+    professional : Bool {
         read: public,
         write: public,
     },
-    gitHookNonce: String {
+    githookNonce : String {
         read: public,
         write: public,
     },
-    # external type: RepositoryIdentifier
-    gitRepositoryIdentifier: Option(String) {
+    gitRepositoryIdentifier : Option(I64) {
         read: public,
         write: public,
     },
 }
+TeamMember {
+    create: public,
+    delete: public,
 
+    team : Id(Team) {
+        read: public,
+        write: public,
+    },
+    user : Id(User) {
+        read: public,
+        write: public,
+    },
+}
 TeamInvite {
     create: public,
     delete: public,
 
-    # Unique
-    invite: String {
+    invite : String {
         read: public,
         write: public,
     },
-    team: Id(Team) {
+    team : Id(Team) {
         read: public,
         write: public,
     },
-    email: String {
+    email : String {
         read: public,
         write: public,
     },
 }
-
 PasswordResetInvite {
-    create: u -> [Admin],
-    delete: u -> [Admin],
+    create: _ -> [Admin],
+    delete: public,
 
-    account: Id(User) {
+    account : Id(User) {
         read: public,
         write: public,
     },
-    # Unique
-    invite: String {
+    invite : String {
         read: public,
-        write: u -> [Admin],
+        write: public,
     },
-    expiration: DateTime {
+    expiration : DateTime {
         read: public,
         write: public,
     },
 }
-
 ContestCoreTest {
     create: public,
     delete: public,
 
-    contest: Id(Contest) {
+    contest : Id(Contest) {
         read: public,
         write: public,
     },
-    name: String {
+    name : String {
         read: public,
         write: public,
     },
-    inputFile: String {
+    inputFile : String {
         read: public,
         write: public,
     },
-    outputFile: String {
+    outputFile : String {
         read: public,
         write: public,
     },
-    testScript: String {
+    testScript : String {
         read: public,
         write: public,
     },
 }
-
 ContestPerformanceTest {
     create: public,
     delete: public,
 
-    contest: Id(Contest) {
+    contest : Id(Contest) {
         read: public,
         write: public,
     },
-    name: String {
+    name : String {
         read: public,
         write: public,
     },
-    inputFile: String {
+    inputFile : String {
         read: public,
         write: public,
     },
-    outputFile: String {
+    outputFile : String {
         read: public,
         write: public,
     },
-    testScript: String {
+    testScript : String {
         read: public,
         write: public,
     },
-    # default=false
-    optional: Bool {
+    optional : Bool {
         read: public,
         write: public,
     },
 }
-
 ContestOptionalTest {
     create: public,
     delete: public,
 
-    contest: Id(Contest) {
+    contest : Id(Contest) {
         read: public,
         write: public,
     },
-    name: String {
+    name : String {
         read: public,
         write: public,
     },
-    inputFile: String {
+    inputFile : String {
         read: public,
         write: public,
     },
-    outputFile: String {
+    outputFile : String {
         read: public,
         write: public,
     },
-    testScript: String {
+    testScript : String {
         read: public,
         write: public,
     },
 }
-
 TeamBreakScore {
     create: public,
     delete: public,
 
-    team: Id(TeamContest) {
+    team : Id(TeamContest) {
         read: public,
         write: public,
     },
-    # default=Some(0.0)
-    buildScore: Option(F64) {
+    buildScore : Option(F64) {
         read: public,
         write: public,
     },
-    breakScore: Option(F64) {
+    breakScore : Option(F64) {
         read: public,
         write: public,
     },
-    fixScore: Option(F64) {
+    fixScore : Option(F64) {
         read: public,
         write: public,
     },
-    timestamp: DateTime {
+    timestamp : DateTime {
         read: public,
         write: public,
     },
 }
-
 TeamBuildScore {
     create: public,
     delete: public,
 
-    team: Id(TeamContest) {
+    team : Id(TeamContest) {
         read: public,
         write: public,
     },
-    buildScore: Option(F64) {
+    buildScore : Option(F64) {
         read: public,
         write: public,
     },
-    breakScore: Option(F64) {
+    breakScore : Option(F64) {
         read: public,
         write: public,
     },
-    fixScore: Option(F64) {
+    fixScore : Option(F64) {
         read: public,
         write: public,
     },
-    timestamp: DateTime {
+    timestamp : DateTime {
         read: public,
         write: public,
     },
 }
-
 OracleSubmission {
     create: public,
     delete: public,
 
-    team: Id(TeamContest) {
+    team : Id(TeamContest) {
         read: public,
         write: public,
     },
-    timestamp: DateTime {
+    timestamp : DateTime {
         read: public,
         write: public,
     },
-    name: String {
+    name : String {
         read: public,
         write: public,
     },
-    input: String {
+    input : String {
         read: public,
         write: public,
     },
-    output: Option(String) {
+    output : Option(String) {
         read: public,
         write: public,
     },
-    # External type: OracleSubmissionStatus
-    status: String {
+    status : I64 {
         read: public,
         write: public,
     },
@@ -559,473 +651,447 @@ BuildSubmission {
     create: public,
     delete: public,
 
-    team: Id(TeamContest) {
+    team : Id(TeamContest) {
         read: public,
         write: public,
     },
-    timestamp: DateTime {
+    timestamp : DateTime {
         read: public,
         write: public,
     },
-    commitHash: String {
+    commitHash : String {
         read: public,
         write: public,
     },
-    # External type: BuildSubmissionStatus
-    status: String {
+    status : I64 {
         read: public,
         write: public,
     },
-    # Textarea type? default=None
-    stdout: Option(String) {
+    stdout : Option(String) {
         read: public,
         write: public,
     },
-    # Textarea type? default=None
-    stderr: Option(String) {
-        read: public,
-        write: public,
-    },
-    # Inlined from BuildSubmissionFile
-    file: Option(String) {
+    stderr : Option(String) {
         read: public,
         write: public,
     },
 }
-
 BreakOracleSubmission {
-    create: u -> [Admin],
-    delete: u -> [Admin],
-    team: Id(TeamContest) {
+    create: _ -> [Admin],
+    delete: public,
+
+    team : Id(TeamContest) {
         read: public,
-        write: u -> [Admin],
+        write: public,
     },
-    timestamp: DateTime {
+    timestamp : DateTime {
         read: public,
-        write: u -> [Admin],
+        write: public,
     },
-    description: String {
+    description : String {
         read: public,
-        write: u -> [Admin],
+        write: public,
     },
-    valid: Bool {
+    valid : Bool {
         read: public,
-        write: u -> [Admin],
+        write: public,
     },
 }
-
 BreakSubmission {
     create: public,
     delete: public,
 
-    team: Id(TeamContest) {
+    team : Id(TeamContest) {
         read: public,
         write: public,
     },
-    targetTeam: Option(Id(TeamContest)) {
+    targetTeam : Id(TeamContest) {
         read: public,
         write: public,
     },
-    timestamp: DateTime {
+    timestamp : DateTime {
         read: public,
         write: public,
     },
-    commitHash: String {
+    commitHash : String {
         read: public,
         write: public,
     },
-    # default=''
-    name: String {
+    breakType : Option(I64) {
         read: public,
         write: public,
     },
-    # External type: BreakSubmissionStatus
-    status: String {
+    message : Option(String) {
         read: public,
         write: public,
     },
-    # External type: BreakType
-    breakType: Option(String) {
+    json : Option(String) {
         read: public,
         write: public,
     },
-    message: Option(String) {
+    valid : Bool {
         read: public,
         write: public,
     },
-    json: Option(String) {
+    status : I64 {
         read: public,
         write: public,
     },
-    # Textarea type? default=Some('')
-    stdout: Option(String) {
+    stdout : Option(String) {
         read: public,
         write: public,
     },
-    # Textarea type? default=Some('')
-    stderr: Option(String) {
+    stderr : Option(String) {
         read: public,
         write: public,
     },
-    valid: Option(Bool) {
-        read: public,
-        write: public,
-    },
-    # Inlined from BreakSubmissionFile
-    file: Option(String) {
+    withdrawn : Bool {
         read: public,
         write: public,
     },
 }
-
-BreakFixSubmission {
-    create: public,
-    delete: public,
-
-    breakSub: Id(BreakSubmission) {
-        read: public,
-        write: public,
-    },
-    fix: Option(Id(FixSubmission)) {
-        read: public,
-        write: public,
-    },
-    # External type: BreakSubmissionResult
-    result: String {
-        read: public,
-        write: public,
-    },
-}
-
 FixSubmission {
     create: public,
     delete: public,
 
-    team: Id(TeamContest) {
+    team : Id(TeamContest) {
         read: public,
         write: public,
     },
-    timestamp: DateTime {
+    timestamp : DateTime {
         read: public,
         write: public,
     },
-    commitHash: String {
+    commitHash : String {
         read: public,
         write: public,
     },
-    # External type: FixSubmissionStatus
-    status: String {
+    status : I64 {
         read: public,
         write: public,
     },
-    # External type: FixSubmissionResult
-    result: Option(String) {
+    result : Option(Bool) {
         read: public,
         write: public,
     },
-    message: Option(String) {
+    message : Option(String) {
         read: public,
         write: public,
     },
-    # Textarea type? default=Some('')
-    stdout: Option(String) {
+    stdout : Option(String) {
         read: public,
         write: public,
     },
-    # Textarea type? default=Some('')
-    stderr: Option(String) {
-        read: public,
-        write: public,
-    },
-    # inlined from FixSubmissionFile
-    file: Option(String) {
+    stderr : Option(String) {
         read: public,
         write: public,
     },
 }
-
 BuildCoreResult {
     create: public,
     delete: public,
 
-    # Unique
-    submission: Id(BuildSubmission) {
+    submission : Id(BuildSubmission) {
         read: public,
         write: public,
     },
-    # Unique
-    test: Id(ContestCoreTest) {
+    test : Id(ContestCoreTest) {
         read: public,
         write: public,
     },
-    pass: Bool {
+    pass : Bool {
         read: public,
         write: public,
     },
-    message: Option(String) {
+    message : Option(String) {
         read: public,
         write: public,
     },
 }
-
 BuildPerformanceResult {
     create: public,
     delete: public,
 
-    # Unique
-    submission: Id(BuildSubmission) {
+    submission : Id(BuildSubmission) {
         read: public,
         write: public,
     },
-    # Unique
-    test: Id(ContestPerformanceTest) {
+    test : Id(ContestPerformanceTest) {
         read: public,
         write: public,
     },
-    time: Option(F64) {
+    time : Option(F64) {
         read: public,
         write: public,
     },
-    message: Option(String) {
+    message : Option(String) {
         read: public,
         write: public,
     },
 }
-
 BuildOptionalResult {
     create: public,
     delete: public,
 
-    # Unique
-    submission: Id(BuildSubmission) {
+    submission : Id(BuildSubmission) {
         read: public,
         write: public,
     },
-    # Unique
-    test: Id(ContestOptionalTest) {
+    test : Id(ContestOptionalTest) {
         read: public,
         write: public,
     },
-    pass: Bool {
+    pass : Bool {
         read: public,
         write: public,
     },
-    message: Option(String) {
-        read: public,
-        write: public,
-    },
-}
-
-FixCoreResult {
-    create: public,
-    delete: public,
-
-    # Unique
-    submission: Id(FixSubmission) {
-        read: public,
-        write: public,
-    },
-    # Unique
-    test: Id(ContestCoreTest) {
-        read: public,
-        write: public,
-    },
-    pass: Bool {
-        read: public,
-        write: public,
-    },
-    message: Option(String) {
+    message : Option(String) {
         read: public,
         write: public,
     },
 }
-
-FixPerformanceResult {
-    create: public,
-    delete: public,
-
-    # Unique
-    submission: Id(FixSubmission) {
-        read: public,
-        write: public,
-    },
-    # Unique
-    test: Id(ContestPerformanceTest) {
-        read: public,
-        write: public,
-    },
-    time: Option(F64) {
-        read: public,
-        write: public,
-    },
-    message: Option(String) {
-        read: public,
-        write: public,
-    },
-}
-
-FixOptionalResult {
-    create: public,
-    delete: public,
-
-    # Unique
-    submission: Id(FixSubmission) {
-        read: public,
-        write: public,
-    },
-    # Unique
-    test: Id(ContestOptionalTest) {
-        read: public,
-        write: public,
-    },
-    pass: Bool {
-        read: public,
-        write: public,
-    },
-    message: Option(String) {
-        read: public,
-        write: public,
-    },
-}
-
 Configuration {
-    create: u -> [Admin],
-    delete: u -> [Admin],
+    create: _ -> [Admin],
+    delete: public,
 
-    # Unique
-    key: String {
+    key : String {
         read: public,
-        write: u -> [Admin],
+        write: _ -> [Admin],
     },
-    value: String {
+    value : String {
         read: public,
-        write: u -> [Admin],
+        write: _ -> [Admin],
     },
 }
-
 CacheExpiration {
     create: public,
     delete: public,
 
-    # Unique
-    key: String {
+    key : String {
         read: public,
         write: public,
     },
-    # default=now()
-    expiration: DateTime {
+    expiration : DateTime {
         read: public,
         write: public,
     },
 }
-
 CacheBuildersCode {
     create: public,
     delete: public,
 
-    team: String {
+    team : String {
         read: public,
         write: public,
     },
-    # Unique
-    teamId: Id(TeamContest) {
+    teamId : Id(TeamContest) {
         read: public,
         write: public,
     },
-    # default=''
-    languages: String {
+    languages : String {
         read: public,
         write: public,
     },
-    contestId: Id(Contest) {
+    contestId : Id(Contest) {
         read: public,
         write: public,
     },
-    builderScore: F64 {
+    builderScore : F64 {
         read: public,
         write: public,
     },
-    bugsFound: I64 {
+    bugsFound : I64 {
         read: public,
         write: public,
     },
-    vulnerabilitiesFound: I64 {
+    vulnerabilitiesFound : I64 {
         read: public,
         write: public,
     },
 }
-
 StoredFile {
     create: public,
     delete: public,
 
-    owner: Option(Id(User)) {
+    owner : Option(Id(User)) {
         read: public,
         write: public,
     },
-    name: String {
+    name : String {
         read: public,
         write: public,
     },
-    contentType: String {
+    contentType : String {
         read: public,
         write: public,
     },
-    content: String {
+    content : String {
         read: public,
         write: public,
     },
 }
-
 Error {
     create: public,
     delete: public,
 
-    handlerName: String {
+    handlerName : String {
         read: public,
         write: public,
     },
-    errorText: String {
+    errorString : String {
         read: public,
         write: public,
     },
-    # default=now()
-    time: DateTime {
+    time : DateTime {
         read: public,
         write: public,
     },
 }
-
-RateLimiting {
+RateLimitLog {
     create: public,
     delete: public,
 
-    action: I64 {
+    action : I64 {
         read: public,
         write: public,
     },
-    limiter: I64 {
+    limiter : I64 {
         read: public,
         write: public,
     },
-    # default=now()
-    time: DateTime {
+    time : DateTime {
         read: public,
         write: public,
     },
 }
-
 ScorePending {
     create: public,
     delete: public,
 
-    # Unique
-    contest: Id(Contest) {
+    contest : Id(Contest) {
         read: public,
         write: public,
     },
-    # Unique, External type: ContestRound
-    round: String {
+    round : I64 {
+        read: public,
+        write: public,
+    },
+}
+BreakFixSubmission {
+    create: public,
+    delete: public,
+
+    breakk : Id(BreakSubmission) {
+        read: public,
+        write: public,
+    },
+    fix : Option(Id(FixSubmission)) {
+        read: public,
+        write: public,
+    },
+    result : Option(Bool) {
+        read: public,
+        write: public,
+    },
+}
+FixCoreResult {
+    create: public,
+    delete: public,
+
+    submission : Id(FixSubmission) {
+        read: public,
+        write: public,
+    },
+    test : Id(ContestCoreTest) {
+        read: public,
+        write: public,
+    },
+    pass : Bool {
+        read: public,
+        write: public,
+    },
+    message : Option(String) {
+        read: public,
+        write: public,
+    },
+}
+FixPerformanceResult {
+    create: public,
+    delete: public,
+
+    submission : Id(FixSubmission) {
+        read: public,
+        write: public,
+    },
+    test : Id(ContestPerformanceTest) {
+        read: public,
+        write: public,
+    },
+    time : Option(F64) {
+        read: public,
+        write: public,
+    },
+    message : Option(String) {
+        read: public,
+        write: public,
+    },
+}
+FixOptionalResult {
+    create: public,
+    delete: public,
+
+    submission : Id(FixSubmission) {
+        read: public,
+        write: public,
+    },
+    test : Id(ContestOptionalTest) {
+        read: public,
+        write: public,
+    },
+    pass : Bool {
+        read: public,
+        write: public,
+    },
+    message : Option(String) {
+        read: public,
+        write: public,
+    },
+}
+BreakSubmissionFile {
+    create: public,
+    delete: public,
+
+    breakk : Id(BreakSubmission) {
+        read: public,
+        write: public,
+    },
+    file : String {
+        read: public,
+        write: public,
+    },
+}
+BuildSubmissionFile {
+    create: public,
+    delete: public,
+
+    team : Id(TeamContest) {
+        read: public,
+        write: public,
+    },
+    file : String {
+        read: public,
+        write: public,
+    },
+}
+FixSubmissionFile {
+    create: public,
+    delete: public,
+
+    fix : Id(FixSubmission) {
+        read: public,
+        write: public,
+    },
+    file : String {
         read: public,
         write: public,
     },

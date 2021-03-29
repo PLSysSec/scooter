@@ -37,10 +37,47 @@ pub enum PolicyValue {
     Set(Vec<Principal>),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum POption<T> {
     Some(T),
     None,
+}
+
+impl<T> Serialize for POption<T>
+where
+    T: Serialize,
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match *self {
+            POption::Some(ref value) => serializer.serialize_some(value),
+            POption::None => serializer.serialize_none(),
+        }
+    }
+}
+
+impl<'de, T> Deserialize<'de> for POption<T>
+where
+    T: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Option::<T>::deserialize(deserializer).map(|o| o.into())
+    }
+}
+
+impl<T> From<Option<T>> for POption<T> {
+    fn from(other: Option<T>) -> Self {
+        match other {
+            Some(o) => POption::Some(o),
+            None => POption::None,
+        }
+    }
 }
 
 impl From<Vec<RecordId>> for PolicyValue {
