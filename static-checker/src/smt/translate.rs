@@ -1167,7 +1167,6 @@ pub fn type_name(typ: &ExprType) -> String {
     }
 }
 
-#[cfg(debug_assertions)]
 /// A helper function used for debug asserts to guarantee we don't unknown types (i.e. empty lists)
 fn contains_unknown(typ: &ExprType) -> bool {
     match typ {

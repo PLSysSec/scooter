@@ -5,7 +5,7 @@ use policy_lang::{
 
 fn test_policy(pol: &str) -> SchemaPolicy {
     let pol = policy_lang::parse_policy(pol).unwrap();
-    extract_schema_policy(&pol)
+    extract_schema_policy(&pol).unwrap()
 }
 
 #[test]

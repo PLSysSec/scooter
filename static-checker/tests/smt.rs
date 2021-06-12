@@ -7,12 +7,12 @@ use static_checker::smt::*;
 
 fn schema_policy(pol: &str) -> SchemaPolicy {
     let pol = policy_lang::parse_policy(pol).unwrap();
-    extract_schema_policy(&pol)
+    extract_schema_policy(&pol).unwrap()
 }
 
 fn func(schema: &Schema, func: &str, from: ExprType, to: ExprType) -> Policy {
     let func = policy_lang::parse_func(func).unwrap();
-    Policy::Func(extract_func(schema, from, &to, &func))
+    Policy::Func(extract_func(schema, from, &to, &func).unwrap())
 }
 
 #[test]

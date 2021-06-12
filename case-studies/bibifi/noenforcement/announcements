@@ -1,0 +1,42 @@
+This is ApacheBench, Version 2.3 <$Revision: 1879490 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+
+
+Server Software:        Rocket
+Server Hostname:        localhost
+Server Port:            8000
+
+Document Path:          /announcements
+Document Length:        4677 bytes
+
+Concurrency Level:      16
+Time taken for tests:   0.677 seconds
+Complete requests:      10000
+Failed requests:        0
+Total transferred:      48300000 bytes
+HTML transferred:       46770000 bytes
+Requests per second:    14775.44 [#/sec] (mean)
+Time per request:       1.083 [ms] (mean)
+Time per request:       0.068 [ms] (mean, across all concurrent requests)
+Transfer rate:          69692.73 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    0   0.1      0       1
+Processing:     0    1   0.8      1      16
+Waiting:        0    1   0.8      1      16
+Total:          0    1   0.8      1      16
+
+Percentage of the requests served within a certain time (ms)
+  50%      1
+  66%      1
+  75%      1
+  80%      1
+  90%      2
+  95%      2
+  98%      3
+  99%      4
+ 100%     16 (longest request)

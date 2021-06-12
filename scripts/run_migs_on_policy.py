@@ -34,7 +34,7 @@ def main() -> None:
         shutil.copyfile(mig, new_migpath)
 
         result = subprocess.run(
-            ["cargo", "run", "-q", "--bin",
+            ["cargo", "run", "-q", "--release", "--bin",
              "migrate", "dry-run", f"migration-{idx}.mig"],
             capture_output=True,  # Capture output of command
             text=True,  # encode to a string

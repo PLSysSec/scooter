@@ -1,6 +1,15 @@
 pub use id_arena::Id;
 
-use std::{hash::Hash, marker::PhantomData};
+use std::{
+    error::Error,
+    fmt::{self, Display},
+    hash::Hash,
+    marker::PhantomData,
+};
+
+macro_rules! type_error {
+    ( $($body:expr),+ ) => { { return Err(Box::new(crate::ir::TypeError::new(format!($($body),*)))); } }
+}
 
 pub mod expr;
 pub mod migration;
@@ -64,3 +73,22 @@ impl<T> PartialEq for Ident<T> {
     }
 }
 impl<T> Eq for Ident<T> {}
+
+#[derive(Debug)]
+pub struct TypeError {
+    msg: String,
+}
+
+impl TypeError {
+    fn new(s: impl ToString) -> Self {
+        Self { msg: s.to_string() }
+    }
+}
+
+impl Display for TypeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.msg)
+    }
+}
+
+impl Error for TypeError {}

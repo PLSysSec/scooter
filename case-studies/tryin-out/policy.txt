@@ -1,0 +1,14 @@
+@principal
+User {
+  create: public,
+  delete: public,
+
+  name: String {
+    read: _ -> User::Find({}).flat_map(u -> User::Find({id: u.friend, age: 13})).map(u -> u.id),
+    write: none,
+  },
+
+  age: I64 { read: public, write: public, },
+
+  friend: Id(User) { read: public, write: public, },
+}

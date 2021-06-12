@@ -4,13 +4,18 @@ User {
   delete: public,
 
   email: String {
-    read: u -> User::Find({is_admin: true}).map(u -> u.id),
+    read: u -> User::Find({isAdmin: true}).map(u -> u.id),
     write: none,
   },
 
-  is_admin: Bool {
+  isAdmin: Bool {
     read: public,
     write: public,
+  },
+
+  bio: String {
+    read: public,
+    write: u -> User::Find({isAdmin: true}).map(u -> u.id),
   },
 }
 

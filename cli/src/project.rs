@@ -45,6 +45,7 @@ impl Project {
 
     pub fn dry_run_migration(&self, file_path: impl AsRef<Path>) -> Result<String, String> {
         static_checker::migrate::migrate_policy_from_files(self.policy_file(), file_path)
+            .map_err(|e| e.to_string())
     }
 
     pub fn run_migration(&self, file_path: impl AsRef<Path>) -> Result<(), String> {

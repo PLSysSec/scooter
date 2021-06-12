@@ -1,0 +1,16 @@
+@principal
+User {
+  create: public,
+  delete: public,
+}
+
+
+Project {
+  create: public,
+  delete: public,
+
+  members: Set(Id(User)) {
+    read: p -> p.members,
+    write: public,
+  },
+}

@@ -26,7 +26,7 @@ pub fn translate(policy_path: impl AsRef<Path>, out_path: impl AsRef<Path>) {
         path.to_str().unwrap()
     ));
     let schema_policy = extract_schema_policy(&parsed_policy);
-    let out = gen_schema_macros(schema_policy);
+    let out = gen_schema_macros(schema_policy.unwrap());
     let mut f = File::create(&out_path).unwrap();
     f.write(out.as_bytes()).unwrap();
 }
@@ -51,7 +51,7 @@ fn gen_policy_body(schema: &Schema, policy: &Policy) -> String {
         Policy::Anyone => "        PolicyValue::Public\n    }\n".to_string(),
         Policy::None => "        PolicyValue::Set(vec![])\n    }\n".to_string(),
         Policy::Func(Func { body, .. }) => format!(
-            "        {}.into()\n    }}\n",
+            "  if cfg!(feature = \"noenforcement\") {{ return PolicyValue::Public }}      {}.into()\n    }}\n",
             translate_queryexpr_to_idlist(schema, body)
         ),
     }

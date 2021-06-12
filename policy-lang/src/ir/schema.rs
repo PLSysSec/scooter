@@ -1,7 +1,11 @@
-use super::{expr::ExprType, expr::Var, Ident};
+use super::{
+    expr::{ExprType, Var},
+    Ident,
+};
 use crate::ast;
 use std::{
     collections::{HashMap, HashSet},
+    error::Error,
     ops::{Index, IndexMut},
 };
 
@@ -113,7 +117,7 @@ impl Ident<Field> {
     }
 }
 
-pub fn extract_schema(gp: &ast::GlobalPolicy) -> Schema {
+pub fn extract_schema(gp: &ast::GlobalPolicy) -> Result<Schema, Box<dyn Error>> {
     let result = ExtractionContext::new(gp, Vec::new()).extract_schema(gp);
     result
 }
@@ -121,7 +125,7 @@ pub fn extract_schema(gp: &ast::GlobalPolicy) -> Schema {
 pub fn extract_partial_schema(
     gp: &ast::GlobalPolicy,
     existing_colls: Vec<Ident<Collection>>,
-) -> Schema {
+) -> Result<Schema, Box<dyn Error>> {
     ExtractionContext::new(gp, existing_colls).extract_schema(gp)
 }
 
@@ -144,33 +148,34 @@ impl ExtractionContext {
         Self { coll_idents }
     }
 
-    fn find_principals(gp: &ast::GlobalPolicy) -> Vec<String> {
+    fn find_principals(gp: &ast::GlobalPolicy) -> Result<Vec<String>, Box<dyn Error>> {
         let mut principals = Vec::new();
         for cp in gp.collections.iter() {
             match cp.annotations.as_slice() {
                 [ast::Annotation::Principal] => principals.push(cp.name.clone()),
                 [] => {}
-                _ => panic!(
+                _ => type_error!(
                     "Error on {}. Only a single annotation (`@principal`) is allowed.",
                     &cp.name
                 ),
             }
         }
-        principals
+        Ok(principals)
     }
 
-    fn extract_schema(&mut self, gp: &ast::GlobalPolicy) -> Schema {
-        let colls: Vec<_> = gp
+    fn extract_schema(&mut self, gp: &ast::GlobalPolicy) -> Result<Schema, Box<dyn Error>> {
+        let colls: Result<Vec<_>, _> = gp
             .collections
             .iter()
             .map(|cp| self.extract_collection(cp))
             .collect();
+        let colls = colls?;
         let static_principals = gp
             .static_principals
             .iter()
             .map(|sp| Ident::new(&sp.name))
             .collect();
-        let dynamic_principals = Self::find_principals(gp)
+        let dynamic_principals = Self::find_principals(gp)?
             .iter()
             .map(|name| {
                 colls
@@ -181,14 +186,14 @@ impl ExtractionContext {
                     .clone()
             })
             .collect();
-        Schema {
-            static_principals: static_principals,
-            dynamic_principals: dynamic_principals,
+        Ok(Schema {
+            static_principals,
+            dynamic_principals,
             collections: colls,
-        }
+        })
     }
 
-    fn extract_collection(&self, cp: &ast::CollectionPolicy) -> Collection {
+    fn extract_collection(&self, cp: &ast::CollectionPolicy) -> Result<Collection, Box<dyn Error>> {
         let mut field_names = HashSet::new();
 
         // Automatically create the id field
@@ -201,32 +206,33 @@ impl ExtractionContext {
         // Insert all the fields defined in the file
         for (fname, fp) in cp.fields.iter() {
             if field_names.contains(fname) {
-                panic!(
+                type_error!(
                     "Duplicate field name {} found in collection {}",
-                    fname, cp.name
+                    fname,
+                    cp.name
                 )
             }
-            fields.push(self.extract_field(fname, fp));
+            fields.push(self.extract_field(fname, fp)?);
             field_names.insert(fname.to_string());
         }
 
-        Collection {
+        Ok(Collection {
             name: self.coll_idents[&cp.name].clone(),
             fields: fields,
-        }
+        })
     }
 
-    fn extract_field(&self, fname: &str, fp: &ast::FieldPolicy) -> Field {
-        Field {
+    fn extract_field(&self, fname: &str, fp: &ast::FieldPolicy) -> Result<Field, Box<dyn Error>> {
+        Ok(Field {
             name: Ident::new(fname),
-            typ: self.extract_type(&fp.ty),
-        }
+            typ: self.extract_type(&fp.ty)?,
+        })
     }
 
-    fn extract_type(&self, ty: &ast::FieldType) -> ExprType {
+    fn extract_type(&self, ty: &ast::FieldType) -> Result<ExprType, Box<dyn Error>> {
         use ast::FieldType;
 
-        match ty {
+        let ty = match ty {
             FieldType::String => ExprType::String,
             FieldType::I64 => ExprType::I64,
             FieldType::F64 => ExprType::F64,
@@ -243,13 +249,15 @@ impl ExtractionContext {
             ),
             FieldType::Set(ty) => {
                 if let FieldType::Set(_) = **ty {
-                    panic!("Schemas may not contain nested lists")
+                    type_error!("Schemas may not contain nested lists")
                 };
 
-                ExprType::Set(Box::new(self.extract_type(ty)))
+                ExprType::Set(Box::new(self.extract_type(ty)?))
             }
-            FieldType::Option(ty) => ExprType::Option(Box::new(self.extract_type(ty))),
-        }
+            FieldType::Option(ty) => ExprType::Option(Box::new(self.extract_type(ty)?)),
+        };
+
+        Ok(ty)
     }
 }
 

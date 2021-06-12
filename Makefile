@@ -12,9 +12,10 @@ test: mongod-exists
 		kill -TERM $$(cat ./.db/pid) || true; \
 	fi
 
-case-studies: case-studies/hails/gitstar case-studies/hails/lambdachair case-studies/hails/lbh case-studies/lifty-conference case-studies/ur-calendar case-studies/visit-day
+case-studies: case-studies/hails/gitstar case-studies/hails/lambdachair case-studies/hails/lbh case-studies/lifty-conference case-studies/ur-calendar case-studies/visit-day case-studies/bibifi-history
 
 case-studies/%: build
+	@rm -f scripts/policy*.txt
 	@cd scripts && pwd && ./run_case_study.sh $*
 	scripts/summarize.sh case-studies/$*
 	@printf "Successfully validated case-study: $*\n\n"

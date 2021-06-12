@@ -1,0 +1,39 @@
+@principal
+User {
+  create: public,
+  delete: public,
+
+  contactId: I64 {
+    read: public,
+    write: public,
+  },
+}
+
+Prow {
+  create: public,
+  delete: public,
+
+  managerContactId: Option(I64) {
+    read: public,
+    write: public,
+  },
+
+  contact_info: Id(User) {
+    read: public,
+    write: public,
+  },
+
+  privChair: Id(User) {
+    read: public, write: public,
+  },
+
+  can_administer: Bool {
+    read: p -> [p.privChair] + (match p.managerContactId as cid in User::Find({contactId: cid}).map(u -> u.id) else []) - p.conflicts,
+    write: public,
+  },
+
+  conflicts: Set(Id(User)) {
+    read: public,
+    write: public,
+  },
+}

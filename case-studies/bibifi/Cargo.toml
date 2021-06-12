@@ -24,6 +24,9 @@ serde_json = "1.0"
 version = "0.4.7"
 features = ["handlebars_templates"]
 
+[features]
+noenforcement = []
+
 [[bin]]
 name = "main"
 path = "src/main.rs"

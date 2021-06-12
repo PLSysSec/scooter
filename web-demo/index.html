@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>hello-wasm example</title>
+  </head>
+  <body>
+    <script src="./prebuilt/z3.js">
+    </script>
+    <script>
+      console.log("what");
+    </script>
+Policy:
+      <textarea id="policy">
+@principal
+User {
+  create: public,
+  delete: public,
+
+  name: String {
+    read: _ -> User::Find({}).flat_map(u -> User::Find({id: u.friend, age: 13})).map(u -> u.id),
+    write: none,
+  },
+
+  age: I64 { read: public, write: public, },
+
+  friend: Id(User) { read: public, write: public, },
+}
+      </textarea>
+Migration:
+      <textarea id="migration">
+User::UpdateFieldPolicy(name, read, _ ->
+  User::Find({}).flat_map(u -> (if User::ById(u.friend).name == "Steve" then [u.id] else []))
+  .flat_map(_ -> User::Find({}).flat_map(u -> (if User::ById(u.friend).name == "John" then [u.id] else []))))
+      </textarea>
+
+      <button id="run" disabled>Run</button>
+
+      <script type="module">
+        import init, {greet, dry_run, init_panic_hook} from "./pkg/web_demo.js";
+        let [btn, mig, pol] = ["run", "migration", "policy"].map((i) => document.getElementById(i));
+
+        init()
+        .then(() => {
+          init_panic_hook();
+          btn.disabled = false;
+          console.log("ready")
+
+        btn.onclick = () => {
+          console.log(dry_run(pol.value, mig.value));
+
+        };
+        })
+      </script>
+  </body>
+</html>

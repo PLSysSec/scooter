@@ -1,0 +1,3 @@
+User::UpdateFieldPolicy(name, read, _ ->
+  User::Find({}).flat_map(u -> (if User::ById(u.friend).name == "Steve" then [u.id] else []))
+  .flat_map(_ -> User::Find({}).flat_map(u -> (if User::ById(u.friend).name == "John" then [u.id] else []))))

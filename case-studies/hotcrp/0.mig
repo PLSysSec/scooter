@@ -1,0 +1,7 @@
+Prow::UpdateFieldPolicy(can_administer, read, prow ->
+  [prow.privChair] + (match prow.managerContactId as cid in
+  [cid] else [0]).flat_map(cid ->
+    User::Find({contactId: cid}).map(u -> u.id)
+  )
+  - prow.conflicts
+)

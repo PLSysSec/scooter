@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use clap::{crate_version, App, AppSettings, Arg, SubCommand};
 
 mod commands;
@@ -36,7 +38,13 @@ fn main() {
     match matches.subcommand() {
         ("init", _) => commands::init(),
         ("run", Some(m)) => commands::run(m.value_of("migration-file").unwrap()),
-        ("dry-run", Some(m)) => commands::dry_run(m.value_of("migration-file").unwrap()),
+        ("dry-run", Some(m)) => {
+            let start = Instant::now();
+            commands::dry_run(m.value_of("migration-file").unwrap());
+            let end = Instant::now();
+
+            eprintln!("E2E_TIME: {:?}", (end - start).as_micros());
+        }
         // Unwrap is safe because ArgRequiredElseHelp
         ("new", Some(m)) => commands::new(m.value_of("migration-name").unwrap()),
         _ => unreachable!("Should never happen on account of ArgRequiredElseHelp"),

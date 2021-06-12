@@ -10,7 +10,8 @@ use policy_lang::ir::schema::{Collection, Field, Schema};
 use policy_lang::ir::*;
 use policy_lang::{parse_migration, parse_policy};
 
-use std::collections::{HashMap, HashSet, LinkedList};
+use std::collections::HashMap;
+use std::error::Error;
 use std::fs::read_to_string;
 use std::path::Path;
 
@@ -19,7 +20,7 @@ use std::path::Path;
 pub fn migrate_policy_from_files(
     policy_path: impl AsRef<Path>,
     migration_path: impl AsRef<Path>,
-) -> Result<String, String> {
+) -> Result<String, Box<dyn Error>> {
     let policy_path_path = policy_path.as_ref();
     let migration_path_path = migration_path.as_ref();
     migrate_policy(
@@ -37,12 +38,11 @@ pub fn migrate_policy_from_files(
 /// Take the text of a policy and a migration, and produce a new
 /// policy, that doesn't leak any information from the old policy, but
 /// is valid post-migration.
-pub fn migrate_policy(policy_text: &str, migration_text: &str) -> Result<String, String> {
-    let parsed_policy = parse_policy(policy_text).expect("Couldn't parse policy");
-    let initial_schema_policy = extract_schema_policy(&parsed_policy);
-    check_cycles(&initial_schema_policy.schema);
-    let parsed_migration = parse_migration(migration_text).expect("Couldn't parse migration");
-    let migration_steps = extract_migration_steps(&initial_schema_policy.schema, parsed_migration);
+pub fn migrate_policy(policy_text: &str, migration_text: &str) -> Result<String, Box<dyn Error>> {
+    let parsed_policy = parse_policy(policy_text)?;
+    let initial_schema_policy = extract_schema_policy(&parsed_policy)?;
+    let parsed_migration = parse_migration(migration_text)?;
+    let migration_steps = extract_migration_steps(&initial_schema_policy.schema, parsed_migration)?;
     let resulting_policy = interpret_migration_on_policy(initial_schema_policy, migration_steps)?;
     Ok(policy_to_string(resulting_policy))
 }
@@ -109,38 +109,6 @@ fn type_to_string(ty: ExprType) -> String {
     }
 }
 
-fn check_cycle(schema: &Schema, coll: &Ident<Collection>, visited: &Vec<Ident<Collection>>) {
-    if visited.contains(coll) {
-        eprintln!("CYCLE DETECTED: {:?}, {:?}", visited, coll);
-        return;
-    }
-
-    let mut visited = visited.clone();
-    visited.push(coll.clone());
-
-    for f in schema[coll].fields.iter() {
-        if f.is_id() {
-            continue;
-        }
-
-        match f.typ {
-            ExprType::Id(ref fcoll) => check_cycle(schema, fcoll, &visited),
-            ExprType::Option(ref ty) => {
-                if let ExprType::Id(ref fcoll) = **ty {
-                    //  check_cycle(schema, fcoll, &visited)
-                }
-            }
-            _ => (),
-        }
-    }
-}
-
-fn check_cycles(schema: &Schema) {
-    for coll in schema.collections.iter() {
-        check_cycle(schema, &coll.name, &vec![]);
-    }
-}
-
 fn interpret_migration_on_policy(
     initial_sp: SchemaPolicy,
     migration_steps: Vec<(Schema, MigrationCommand)>,
@@ -167,7 +135,6 @@ fn interpret_migration_on_policy(
 
     // Go over the migration commands (consuming them)
     for (schema, cmd) in migration_steps.into_iter() {
-        check_cycles(&schema);
         let cur_schema_policy = SchemaPolicy {
             schema: schema.clone(),
             collection_policies: result_policy.collection_policies.clone(),

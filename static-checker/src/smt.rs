@@ -6,6 +6,7 @@ use policy_lang::ir::{
     Ident,
 };
 use regex::Regex;
+use std::time::Instant;
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
@@ -46,184 +47,143 @@ pub fn is_as_strict(
         .map(Statement::to_string)
         .collect::<Vec<_>>()
         .join("");
-    let mut child = Command::new("z3")
-        .arg("-smt2")
-        .arg("-in")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Unable to spawn z3");
 
-    {
-        let input = child
-            .stdin
-            .as_mut()
-            .expect("Failed to open stdin of z3 process");
-        input
-            .write_all(assertion.as_bytes())
-            .expect("Error writing to z3 input");
-        input
-            .write_all("(check-sat)\n".as_bytes())
-            .expect("Error writing to z3 input");
+    let mut solver = PipeSolver::init();
+    solver.write(&assertion);
 
-        let output = child.stdout.as_mut().expect("Error capturing z3 output");
-        let mut reader = BufReader::new(output);
-        let mut sat_result = String::new();
-        reader
-            .read_line(&mut sat_result)
-            .expect("Unable to read SAT result");
+    let start = Instant::now();
+    let sat_result = solver.query("(check-sat)\n");
+    let end = Instant::now();
 
-        match sat_result.as_str() {
-            "unsat\n" => {
-                child.wait().expect("Error closing z3 process");
-                return Ok(());
-            }
-            "sat\n" => {}
-            s => panic!("Unable to read SMT output: {}", s),
+    eprintln!("VERIF_TIME: {}", (end - start).as_micros());
+
+    match sat_result.as_str() {
+        "unsat\n" => {
+            solver.close();
+            return Ok(());
         }
+        "sat\n" => {}
+        s => panic!("Unable to read SMT output: {}", s),
+    }
 
-        let mut line = String::new();
-        input
-            .write_all("(get-model)\n(eval \"ENDMODEL\")\n".as_bytes())
-            .unwrap();
-        while line != "\"ENDMODEL\"\n" {
-            line = String::new();
-            reader.read_line(&mut line).unwrap();
-        }
-        input
-            .write_all(format!("(eval {})\n", ident(&verif_problem.princ)).as_bytes())
-            .unwrap();
-        line = String::new();
-        reader.read_line(&mut line).unwrap();
-        let princ = parse(&ExprType::Principal, line.trim());
+    let mut line = String::new();
+    solver.write("(get-model)\n(eval \"ENDMODEL\")\n");
 
-        let mut model = Model {
-            princ,
-            objects: vec![],
+    while line != "\"ENDMODEL\"\n" {
+        line = solver.read_line();
+    }
+
+    let princ_str = solver.query(&format!("(eval {})\n", ident(&verif_problem.princ)));
+    let princ = parse(&ExprType::Principal, princ_str.trim());
+
+    let mut model = Model {
+        princ,
+        objects: vec![],
+    };
+    let mut tables_to_vars: HashMap<Ident<Collection>, Vec<Ident<SMTVar>>> = HashMap::new();
+    for (coll_id, var_id) in join_objects(&verif_problem) {
+        let vars = tables_to_vars.entry(coll_id).or_insert(Vec::new());
+        (*vars).push(var_id);
+    }
+    for (coll_id, var_id) in db_objects(&verif_problem) {
+        let mut fields = vec![];
+        let maybe_coll = schema.collections.iter().find(|c| c.name == coll_id);
+        let coll = match maybe_coll {
+            Some(ref coll) => coll,
+            None => continue,
         };
-        let mut tables_to_vars: HashMap<Ident<Collection>, Vec<Ident<SMTVar>>> = HashMap::new();
-        for (coll_id, var_id) in join_objects(&verif_problem) {
-            let vars = tables_to_vars.entry(coll_id).or_insert(Vec::new());
-            (*vars).push(var_id);
-        }
-        for (coll_id, var_id) in db_objects(&verif_problem) {
-            let mut fields = vec![];
-            let maybe_coll = schema.collections.iter().find(|c| c.name == coll_id);
-            let coll = match maybe_coll {
-                Some(ref coll) => coll,
-                None => continue,
-            };
-            for field in coll.fields() {
-                if let ExprType::Set(inner_ty) = &field.typ {
-                    let mut lines = Vec::new();
-                    let inner_domain_ty = if let ExprType::Id(x) = inner_ty.as_ref() {
-                        ExprType::Object(x.clone())
-                    } else {
-                        panic!(
-                            "We can't currently provide counterexamples for \
+        for field in coll.fields() {
+            if let ExprType::Set(inner_ty) = &field.typ {
+                let mut lines = Vec::new();
+                let inner_domain_ty = if let ExprType::Id(x) = inner_ty.as_ref() {
+                    ExprType::Object(x.clone())
+                } else {
+                    panic!(
+                        "We can't currently provide counterexamples for \
                                 sets of primitives that are constrained by \
                                 equivalences."
-                        )
-                    };
-                    match eqs
-                        .iter()
-                        .find(|Equiv(f_name, _val_expr)| field.name == *f_name)
-                    {
-                        Some(Equiv(_, _)) => {
-                            for domain_var in verif_problem
-                                .domains
-                                .get(&inner_domain_ty)
-                                .expect(&format!("Cannot find domain for {}", inner_ty))
-                            {
-                                input
-                                    .write_all(
-                                        format!(
-                                            "(eval ({} {} {}))\n",
-                                            ident(&field.name),
-                                            ident(&var_id),
-                                            ident(&domain_var)
-                                        )
-                                        .as_bytes(),
-                                    )
-                                    .unwrap();
-                                line = String::new();
-                                reader.read_line(&mut line).unwrap();
-                                if line.trim() == "true" {
-                                    input
-                                        .write_all(
-                                            format!("(eval {})\n", ident(&domain_var)).as_bytes(),
-                                        )
-                                        .unwrap();
-                                    line = String::new();
-                                    reader.read_line(&mut line).unwrap();
-                                    let clean_value = parse(&inner_ty, &line.trim());
-                                    lines.push(clean_value.to_owned())
-                                }
-                            }
-                        }
-                        None => {
-                            let (join_coll_id, _from_id, to_id, _typ) =
-                                &verif_problem.join_tables[&field.name];
-                            if let Some(vars) = tables_to_vars.get(&join_coll_id) {
-                                for var in vars {
-                                    input
-                                        .write_all(
-                                            format!("(eval ({} {}))\n", ident(&to_id), ident(&var))
-                                                .as_bytes(),
-                                        )
-                                        .unwrap();
-                                    line = String::new();
-                                    reader.read_line(&mut line).unwrap();
-                                    let clean_value = parse(&inner_ty, &line.trim());
-                                    lines.push(clean_value.to_owned());
-                                }
+                    )
+                };
+                match eqs
+                    .iter()
+                    .find(|Equiv(f_name, _val_expr)| field.name == *f_name)
+                {
+                    Some(Equiv(_, _)) => {
+                        for domain_var in verif_problem
+                            .domains
+                            .get(&inner_domain_ty)
+                            .expect(&format!("Cannot find domain for {}", inner_ty))
+                        {
+                            let resp = solver.query(&format!(
+                                "(eval ({} {} {}))\n",
+                                ident(&field.name),
+                                ident(&var_id),
+                                ident(&domain_var)
+                            ));
+                            if resp.trim() == "true" {
+                                let val_str =
+                                    solver.query(&format!("(eval {})\n", ident(&domain_var)));
+                                let clean_value = parse(&inner_ty, &val_str.trim());
+                                lines.push(clean_value.to_owned())
                             }
                         }
                     }
-                    fields.push((field.name.clone(), format!("[{}]", lines.join(", "))));
-                } else {
-                    input
-                        .write_all(
-                            format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
-                                .as_bytes(),
-                        )
-                        .unwrap();
-                    line = String::new();
-                    reader.read_line(&mut line).unwrap();
-
-                    let clean_value = parse(&field.typ, &line.trim());
-                    fields.push((field.name.clone(), clean_value));
+                    None => {
+                        let (join_coll_id, _from_id, to_id, _typ) =
+                            &verif_problem.join_tables[&field.name];
+                        if let Some(vars) = tables_to_vars.get(&join_coll_id) {
+                            for var in vars {
+                                let line = solver.query(&format!(
+                                    "(eval ({} {}))\n",
+                                    ident(&to_id),
+                                    ident(&var)
+                                ));
+                                let clean_value = parse(&inner_ty, &line.trim());
+                                lines.push(clean_value.to_owned());
+                            }
+                        }
+                    }
                 }
-                // ExprType::I64 => {
-                //     input
-                //         .write_all(
-                //             format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
-                //                 .as_bytes(),
-                //         )
-                //         .unwrap();
-                //     line = String::new();
-                //     reader.read_line(&mut line).unwrap();
-                //     let raw = line.trim().trim_start_matches("#x");
-                //     fields.push((
-                //         field.name.clone(),
-                //         format!(
-                //             "{}",
-                //             i64::from_str_radix(raw, 16)
-                //                 .expect(&format!("Couldn't parse hex {}", raw))
-                //         ),
-                //     ))
-                // }
-            }
-            let obj = ModelObject {
-                coll: coll.name.clone(),
-                fields,
-                is_record: var_id == verif_problem.rec,
-            };
-            model.add_obj(obj);
-        }
+                fields.push((field.name.clone(), format!("[{}]", lines.join(", "))));
+            } else {
+                let line = solver.query(&format!(
+                    "(eval ({} {}))\n",
+                    ident(&field.name),
+                    ident(&var_id)
+                ));
 
-        Err(model)
+                let clean_value = parse(&field.typ, &line.trim());
+                fields.push((field.name.clone(), clean_value));
+            }
+            // ExprType::I64 => {
+            //     input
+            //         .write_all(
+            //             format!("(eval ({} {}))\n", ident(&field.name), ident(&var_id))
+            //                 .as_bytes(),
+            //         )
+            //         .unwrap();
+            //     line = String::new();
+            //     reader.read_line(&mut line).unwrap();
+            //     let raw = line.trim().trim_start_matches("#x");
+            //     fields.push((
+            //         field.name.clone(),
+            //         format!(
+            //             "{}",
+            //             i64::from_str_radix(raw, 16)
+            //                 .expect(&format!("Couldn't parse hex {}", raw))
+            //         ),
+            //     ))
+            // }
+        }
+        let obj = ModelObject {
+            coll: coll.name.clone(),
+            fields,
+            is_record: var_id == verif_problem.rec,
+        };
+        model.add_obj(obj);
     }
+    solver.close();
+    Err(model)
 }
 
 fn parse(typ: &ExprType, text: &str) -> String {
@@ -393,5 +353,58 @@ struct Literal<'a>(&'a str);
 impl<'a> Debug for Literal<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+pub trait SMTSolver {
+    fn write(&mut self, text: &str);
+    fn read_line(&mut self) -> String;
+    fn query(&mut self, text: &str) -> String {
+        self.write(text);
+        self.read_line()
+    }
+    fn close(&mut self);
+}
+
+use std::process::Child;
+struct PipeSolver {
+    child: Child,
+}
+
+impl PipeSolver {
+    fn init() -> Box<dyn SMTSolver> {
+        let child = Command::new("z3")
+            .arg("-smt2")
+            .arg("-in")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Unable to spawn z3");
+
+        Box::new(PipeSolver { child })
+    }
+}
+
+impl SMTSolver for PipeSolver {
+    fn write(&mut self, text: &str) {
+        self.child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(text.as_bytes())
+            .expect("unable to write to z3");
+    }
+
+    fn read_line(&mut self) -> String {
+        let mut reader = BufReader::new(self.child.stdout.as_mut().unwrap());
+        let mut output = String::new();
+        reader
+            .read_line(&mut output)
+            .expect("Unable to read SAT result");
+        output
+    }
+
+    fn close(&mut self) {
+        self.child.wait().expect("unable to close z3");
     }
 }

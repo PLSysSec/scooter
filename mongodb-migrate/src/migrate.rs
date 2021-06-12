@@ -43,8 +43,9 @@ pub fn migrate(
     let migration_ast =
         policy_lang::parse_migration(&migration_text).expect("Couldn't parse migration");
     // Extract the type information from the policy ast
-    let initial_schema_policy = extract_schema_policy(&policy_ast);
-    let migration_steps = extract_migration_steps(&initial_schema_policy.schema, migration_ast);
+    let initial_schema_policy = extract_schema_policy(&policy_ast).unwrap();
+    let migration_steps =
+        extract_migration_steps(&initial_schema_policy.schema, migration_ast).unwrap();
     if migration_already_run(&db_conf, migration_name) {
         Err("This migration has already been run!".to_string())
     } else {

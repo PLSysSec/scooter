@@ -1,7 +1,10 @@
-User::AddField(admin_level: I64 {
-  read: public,
-  write: public,
-}, u -> (if u.is_admin then 1 else 0))
+User::AddField(
+  adminLevel: I64 {
+    read: public,
+    write: u -> [u.id] + User::Find({isAdmin: true}).map(u -> u.id),
+  }, u -> (if u.isAdmin then 2 else 0))
 
-User::UpdateFieldPolicy(email, read, u ->
-  (User::Find({}).flat_map(u -> (if u.admin_level >= 0 then [u.id] else []))))
+User::UpdateFieldPolicy(bio, write,
+  u -> [u.id] + User::Find({adminLevel >= 0}).map(u -> u.id))
+
+User::RemoveField(isAdmin)

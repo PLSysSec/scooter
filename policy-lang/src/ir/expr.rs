@@ -4,6 +4,7 @@ use super::{
 };
 use crate::ast;
 use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
+use std::error::Error;
 use std::iter;
 use std::{collections::HashMap, fmt, rc::Rc};
 
@@ -115,17 +116,17 @@ pub fn extract_func(
     param_type: ExprType,
     exp_ret_type: &ExprType,
     func: &ast::Func,
-) -> Func {
+) -> Result<Func, Box<dyn Error>> {
     let param_id = Ident::new(&func.param);
     let def_map = DefMap::empty().extend(&func.param, param_id.clone(), param_type.clone());
-    let body = extract_ir_expr(schema, def_map, &func.expr, Some(exp_ret_type.clone()));
+    let body = extract_ir_expr(schema, def_map, &func.expr, Some(exp_ret_type.clone()))?;
 
-    Func {
+    Ok(Func {
         param: param_id,
         param_type,
         return_type: exp_ret_type.clone(),
         body,
-    }
+    })
 }
 
 pub fn extract_ir_expr(
@@ -133,11 +134,11 @@ pub fn extract_ir_expr(
     def_map: DefMap,
     expr: &ast::QueryExpr,
     expected_ty: Option<ExprType>,
-) -> Box<IRExpr> {
+) -> Result<Box<IRExpr>, Box<dyn Error>> {
     let mut ctx = LoweringContext {
         type_map: Default::default(),
     };
-    let mut expr = ctx.extract_ir_expr(schema, def_map, expr);
+    let mut expr = ctx.extract_ir_expr(schema, def_map, expr)?;
     if let Some(ref ty) = expected_ty {
         ctx.is_subtype(schema, &expr.type_of(), ty);
     }
@@ -145,10 +146,10 @@ pub fn extract_ir_expr(
     resolve_types(&ctx.type_map, &mut expr);
 
     if let Some(ref ty) = expected_ty {
-        expr = ctx.coerce(schema, ty, expr);
+        expr = ctx.coerce(schema, ty, expr)?;
     }
 
-    expr
+    Ok(expr)
 }
 
 fn resolve_types(type_map: &HashMap<Ident<ExprType>, ExprType>, expr: &mut IRExpr) {
@@ -393,12 +394,12 @@ impl LoweringContext {
         schema: &Schema,
         def_map: DefMap,
         expr: &ast::QueryExpr,
-    ) -> Box<IRExpr> {
+    ) -> Result<Box<IRExpr>, Box<dyn Error>> {
         let ir_expr = match expr {
             ast::QueryExpr::Plus(l, r) => {
-                let left = self.extract_ir_expr(schema, def_map.clone(), l);
-                let right = self.extract_ir_expr(schema, def_map.clone(), r);
-                let (left, right) = self.align_types(schema, left, right);
+                let left = self.extract_ir_expr(schema, def_map.clone(), l)?;
+                let right = self.extract_ir_expr(schema, def_map.clone(), r)?;
+                let (left, right) = self.align_types(schema, left, right)?;
 
                 match left.type_of() {
                     ExprType::I64 => IRExpr::AddI(left, right),
@@ -413,7 +414,7 @@ impl LoweringContext {
                         IRExpr::AppendL(typ, left, right)
                     }
                     ExprType::String => IRExpr::AppendS(left, right),
-                    _ => panic!(
+                    _ => type_error!(
                         "`+` operation not defined for types: {} + {}",
                         left.type_of(),
                         right.type_of()
@@ -421,9 +422,9 @@ impl LoweringContext {
                 }
             }
             ast::QueryExpr::Minus(l, r) => {
-                let left = self.extract_ir_expr(schema, def_map.clone(), l);
-                let right = self.extract_ir_expr(schema, def_map.clone(), r);
-                let (left, right) = self.align_types(schema, left, right);
+                let left = self.extract_ir_expr(schema, def_map.clone(), l)?;
+                let right = self.extract_ir_expr(schema, def_map.clone(), r)?;
+                let (left, right) = self.align_types(schema, left, right)?;
 
                 match left.type_of() {
                     ExprType::I64 => IRExpr::SubI(left, right),
@@ -437,7 +438,7 @@ impl LoweringContext {
                         };
                         IRExpr::DiffL(typ, left, right)
                     }
-                    _ => panic!(
+                    _ => type_error!(
                         "`-` operation not defined for types: {} + {}",
                         left.type_of(),
                         right.type_of()
@@ -445,9 +446,9 @@ impl LoweringContext {
                 }
             }
             ast::QueryExpr::IsEq(l, r) => {
-                let left = self.extract_ir_expr(schema, def_map.clone(), l);
-                let right = self.extract_ir_expr(schema, def_map.clone(), r);
-                let (left, right) = self.align_types(schema, left, right);
+                let left = self.extract_ir_expr(schema, def_map.clone(), l)?;
+                let right = self.extract_ir_expr(schema, def_map.clone(), r)?;
+                let (left, right) = self.align_types(schema, left, right)?;
 
                 let typ = left.type_of();
                 match &typ {
@@ -457,7 +458,7 @@ impl LoweringContext {
                     | ExprType::DateTime
                     | ExprType::Id(_)
                     | ExprType::Bool => IRExpr::IsEq(typ, left, right),
-                    _ => panic!(
+                    _ => type_error!(
                         "`==` operation not defined for types: {} + {}",
                         left.type_of(),
                         right.type_of()
@@ -465,9 +466,9 @@ impl LoweringContext {
                 }
             }
             ast::QueryExpr::IsNeq(l, r) => {
-                let left = self.extract_ir_expr(schema, def_map.clone(), l);
-                let right = self.extract_ir_expr(schema, def_map.clone(), r);
-                let (left, right) = self.align_types(schema, left, right);
+                let left = self.extract_ir_expr(schema, def_map.clone(), l)?;
+                let right = self.extract_ir_expr(schema, def_map.clone(), r)?;
+                let (left, right) = self.align_types(schema, left, right)?;
 
                 let typ = left.type_of();
                 match &typ {
@@ -477,7 +478,7 @@ impl LoweringContext {
                     | ExprType::DateTime
                     | ExprType::Id(_)
                     | ExprType::Bool => IRExpr::Not(Box::new(IRExpr::IsEq(typ, left, right))),
-                    _ => panic!(
+                    _ => type_error!(
                         "`!=` operation not defined for types: {} + {}",
                         left.type_of(),
                         right.type_of()
@@ -485,24 +486,24 @@ impl LoweringContext {
                 }
             }
             ast::QueryExpr::Not(e) => {
-                let inner = self.extract_ir_expr(schema, def_map, e);
+                let inner = self.extract_ir_expr(schema, def_map, e)?;
 
                 match inner.type_of() {
                     ExprType::Bool => IRExpr::Not(inner),
-                    _ => panic!("`not` operation not defined for type: {}", inner.type_of()),
+                    _ => type_error!("`not` operation not defined for type: {}", inner.type_of()),
                 }
             }
 
             ast::QueryExpr::IsLess(l, r) => {
-                let left = self.extract_ir_expr(schema, def_map.clone(), l);
-                let right = self.extract_ir_expr(schema, def_map.clone(), r);
-                let (left, right) = self.align_types(schema, left, right);
+                let left = self.extract_ir_expr(schema, def_map.clone(), l)?;
+                let right = self.extract_ir_expr(schema, def_map.clone(), r)?;
+                let (left, right) = self.align_types(schema, left, right)?;
 
                 match &left.type_of() {
                     ExprType::I64 => IRExpr::IsLessI(left, right),
                     ExprType::F64 => IRExpr::IsLessF(left, right),
                     ExprType::DateTime => IRExpr::IsLessD(left, right),
-                    _ => panic!(
+                    _ => type_error!(
                         "`<` operation not defined for types: {} + {}",
                         left.type_of(),
                         right.type_of()
@@ -510,15 +511,15 @@ impl LoweringContext {
                 }
             }
             ast::QueryExpr::IsLessOrEq(l, r) => {
-                let left = self.extract_ir_expr(schema, def_map.clone(), l);
-                let right = self.extract_ir_expr(schema, def_map.clone(), r);
-                let (left, right) = self.align_types(schema, left, right);
+                let left = self.extract_ir_expr(schema, def_map.clone(), l)?;
+                let right = self.extract_ir_expr(schema, def_map.clone(), r)?;
+                let (left, right) = self.align_types(schema, left, right)?;
 
                 match &left.type_of() {
                     ExprType::I64 => IRExpr::Not(Box::new(IRExpr::IsLessI(right, left))),
                     ExprType::F64 => IRExpr::Not(Box::new(IRExpr::IsLessF(right, left))),
                     ExprType::DateTime => IRExpr::Not(Box::new(IRExpr::IsLessD(right, left))),
-                    _ => panic!(
+                    _ => type_error!(
                         "`<=` operation not defined for types: {} + {}",
                         left.type_of(),
                         right.type_of()
@@ -526,15 +527,15 @@ impl LoweringContext {
                 }
             }
             ast::QueryExpr::IsGreater(l, r) => {
-                let left = self.extract_ir_expr(schema, def_map.clone(), l);
-                let right = self.extract_ir_expr(schema, def_map.clone(), r);
-                let (left, right) = self.align_types(schema, left, right);
+                let left = self.extract_ir_expr(schema, def_map.clone(), l)?;
+                let right = self.extract_ir_expr(schema, def_map.clone(), r)?;
+                let (left, right) = self.align_types(schema, left, right)?;
 
                 match &left.type_of() {
                     ExprType::I64 => IRExpr::IsLessI(right, left),
                     ExprType::F64 => IRExpr::IsLessF(right, left),
                     ExprType::DateTime => IRExpr::IsLessD(right, left),
-                    _ => panic!(
+                    _ => type_error!(
                         "`>` operation not defined for types: {} + {}",
                         left.type_of(),
                         right.type_of()
@@ -542,15 +543,15 @@ impl LoweringContext {
                 }
             }
             ast::QueryExpr::IsGreaterOrEq(l, r) => {
-                let left = self.extract_ir_expr(schema, def_map.clone(), l);
-                let right = self.extract_ir_expr(schema, def_map.clone(), r);
-                let (left, right) = self.align_types(schema, left, right);
+                let left = self.extract_ir_expr(schema, def_map.clone(), l)?;
+                let right = self.extract_ir_expr(schema, def_map.clone(), r)?;
+                let (left, right) = self.align_types(schema, left, right)?;
 
                 match &left.type_of() {
                     ExprType::I64 => IRExpr::Not(Box::new(IRExpr::IsLessI(left, right))),
                     ExprType::F64 => IRExpr::Not(Box::new(IRExpr::IsLessF(left, right))),
                     ExprType::DateTime => IRExpr::Not(Box::new(IRExpr::IsLessD(left, right))),
-                    _ => panic!(
+                    _ => type_error!(
                         "`>=` operation not defined for types: {} + {}",
                         left.type_of(),
                         right.type_of()
@@ -580,16 +581,16 @@ impl LoweringContext {
             ast::QueryExpr::Now => IRExpr::Now,
             ast::QueryExpr::None => IRExpr::None(ExprType::new_unknown()),
             ast::QueryExpr::Some(e) => {
-                let inner = self.extract_ir_expr(schema, def_map, e);
+                let inner = self.extract_ir_expr(schema, def_map, e)?;
                 IRExpr::Some(inner.type_of(), inner)
             }
             ast::QueryExpr::If(cond, then, els) => {
-                let cond = self.extract_ir_expr(schema, def_map.clone(), cond);
-                let then = self.extract_ir_expr(schema, def_map.clone(), then);
-                let els = self.extract_ir_expr(schema, def_map.clone(), els);
+                let cond = self.extract_ir_expr(schema, def_map.clone(), cond)?;
+                let then = self.extract_ir_expr(schema, def_map.clone(), then)?;
+                let els = self.extract_ir_expr(schema, def_map.clone(), els)?;
 
-                let cond = self.coerce(schema, &ExprType::bool(), cond);
-                let (then, els) = self.align_types(schema, then, els);
+                let cond = self.coerce(schema, &ExprType::bool(), cond)?;
+                let (then, els) = self.align_types(schema, then, els)?;
 
                 let typ = if self.is_subtype(schema, &then.type_of(), &els.type_of()) {
                     els.type_of()
@@ -601,8 +602,8 @@ impl LoweringContext {
             }
             ast::QueryExpr::Match(opt, ident, e_some, e_none) => {
                 let var_ty = ExprType::Unknown(Ident::new("match_var"));
-                let opt_expr = self.extract_ir_expr(schema, def_map.clone(), opt);
-                let opt_expr = self.coerce(schema, &ExprType::option(var_ty.clone()), opt_expr);
+                let opt_expr = self.extract_ir_expr(schema, def_map.clone(), opt)?;
+                let opt_expr = self.coerce(schema, &ExprType::option(var_ty.clone()), opt_expr)?;
                 let var_ty = match opt_expr.type_of() {
                     ExprType::Option(ty) => *ty,
                     _ => unreachable!("We just set the type"),
@@ -612,10 +613,10 @@ impl LoweringContext {
                     schema,
                     def_map.extend(&var_ident.orig_name, var_ident.clone(), var_ty.clone()),
                     e_some,
-                );
-                let none_expr = self.extract_ir_expr(schema, def_map, e_none);
+                )?;
+                let none_expr = self.extract_ir_expr(schema, def_map, e_none)?;
 
-                let (some_expr, none_expr) = self.align_types(schema, some_expr, none_expr);
+                let (some_expr, none_expr) = self.align_types(schema, some_expr, none_expr)?;
 
                 let body_type =
                     if self.is_subtype(schema, &some_expr.type_of(), &none_expr.type_of()) {
@@ -627,12 +628,12 @@ impl LoweringContext {
                 IRExpr::Match(body_type, opt_expr, var_ident, some_expr, none_expr)
             }
             ast::QueryExpr::FieldAccess(obj_expr, elem) => {
-                let obj_expr = self.extract_ir_expr(schema, def_map, obj_expr);
+                let obj_expr = self.extract_ir_expr(schema, def_map, obj_expr)?;
 
                 let coll = match obj_expr.type_of() {
                     // Unwrap is safe unless we screwed up lowering
                     ExprType::Object(ref coll) => &schema[coll],
-                    typ @ _ => panic!(
+                    typ @ _ => type_error!(
                         "Field access (`.`) operator requires an Object. Found: {}",
                         typ
                     ),
@@ -660,10 +661,10 @@ impl LoweringContext {
                     ));
 
                     if field.is_id() {
-                        panic!("id not allowed on object literals");
+                        type_error!("id not allowed on object literals");
                     }
-                    let fexpr = self.extract_ir_expr(schema, def_map.clone(), fexpr);
-                    let fexpr = self.coerce(schema, &field.typ, fexpr);
+                    let fexpr = self.extract_ir_expr(schema, def_map.clone(), fexpr)?;
+                    let fexpr = self.coerce(schema, &field.typ, fexpr)?;
 
                     ir_fields.push((field.name.clone(), Some(fexpr)));
                 }
@@ -682,21 +683,22 @@ impl LoweringContext {
                     None => {
                         // The 1 is id which should be missing
                         if missing_fields.len() != 1 {
-                            panic!(
+                            type_error!(
                                 "Object literal for type `{}` missing field(s) `{}`",
                                 &coll.name.orig_name,
                                 &missing_fields
                                     .iter()
                                     .map(|i| i.name.orig_name.clone())
                                     .collect::<Vec<_>>()
-                                    .join(", "),
+                                    .join(", ")
                             );
                         }
                         None
                     }
                     Some(ref texpr) => {
-                        let expr = self.extract_ir_expr(schema, def_map.clone(), texpr);
-                        let expr = self.coerce(schema, &ExprType::Object(coll.name.clone()), expr);
+                        let expr = self.extract_ir_expr(schema, def_map.clone(), texpr)?;
+                        let expr =
+                            self.coerce(schema, &ExprType::Object(coll.name.clone()), expr)?;
 
                         for field in missing_fields {
                             if field.is_id() {
@@ -713,9 +715,9 @@ impl LoweringContext {
             }
             ast::QueryExpr::Map(list_expr, func) => {
                 let param_ty = ExprType::Unknown(Ident::new("map_param"));
-                let list_ir_expr = self.extract_ir_expr(schema, def_map.clone(), list_expr);
+                let list_ir_expr = self.extract_ir_expr(schema, def_map.clone(), list_expr)?;
                 let list_ir_expr =
-                    self.coerce(schema, &ExprType::set(param_ty.clone()), list_ir_expr);
+                    self.coerce(schema, &ExprType::set(param_ty.clone()), list_ir_expr)?;
                 let param_ty = match list_ir_expr.type_of() {
                     ExprType::Set(p) => *p,
                     _ => unreachable!("We just set the type"),
@@ -729,7 +731,7 @@ impl LoweringContext {
                         param_ty.clone(),
                     ),
                     &func.expr,
-                );
+                )?;
                 IRExpr::Map(
                     list_ir_expr,
                     Func {
@@ -742,9 +744,9 @@ impl LoweringContext {
             }
             ast::QueryExpr::FlatMap(set_expr, func) => {
                 let param_ty = ExprType::Unknown(Ident::new("map_param"));
-                let set_ir_expr = self.extract_ir_expr(schema, def_map.clone(), set_expr);
+                let set_ir_expr = self.extract_ir_expr(schema, def_map.clone(), set_expr)?;
                 let set_ir_expr =
-                    self.coerce(schema, &ExprType::set(param_ty.clone()), set_ir_expr);
+                    self.coerce(schema, &ExprType::set(param_ty.clone()), set_ir_expr)?;
                 let param_ty = match set_ir_expr.type_of() {
                     ExprType::Set(p) => *p,
                     _ => unreachable!("We just set the type"),
@@ -759,8 +761,9 @@ impl LoweringContext {
                         param_ty.clone(),
                     ),
                     &func.expr,
-                );
-                let body_expr = self.coerce(schema, &ExprType::set(res_elem_ty.clone()), body_expr);
+                )?;
+                let body_expr =
+                    self.coerce(schema, &ExprType::set(res_elem_ty.clone()), body_expr)?;
                 IRExpr::FlatMap(
                     set_ir_expr,
                     Func {
@@ -783,15 +786,15 @@ impl LoweringContext {
                         "Unable to find field {} on collection {}",
                         fname, &coll.name.orig_name
                     ));
-                    let mut fexpr = self.extract_ir_expr(schema, def_map.clone(), fexpr);
+                    let mut fexpr = self.extract_ir_expr(schema, def_map.clone(), fexpr)?;
 
                     match comparison {
                         ast::FieldComparison::Equals => {
                             if let ExprType::Set(_) = field.typ.clone() {
-                                panic!("Type error: Field {} is a set, no equality queries supported on sets",
+                                type_error!("Type error: Field {} is a set, no equality queries supported on sets",
                                        fname);
                             } else {
-                                fexpr = self.coerce(schema, &field.typ, fexpr);
+                                fexpr = self.coerce(schema, &field.typ, fexpr)?;
                             }
                             ir_fields.push((
                                 FieldComparison::Equals,
@@ -802,7 +805,7 @@ impl LoweringContext {
                         }
                         ast::FieldComparison::Greater => match &field.typ {
                             ExprType::Set(inner_ty) => {
-                                fexpr = self.coerce(schema, inner_ty.as_ref(), fexpr);
+                                fexpr = self.coerce(schema, inner_ty.as_ref(), fexpr)?;
                                 ir_fields.push((
                                     FieldComparison::Contains,
                                     field.name.clone(),
@@ -811,7 +814,7 @@ impl LoweringContext {
                                 ));
                             }
                             ExprType::I64 | ExprType::F64 => {
-                                fexpr = self.coerce(schema, &field.typ, fexpr);
+                                fexpr = self.coerce(schema, &field.typ, fexpr)?;
                                 ir_fields.push((
                                     FieldComparison::Greater,
                                     field.name.clone(),
@@ -819,18 +822,19 @@ impl LoweringContext {
                                     fexpr,
                                 ));
                             }
-                            _ => panic!(
+                            _ => type_error!(
                                 "Type error: Field {} of type {} doesn't support the '>' operator \
                                              (not a set or numeric value)",
-                                fname, field.typ
+                                fname,
+                                field.typ
                             ),
                         },
                         ast::FieldComparison::GreaterOrEquals => {
                             match &field.typ {
                                 ExprType::I64 | ExprType::F64 => {
-                                    fexpr = self.coerce(schema, &field.typ, fexpr);
+                                    fexpr = self.coerce(schema, &field.typ, fexpr)?;
                                 }
-                                _ => panic!("Type error: Field {} of type {} doesn't support the '>=' operator \
+                                _ => type_error!("Type error: Field {} of type {} doesn't support the '>=' operator \
                                              (not a numeric value)",
                                             fname, field.typ)
                             }
@@ -844,9 +848,9 @@ impl LoweringContext {
                         ast::FieldComparison::Less => {
                             match &field.typ {
                                 ExprType::I64 | ExprType::F64 => {
-                                    fexpr = self.coerce(schema, &field.typ, fexpr);
+                                    fexpr = self.coerce(schema, &field.typ, fexpr)?;
                                 }
-                                _ => panic!("Type error: Field {} of type {} doesn't support the '<' operator \
+                                _ => type_error!("Type error: Field {} of type {} doesn't support the '<' operator \
                                             (not a  numeric value)",
                                             fname, field.typ)
                             }
@@ -860,9 +864,9 @@ impl LoweringContext {
                         ast::FieldComparison::LessOrEquals => {
                             match &field.typ {
                                 ExprType::I64 | ExprType::F64 => {
-                                    fexpr = self.coerce(schema, &field.typ, fexpr);
+                                    fexpr = self.coerce(schema, &field.typ, fexpr)?;
                                 }
-                                _ => panic!("Type error: Field {} of type {} doesn't support the '<=' operator \
+                                _ => type_error!("Type error: Field {} of type {} doesn't support the '<=' operator \
                                              (not a numeric value)",
                                             fname, field.typ)
                             }
@@ -882,8 +886,8 @@ impl LoweringContext {
                     "Unable to lookup by id because collection `{}` does not exist",
                     coll_name
                 ));
-                let id_expr = self.extract_ir_expr(schema, def_map, id_expr);
-                let id_expr = self.coerce(schema, &ExprType::id(coll.name.clone()), id_expr);
+                let id_expr = self.extract_ir_expr(schema, def_map, id_expr)?;
+                let id_expr = self.coerce(schema, &ExprType::id(coll.name.clone()), id_expr)?;
 
                 IRExpr::LookupById(coll.name.clone(), id_expr)
             }
@@ -891,10 +895,11 @@ impl LoweringContext {
                 if elems.len() == 0 {
                     IRExpr::Set(ExprType::new_unknown(), vec![])
                 } else {
-                    let lowered_elems: Vec<_> = elems
+                    let lowered_elems: Result<Vec<_>, _> = elems
                         .iter()
                         .map(|expr| self.extract_ir_expr(schema, def_map.clone(), expr))
                         .collect();
+                    let lowered_elems = lowered_elems?;
                     let mut most_general_type = lowered_elems[0].type_of();
 
                     for (idx, expr) in lowered_elems.iter().enumerate() {
@@ -907,7 +912,7 @@ impl LoweringContext {
                         {
                             most_general_type = ExprType::Principal;
                         } else {
-                            panic!(
+                            type_error!(
                                 "Set elements have incompatible types!\n\
                                     Set element {} has type {}, \
                                     which is incompatible with inferred-so-far type {}",
@@ -918,18 +923,18 @@ impl LoweringContext {
                         }
                     }
 
-                    let lowered_elems: Vec<_> = lowered_elems
+                    let lowered_elems: Result<Vec<_>, _> = lowered_elems
                         .into_iter()
                         .map(|expr| self.coerce(schema, &most_general_type, expr))
                         .collect();
 
-                    IRExpr::Set(most_general_type.clone(), lowered_elems)
+                    IRExpr::Set(most_general_type.clone(), lowered_elems?)
                 }
             }
             ast::QueryExpr::Public => IRExpr::Public,
         };
 
-        return Box::new(ir_expr);
+        return Ok(Box::new(ir_expr));
     }
 
     fn is_subtype(&mut self, schema: &Schema, typ1: &ExprType, typ2: &ExprType) -> bool {
@@ -1001,14 +1006,19 @@ impl LoweringContext {
         }
     }
 
-    pub fn coerce(&mut self, schema: &Schema, typ: &ExprType, expr: Box<IRExpr>) -> Box<IRExpr> {
+    pub fn coerce(
+        &mut self,
+        schema: &Schema,
+        typ: &ExprType,
+        expr: Box<IRExpr>,
+    ) -> Result<Box<IRExpr>, Box<dyn Error>> {
         let expr_typ = expr.type_of();
         if self.is_subtype(schema, &expr_typ, typ) {
-            return expr;
+            return Ok(expr);
         }
         match (typ, &expr_typ) {
-            (ExprType::F64, ExprType::I64) => Box::new(IRExpr::IntToFloat(expr)),
-            _ => panic!(
+            (ExprType::F64, ExprType::I64) => Ok(Box::new(IRExpr::IntToFloat(expr))),
+            _ => type_error!(
                 "Type error: Expression `{}` is expected to have type {}, \
                          but it has type {}",
                 expr_to_string(expr),
@@ -1024,24 +1034,24 @@ impl LoweringContext {
         schema: &Schema,
         left: Box<IRExpr>,
         right: Box<IRExpr>,
-    ) -> (Box<IRExpr>, Box<IRExpr>) {
+    ) -> Result<(Box<IRExpr>, Box<IRExpr>), Box<dyn Error>> {
         // They already match
         if self
             .join_types(schema, left.type_of(), right.type_of())
             .is_some()
         {
-            return (left, right);
+            return Ok((left, right));
         }
 
         let float = ExprType::F64;
 
         match (left.type_of(), right.type_of()) {
             // Upgrade the non-float expr to an expr
-            (ExprType::F64, ExprType::I64) | (ExprType::I64, ExprType::F64) => (
-                self.coerce(schema, &float, left),
-                self.coerce(schema, &float, right),
-            ),
-            (l_typ, r_typ) => panic!("Unable to reconcile types {}, {}", l_typ, r_typ),
+            (ExprType::F64, ExprType::I64) | (ExprType::I64, ExprType::F64) => Ok((
+                self.coerce(schema, &float, left)?,
+                self.coerce(schema, &float, right)?,
+            )),
+            (l_typ, r_typ) => type_error!("Unable to reconcile types {}, {}", l_typ, r_typ),
         }
     }
 }
