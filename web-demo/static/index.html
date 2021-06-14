@@ -186,6 +186,7 @@ User {
 		integrity="sha256-5Xkhn3k/1rbXB+Q/DX/2RuAtaB4dRRyQvMs83prFjpM=" crossorigin="anonymous"></script>
 	<script>
 		ace.config.setModuleUrl("ace/mode/custom", "./syntax_highlighting.js");
+		ace.config.setModuleUrl("ace/mode/scooter-migration", "./syntax_highlighting.js");
 		const theme = "ace/theme/textmate";
 
 		const policy_editor = ace.edit("policy-editor");
@@ -194,6 +195,7 @@ User {
 
 		const migration_editor = ace.edit("migration-editor");
 		configEditor(migration_editor);
+		migration_editor.session.setMode("ace/mode/scooter-migration");
 
 		const output = document.getElementById("output");
 		const submit = document.getElementById("submit");
