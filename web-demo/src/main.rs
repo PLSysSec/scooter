@@ -1,6 +1,7 @@
 use rocket::{
     form::{Form, FromForm},
     fs::{relative, FileServer},
+    http::Status,
     launch, post, routes,
     serde::Deserialize,
 };
@@ -14,11 +15,11 @@ struct MigrationMessage {
 }
 
 #[post("/run_migration", data = "<form>")]
-fn hello(form: Form<MigrationMessage>) -> String {
+fn hello(form: Form<MigrationMessage>) -> (Status, String) {
     let msg = form.into_inner();
     match migrate_policy(&msg.policy, &msg.migration) {
-        Ok(policy) => policy,
-        Err(err) => err.to_string(),
+        Ok(policy) => (Status::Ok, policy),
+        Err(err) => (Status::NotAcceptable, err.to_string()),
     }
 }
 

@@ -12,8 +12,7 @@
 		}
 		:root {
 			--primary-font: 'Open Sans', sans-serif;
-			--rust: #a42;
-			--rust-dark: #80331a;
+			--error-border: #a42;
 			--border-color: #bbb;
 			--border: 1px solid var(--border-color);
 			--header-main-border: #dedede;
@@ -44,7 +43,7 @@
 		}
 
 		body > header {
-			height: 50px;
+			height: 40px;
 			overflow: none;
 			display: flex;
 			align-items: center;
@@ -57,8 +56,8 @@
 			align-self: stretch;
 			cursor: pointer;
 			box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px -2px;
-			font-size: 16px;
-			padding: 0 0.5rem;
+			font-size: 14px;
+			padding: 0 1rem;
 			border-radius: 5px;
 			border: none;
 			margin-left: 1rem;
@@ -121,6 +120,10 @@
 			flex-direction: column;
 			min-height: 0;
 			min-width: 0;
+		}
+
+		.editor.error {
+			border-color: var(--error-border) !important;
 		}
 
 		section.editor > header {
@@ -187,7 +190,7 @@ User {
 	</section>
 	<section id="result" class="editor">
 		<header>Result</header>
-		<div class="editor">
+		<div id="result-editor" class="editor">
 			<pre id="output"></pre>
 		</div>
 	</section>
@@ -206,7 +209,9 @@ User {
 		configEditor(migration_editor);
 		migration_editor.session.setMode("ace/mode/scooter-migration");
 
+		const result_editor = document.getElementById("result-editor");
 		const output = document.getElementById("output");
+
 		const submit = document.getElementById("submit");
 		submit.onclick = async () => {
 			submit.disabled = true;
@@ -223,7 +228,15 @@ User {
 				const resp = await fetch(request)
 				const body = await resp.text();
 				output.innerText = body;
+
+				// NotAcceptable
+				if(resp.ok) {
+					result_editor.classList.remove('error');
+				} else {
+					result_editor.classList.add('error');
+				}
 			} catch (e) {
+				result_editor.classList.add('error');
 				output.innerText = "Error sending request: " + e;
 			}
 
@@ -234,7 +247,7 @@ User {
 			editor.setTheme(theme);
 			editor.setOptions({
 				fontSize: "16px"
-			})
+			});
 		}
 	</script>
 </body>
