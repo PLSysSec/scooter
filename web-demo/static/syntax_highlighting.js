@@ -66,7 +66,7 @@ define('ace/mode/policy_highlight_rules', [], function(require, exports, module)
       },
       {
 	      token: "support.function",
-	      regex: /\.flat_map/
+	      regex: /\.(flat_)?map/
       },
       {
         token: "comment.line",

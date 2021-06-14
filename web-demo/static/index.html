@@ -60,9 +60,17 @@
 			font-size: 16px;
 			padding: 0 0.5rem;
 			border-radius: 5px;
+			border: none;
+			margin-left: 1rem;
+			background: white;
+		}
+
+		body > header > button:hover {
+			background: #EEE;
 		}
 
 		body > header > button:disabled {
+			background: var(--border-color);
 		}
 
 		body > header > button:hover {
@@ -71,9 +79,9 @@
 
 		#submit {
 			background: #1994BE;
-			font-weight: bold;
 			color: white;
-			border: none;
+			font-weight: bold;
+			margin-left: 0rem;
 		}
 
 		#submit:hover {
@@ -81,7 +89,7 @@
 		}
 
 		#submit:active {
-			background: var(--border-color) !important;
+			background: var(--border-color);
 		}
 
 		#title {
@@ -145,6 +153,7 @@
 <body>
 	<header>
 		<button id="submit">Run Migration</button>
+		<button>Load Example</button>
 	</header>
 	<div id="vdivider">
 	</div>
