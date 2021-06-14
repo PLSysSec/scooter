@@ -60,8 +60,11 @@
 			padding: 0 1rem;
 			border-radius: 5px;
 			border: none;
-			margin-left: 1rem;
 			background: white;
+		}
+
+		body > header > * {
+			margin-left: 1rem;
 		}
 
 		body > header > button:hover {
@@ -156,36 +159,20 @@
 <body>
 	<header>
 		<button id="submit">Run Migration</button>
-		<button>Load Example</button>
+	<div>Load Example: <select id="example-selector">
+		<option selected hidden style='display: none' value=''></option>
+	</select></div>
 	</header>
 	<div id="vdivider">
 	</div>
 	<section id="migration" class="editor">
 		<header>Scooter Migration</header>
 		<div id="migration-editor" class="editor">
-User::UpdateFieldPolicy(name, read, _ ->
-User::Find({}).flat_map(u -> (if User::ById(u.friend).name == "Steve" then [u.id] else []))
-.flat_map(_ -> User::Find({}).flat_map(u -> (if User::ById(u.friend).name == "John" then [u.id] else
-		[]))))
 		</div>
 	</section>
 	<section id="policy" class="editor">
 		<header>Scooter Policy</header>
 		<div id="policy-editor" class="editor">
-@principal
-User {
-	create: public,
-	delete: public,
-
-	name: String {
-		read: _ -> User::Find({}).flat_map(u -> User::Find({id: u.friend, age: 13})).map(u -> u.id),
-		write: none,
-	},
-
-	age: I64 { read: public, write: public, },
-
-	friend: Id(User) { read: public, write: public, },
-}
 	</div>
 	</section>
 	<section id="result" class="editor">
@@ -196,7 +183,8 @@ User {
 	</section>
 	<script src="https://pagecdn.io/lib/ace/1.4.5/ace.js"
 		integrity="sha256-5Xkhn3k/1rbXB+Q/DX/2RuAtaB4dRRyQvMs83prFjpM=" crossorigin="anonymous"></script>
-	<script>
+	<script type="module">
+		import {examples} from "./examples.js";
 		ace.config.setModuleUrl("ace/mode/custom", "./syntax_highlighting.js");
 		ace.config.setModuleUrl("ace/mode/scooter-migration", "./syntax_highlighting.js");
 		const theme = "ace/theme/textmate";
@@ -241,6 +229,24 @@ User {
 			}
 
 			submit.disabled = false;
+		};
+
+		const example_selector = document.getElementById("example-selector");
+		for(const name of Object.keys(examples)) {
+			example_selector.add(new Option(name));
+		}
+		example_selector.onchange = () => {
+			setEditors(examples[example_selector.value]);
+		}
+
+		// Select the first example
+		example_selector.value = example_selector.children[1].value;
+		example_selector.onchange();
+
+
+		function setEditors({policy, migration}) {
+			policy_editor.setValue(policy, -1)
+			migration_editor.setValue(migration, -1)
 		}
 
 		function configEditor(editor) {
@@ -249,6 +255,8 @@ User {
 				fontSize: "16px"
 			});
 		}
+
+
 	</script>
 </body>
 

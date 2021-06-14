@@ -157,10 +157,10 @@ fn interpret_migration_on_policy(
                     Result::Ok(_) => (),
                     Result::Err(e) => {
                         return Err(format!(
-                            "Cannot determine that the given field policy \
-                                            is tight enough for the values that flow into it.\n \
-                                            Counterexample: {}",
-                            e
+                            "Cannot determine that the read policy for {} \
+                                            is tight enough for the values that flow into it.\n\n\
+                                            COUNTEREXAMPLE:\n\n{}",
+                            &field.orig_name, e
                         ))
                     }
                 }

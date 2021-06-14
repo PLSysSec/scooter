@@ -545,7 +545,7 @@ impl SMTContext {
             })
             .collect();
         let princ_decl = Statement::Hack(format!(
-            "(declare-datatypes () ((Principal unauth {} {})))",
+            "(declare-datatypes () ((Principal unauthenticated {} {})))",
             schema
                 .static_principals
                 .iter()
