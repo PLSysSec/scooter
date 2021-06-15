@@ -8,6 +8,7 @@ use policy_lang::ir::{
 use regex::Regex;
 use std::{
     collections::HashMap,
+    env,
     fmt::{Debug, Display},
     io::{BufRead, BufReader, Write},
     process::{Command, Stdio},
@@ -46,7 +47,7 @@ pub fn is_as_strict(
         .map(Statement::to_string)
         .collect::<Vec<_>>()
         .join("");
-    let mut child = Command::new("z3")
+    let mut child = Command::new(&env::var("Z3_OVERRIDE").unwrap_or("z3".to_string()))
         .arg("-smt2")
         .arg("-in")
         .stdin(Stdio::piped())
