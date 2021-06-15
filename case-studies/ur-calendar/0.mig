@@ -1,4 +1,4 @@
-CreateCollection(
+CreateModel(
 @principal
 User {
   create: public,

@@ -8,7 +8,7 @@ echo -n "# Migr:   "
 ls -lR $1/*.mig | wc -l
 
 echo -n "Actions:  "
-grep -rP '(::(Update|Weaken|Add|Remove|Change|Rename|Create|Delete)|CreateCollection|DeleteCollection|AddPrincipal|AddStaticPrincipal)' $1 | wc -l
+grep -rP '(::(Update|Weaken|Add|Remove|Change|Rename|Create|Delete)|CreateModel|DeleteModel|AddPrincipal|AddStaticPrincipal)' $1 | wc -l
 
 
 policy=$(ls scripts/policy.* | tail -1)

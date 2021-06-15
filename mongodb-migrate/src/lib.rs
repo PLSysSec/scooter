@@ -592,7 +592,7 @@ mod tests {
             },
             &read_to_string(current_dir().unwrap().join("policy.txt")).unwrap(),
             r#"
-                CreateCollection(Phone {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
+                CreateModel(Phone {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
                 User::ForEach(u -> Phone::Create(Phone {owner: u.id}))
                 "#,
             "test_migration",

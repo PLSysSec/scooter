@@ -1,4 +1,4 @@
-CreateCollection(
+CreateModel(
     TagEntry {
         create: public,
         delete: public,

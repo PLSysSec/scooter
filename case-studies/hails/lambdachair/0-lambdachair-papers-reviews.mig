@@ -1,4 +1,4 @@
-CreateCollection(Paper {
+CreateModel(Paper {
     create: public,
     delete: p -> p.pcAuthors + p.authors + [Root],
 
@@ -17,7 +17,7 @@ CreateCollection(Paper {
     },
 })
 
-CreateCollection(Review {
+CreateModel(Review {
     create: public,
     delete: r -> [r.author, Root],
 

@@ -1051,8 +1051,8 @@ User {
         }
     "#;
         let migration = r#"
-        CreateCollection(Phone {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
-        CreateCollection(Laptop {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
+        CreateModel(Phone {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
+        CreateModel(Laptop {create: public, delete: public, owner: Id(User) { read: public, write: none,},})
         "#;
 
         let after_policy = migrate_policy(before_policy, migration).expect("Couldn't migrate!");

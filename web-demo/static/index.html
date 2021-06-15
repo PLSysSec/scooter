@@ -235,15 +235,35 @@
 		for(const name of Object.keys(examples)) {
 			example_selector.add(new Option(name));
 		}
+
 		example_selector.onchange = () => {
 			setEditors(examples[example_selector.value]);
+			history.pushState({example: example_selector.value}, undefined, "#" + encodeURIComponent(example_selector.value))
 		}
 
-		// Select the first example
-		example_selector.value = example_selector.children[1].value;
-		example_selector.onchange();
+		window.onpopstate = function(event) {
+			setExample(event.state.example);
+		}
+
+		// Select from hash or default to first
+
+		if (window.location.hash != null) {
+			let hash_example = decodeURIComponent(window.location.hash.substr(1));
+			console.log(hash_example);
+			if (!setExample(hash_example)) {
+				setExample(examples[example_selector.children[1].value]);
+			}
+		}
 
 
+		function setExample(name) {
+			if (name in examples) {
+				example_selector.value = name;
+				setEditors(examples[name]);
+				return true;
+			}
+			return false;
+		}
 		function setEditors({policy, migration}) {
 			policy_editor.setValue(policy, -1)
 			migration_editor.setValue(migration, -1)

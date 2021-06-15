@@ -186,9 +186,9 @@ MigrationCommand: MigrationCommand = {
     <c:Ident> "::" <action: MigrationAction> =>
         MigrationCommand::CollAction{table: c, action },
 
-    "CreateCollection" "(" <c:CollectionPolicy*> ")" =>
+    "CreateModel" "(" <c:CollectionPolicy*> ")" =>
         MigrationCommand::Create{ collections: c },
-    "DeleteCollection" "(" <i:Ident> ")" =>
+    "DeleteModel" "(" <i:Ident> ")" =>
         MigrationCommand::Delete{table_name: i},
 
     ObjectCommand => MigrationCommand::ObjectCommand(<>),

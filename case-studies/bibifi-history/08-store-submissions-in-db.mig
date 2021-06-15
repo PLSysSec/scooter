@@ -1,6 +1,6 @@
 # Source diff ( store submissions in db. break runner compiling ): https://github.com/plum-umd/bibifi-code/commit/065c7e3a41722d6f622b727760583a4914afbab3#diff-7b95d4bbe5a45ddd02e42e192901909c275c9f880cc66071e349d678de1b1b99
 
-CreateCollection(
+CreateModel(
   # File of a build submission (tar.gz)
   BuildSubmissionFile {
       create: public,
@@ -11,7 +11,7 @@ CreateCollection(
   }
 )
 
-CreateCollection(
+CreateModel(
   # File of a fix submission (tar.gz)
   FixSubmissionFile {
       create: public,

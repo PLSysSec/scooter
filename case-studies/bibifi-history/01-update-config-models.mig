@@ -11,7 +11,7 @@ TeamContest::AddField(githookNonce: String {
   write: public,
 }, _ -> "")
 
-CreateCollection(BreakTimeline {
+CreateModel(BreakTimeline {
   create: public,
   delete: public,
 

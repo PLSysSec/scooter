@@ -7,7 +7,7 @@ BreakSubmission::AddField(
             else false)
 )
 
-CreateCollection(BreakFixSubmission {
+CreateModel(BreakFixSubmission {
     create: public,
     delete: public,
 
@@ -55,10 +55,10 @@ BreakSubmission::RemoveField(stderr)
 BreakSubmission::RemoveField(bayesianScore)
 
 
-DeleteCollection(BreakTimeline)
-DeleteCollection(FixSubmissionBugs)
+DeleteModel(BreakTimeline)
+DeleteModel(FixSubmissionBugs)
 
-CreateCollection(
+CreateModel(
   FixCoreResult {
       create: public,
       delete: public,
@@ -70,7 +70,7 @@ CreateCollection(
   }
 )
 
-CreateCollection(
+CreateModel(
   FixPerformanceResult {
       create: public,
       delete: public,
@@ -82,7 +82,7 @@ CreateCollection(
   }
 )
 
-CreateCollection(
+CreateModel(
   FixOptionalResult {
       create: public,
       delete: public,

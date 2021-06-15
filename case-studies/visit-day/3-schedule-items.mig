@@ -1,4 +1,4 @@
-CreateCollection(
+CreateModel(
     ScheduleItem {
         create: _ -> User::Find({}).map(u -> u.id),
         delete: _ -> User::Find({}).map(u -> u.id),

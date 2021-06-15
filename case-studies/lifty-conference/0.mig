@@ -1,4 +1,4 @@
-CreateCollection(ReviewScore {
+CreateModel(ReviewScore {
   create: none,
   delete: none,
 
