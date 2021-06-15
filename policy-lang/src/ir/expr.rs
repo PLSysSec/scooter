@@ -781,17 +781,24 @@ impl LoweringContext {
                 )
             }
             ast::QueryExpr::Find(coll_name, fields) => {
-                let coll = schema.find_collection(coll_name).expect(&format!(
-                    "Unable to lookup by id because collection `{}` does not exist",
-                    coll_name
-                ));
+                let coll = match schema.find_collection(coll_name) {
+                    Some(c) => c,
+                    None => type_error!(
+                        "Unable to lookup by id because collection `{}` does not exist",
+                        coll_name
+                    ),
+                };
                 // All the present fields, lowered.
                 let mut ir_fields = vec![];
                 for (comparison, fname, fexpr) in fields.iter() {
-                    let field = coll.find_field(fname).expect(&format!(
-                        "Unable to find field {} on collection {}",
-                        fname, &coll.name.orig_name
-                    ));
+                    let field = match coll.find_field(fname) {
+                        Some(f) => f,
+                        None => type_error!(
+                            "Unable to find field {} on collection {}",
+                            fname,
+                            &coll.name.orig_name
+                        ),
+                    };
                     let mut fexpr = self.extract_ir_expr(schema, def_map.clone(), fexpr)?;
 
                     match comparison {
@@ -888,10 +895,13 @@ impl LoweringContext {
                 IRExpr::Find(coll.name.clone(), ir_fields)
             }
             ast::QueryExpr::LookupById(coll_name, id_expr) => {
-                let coll = schema.find_collection(coll_name).expect(&format!(
-                    "Unable to lookup by id because collection `{}` does not exist",
-                    coll_name
-                ));
+                let coll = match schema.find_collection(coll_name) {
+                    Some(c) => c,
+                    None => type_error!(
+                        "Unable to lookup by id because collection `{}` does not exist",
+                        coll_name
+                    ),
+                };
                 let id_expr = self.extract_ir_expr(schema, def_map, id_expr)?;
                 let id_expr = self.coerce(schema, &ExprType::id(coll.name.clone()), id_expr)?;
 

@@ -16,7 +16,7 @@ use std::{
 use translate::*;
 mod translate;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Equiv(pub Ident<Field>, pub Func);
 
 pub fn is_as_strict(

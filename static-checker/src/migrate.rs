@@ -173,6 +173,9 @@ fn interpret_migration_on_policy(
             MigrationCommand::RemoveField { coll: _, field } => {
                 result_policy.remove_field_policy(field.clone());
                 deleted_fields.push(field.clone());
+                // TODO: This is a hack, and wipes equivs whenever a field is removed
+                //       We should do actual equiv dependency tracking
+                equivs = vec![];
                 if let Some((old_field, _new_field)) =
                     renamed_fields.iter().find(|(_k, v)| **v == field)
                 {

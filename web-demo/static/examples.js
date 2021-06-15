@@ -52,7 +52,6 @@ User::AddField(
   "Principaled Principals": {
 	migration: "",
 	policy: `# Scooter expresses policies in terms of "principals"
-# Scooter expresses policies in terms of "principals"
 # which represent entities which may access the database.
 # In many applications, the only kind of principal is a User, but sometimes
 # requests are made by third-party applications, or internal infrastructure like
@@ -96,5 +95,64 @@ Team {
 # Note: Scooter has an implicit Unauthenticated principal that can only access
 #       public data. It cannot be mentioned in policy functions to ensure that
 #       Unauthenticated never gains more permissions than a normal principal`
-  }
+  },
+
+  "Funky Forums": {
+policy: `# This policy describes a website that hosts multiple forums.
+# Currently, users can only belong to a single forum.
+
+@principal
+User {
+  create: public,
+  delete: u -> [u.id],
+
+  is_admin: Bool {
+    read: public,
+    write: _ -> User::Find({is_admin: true}).map(u -> u.id),
+  },
+
+  forum: Id(Forum) {
+    read: public,
+    write: none,
+  },
+}
+
+Forum {
+  create: public,
+  delete: none,
+
+  name: String {
+    read: public,
+    write: s -> User::Find({forum: s.id, is_admin: true}).map(u -> u.id),
+  },
+}`,
+
+migration: `# This migration attempts to allow the same user to access multiple forums
+
+# First we replace User::forum with User::forums
+User::AddField(
+	forums: Set(Id(Forum)) {
+		read: public,
+		write: user -> [user.id],
+	},
+	user -> [user.forum]
+)
+
+# We would like to remove User::forum but it's still referenced in the policy for Forum::name.
+Forum::UpdateFieldPolicy(name, write,
+	forum -> User::Find({forums > forum.id, is_admin: true}).map(u -> u.id))
+User::RemoveField(forum)
+
+# Now we need to update our admin representation
+Forum::AddField(
+	admins: Set(Id(User)) {
+		read: public,
+		write: forum -> forum.admins,
+	},
+	forum -> User::Find({forums > forum.id, is_admin: true}).map(u -> u.id)
+)
+
+User::RemoveField(is_admin)
+`}
+
 };

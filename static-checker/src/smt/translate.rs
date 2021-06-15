@@ -500,21 +500,36 @@ impl SMTContext {
                             _ => panic!("Type error: this should not happen"),
                         },
                         FieldComparison::Contains => {
-                            let (coll, from, to, _typ) = self.join_tables[f].clone();
-                            let ids = self.domains[&ExprType::Object(coll)].iter();
-                            let mut join_eqs = Vec::new();
-                            for id in ids {
-                                join_eqs.push(format!(
-                                    "(and (= ({} {}) {}) (= ({} {}) {}))\n",
-                                    ident(&from),
-                                    ident(id),
-                                    ident(&target.0),
-                                    ident(&to),
-                                    ident(id),
+                            if fields_with_equivs.contains(&f) {
+                                let expr = format!(
+                                    "({} {} {})",
+                                    ident(&f),
+                                    ident(target.0),
                                     &field_expr.expr
+                                );
+                                validity_predicates.push(format!(
+                                    "({} {})",
+                                    ident(&validity_function_ident(f)),
+                                    ident(target.0)
                                 ));
+                                field_checks.push(expr);
+                            } else {
+                                let (coll, from, to, _typ) = self.join_tables[f].clone();
+                                let ids = self.domains[&ExprType::Object(coll)].iter();
+                                let mut join_eqs = Vec::new();
+                                for id in ids {
+                                    join_eqs.push(format!(
+                                        "(and (= ({} {}) {}) (= ({} {}) {}))\n",
+                                        ident(&from),
+                                        ident(id),
+                                        ident(&target.0),
+                                        ident(&to),
+                                        ident(id),
+                                        &field_expr.expr
+                                    ));
+                                }
+                                field_checks.push(format!("(or {})", spaced(join_eqs.into_iter())));
                             }
-                            field_checks.push(format!("(or {})", spaced(join_eqs.into_iter())));
                         }
                     }
                 }
@@ -866,7 +881,7 @@ impl SMTContext {
     fn lower_collection_sorts(
         &mut self,
         coll: &Collection,
-        fields_with_equivs: &[Ident<Field>],
+        _fields_with_equivs: &[Ident<Field>],
     ) -> LoweredColl {
         let mut sorts = vec![Statement::DeclSort {
             id: coll.name.coerce(),
@@ -874,9 +889,6 @@ impl SMTContext {
 
         let joins = coll.fields().filter_map(|f| {
             if let ExprType::Set(ref inner_ty) = f.typ {
-                if fields_with_equivs.contains(&f.name) {
-                    return None;
-                }
                 let coll_name = Ident::new(coll.name.orig_name.clone() + &f.name.orig_name);
                 let from_name = Ident::new("from");
                 let to_name = Ident::new("to");
@@ -1092,7 +1104,8 @@ impl SMTContext {
                         Ident::new("domain_var"),
                     ));
                     for (comp, field, _fty, _expr) in fields.iter() {
-                        if *comp == FieldComparison::Contains {
+                        if *comp == FieldComparison::Contains && !fields_with_equivs.contains(field)
+                        {
                             let (coll, _from, _to, _typ) = self.join_tables[field].clone();
                             out.push(self.declare_in_domain(
                                 ExprType::Object(coll.clone()),
