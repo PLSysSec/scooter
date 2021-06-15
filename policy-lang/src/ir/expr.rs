@@ -1,6 +1,6 @@
 use super::{
     schema::{Collection, Field, Schema},
-    Ident,
+    Ident, TypeError,
 };
 use crate::ast;
 use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
@@ -568,7 +568,9 @@ impl LoweringContext {
                             .find(|sp| sp.orig_name == *v)
                             .map(|sp| (sp.clone(), ExprType::Principal))
                     })
-                    .expect(&format!("Use of undefined variable: {}", v));
+                    .ok_or_else(|| {
+                        Box::new(TypeError::new(&format!("Use of undefined variable: {}", v)))
+                    })?;
                 IRExpr::Var(typ, ident)
             }
             ast::QueryExpr::IntConst(val) => IRExpr::IntConst(*val),
@@ -639,10 +641,14 @@ impl LoweringContext {
                     ),
                 };
 
-                let field = coll.find_field(elem).expect(&format!(
-                    "Field `{}` not found on collection `{}`",
-                    elem, coll.name.orig_name
-                ));
+                let field = match coll.find_field(elem) {
+                    Some(f) => f,
+                    None => type_error!(
+                        "Field `{}` not found on collection `{}`",
+                        elem,
+                        coll.name.orig_name
+                    ),
+                };
 
                 IRExpr::Path(field.typ.clone(), obj_expr, field.name.clone())
             }
