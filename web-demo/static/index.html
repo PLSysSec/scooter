@@ -247,12 +247,8 @@
 
 		// Select from hash or default to first
 
-		if (window.location.hash != null) {
-			let hash_example = decodeURIComponent(window.location.hash.substr(1));
-			console.log(hash_example);
-			if (!setExample(hash_example)) {
-				setExample(examples[example_selector.children[1].value]);
-			}
+		if (window.location.hash.length === 0 || !setExample(decodeURIComponent(window.location.hash.substr(1)))) {
+			setExample(example_selector.children[1].value);
 		}
 
 
@@ -262,6 +258,7 @@
 				setEditors(examples[name]);
 				return true;
 			}
+
 			return false;
 		}
 		function setEditors({policy, migration}) {
