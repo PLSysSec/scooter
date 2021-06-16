@@ -134,8 +134,6 @@ impl SMTContext {
     }
 
     fn lower_expr(&self, target: (&Ident<SMTVar>, &ExprType), body: &IRExpr) -> SMTResult {
-        debug_assert!(!contains_unknown(&body.type_of()));
-
         // We need to downcast if target is a Principal and body is a list of concrete type
         match body.type_of() {
             ExprType::Set(id) if *target.1 == ExprType::Principal => {

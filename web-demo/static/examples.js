@@ -138,20 +138,20 @@ User::AddField(
 	user -> [user.forum]
 )
 
-# We would like to remove User::forum but it's still referenced in the policy for Forum::name.
-Forum::UpdateFieldPolicy(name, write,
-	forum -> User::Find({forums > forum.id, is_admin: true}).map(u -> u.id))
-User::RemoveField(forum)
-
 # Now we need to update our admin representation
 Forum::AddField(
 	admins: Set(Id(User)) {
 		read: public,
 		write: forum -> forum.admins,
 	},
-	forum -> User::Find({forums > forum.id, is_admin: true}).map(u -> u.id)
+	forum -> User::Find({is_admin: true}).map(u -> u.id)
 )
 
+# We would like to remove User::forum but it's still referenced in the policy for Forum::name.
+Forum::UpdateFieldPolicy(name, write,
+	forum -> forum.admins
+)
+User::RemoveField(forum)
 User::RemoveField(is_admin)
 `}
 

@@ -112,11 +112,29 @@ pub fn is_as_strict(
             objects: Vec::new(),
         };
 
-        let tables_to_vars = extract_vars(&model_str);
+        // Below we read out from the SMT solver. This code is cursed because:
+        //  - We aren't guaranteed that each id is unique
+        // .- Join tables need to be queried
+        //  - We juggle parsed and unparsed idents both as strings
+        //
+        // TODO: exorcise this haunted code
+        let tables_to_redundant_vars = extract_vars(&model_str);
+        let mut tables_to_vars = HashMap::<Ident<Collection>, HashSet<String>>::new();
+        for (coll, ids) in tables_to_redundant_vars {
+            let mut actual_ids = HashSet::new();
+            for id in ids {
+                actual_ids.insert(exec_with_result_line(
+                    input,
+                    &mut reader,
+                    &format!("\n(eval {})\n", id),
+                ));
+            }
+            tables_to_vars.insert(coll, actual_ids);
+        }
 
-        let mut join_vals = HashMap::<Ident<Field>, Vec<(String, String)>>::new();
+        let mut join_vals = HashMap::<Ident<Field>, HashSet<(String, String)>>::new();
         for (field, (coll, from, to, ty)) in verif_problem.join_tables {
-            let mut vals = vec![];
+            let mut vals = HashSet::new();
             for id in tables_to_vars[&coll].iter() {
                 let from = exec_with_result_line(
                     input,
@@ -131,7 +149,7 @@ pub fn is_as_strict(
                 );
                 let to = parse(&ty, &raw_to.trim());
 
-                vals.push((from, to));
+                vals.insert((from, to));
             }
             join_vals.insert(field, vals);
         }
@@ -226,9 +244,13 @@ impl Display for Model {
         let rec = self.rec();
         write!(
             f,
-            "Principal: {}\n\nCAN NOW ACCESS:\n\n{:#}\n\nOTHER RECORDS:\n\n",
+            "Principal: {}\n\nCAN NOW ACCESS:\n\n{:#}\n\n",
             self.princ, rec
         )?;
+
+        if self.objects.len() > 1 {
+            write!(f, "OTHER RECORDS:\n\n")?;
+        }
 
         for obj in self.objects.iter() {
             if &obj.id() != &self.rec_id {
@@ -300,7 +322,7 @@ fn clean_model(model: &str) -> String {
     clean[1..clean.len() - 3].into()
 }
 
-fn extract_vars(model: &str) -> HashMap<Ident<Collection>, HashSet<String>> {
+fn extract_vars(model: &str) -> HashMap<Ident<Collection>, Vec<String>> {
     lazy_static! {
         static ref UNIVERSE: Regex =
             Regex::new(r#";; universe for ([^:]*)_i([^:]*):\s*;;([^;]*)"#).unwrap();
