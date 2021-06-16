@@ -7,7 +7,8 @@ use policy_lang::ir::{
 };
 use regex::Regex;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
+    env,
     fmt::{Debug, Display},
     io::{BufRead, BufReader, Write},
     process::{ChildStdin, ChildStdout, Command, Stdio},
@@ -34,8 +35,16 @@ pub fn is_as_strict(
         .map(Statement::to_string)
         .collect::<Vec<_>>()
         .join("");
-    let final_assert = verif_problem.stmts[verif_problem.stmts.len() - 1].to_string();
-    let mut child = Command::new("z3")
+    let asserts = verif_problem
+        .stmts
+        .iter()
+        .filter_map(|s| match s {
+            Statement::Assert(_) => Some(s.to_string()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut child = Command::new(&env::var("Z3_OVERRIDE").unwrap_or("z3".to_string()))
         .arg("-smt2")
         .arg("-in")
         .stdin(Stdio::piped())
@@ -56,6 +65,7 @@ pub fn is_as_strict(
             .expect("Error writing to z3 input");
 
         let sat_result = exec_with_result_line(input, &mut reader, "(check-sat)\n");
+
         match sat_result.as_str() {
             "unsat" => {
                 child.wait().expect("Error closing z3 process");
@@ -66,7 +76,6 @@ pub fn is_as_strict(
         }
 
         let model_str = read_model(input, &mut reader);
-        eprintln!("MODEL: \n{}", model_str);
         // The model we get back is a little bad
         let model_str = clean_model(&model_str);
 
@@ -80,13 +89,8 @@ pub fn is_as_strict(
             .write_all(model_str.as_bytes())
             .expect("Error writing to z3 input");
 
-        let _ = exec_with_result_line(
-            input,
-            &mut reader,
-            &format!("\n{}\n(check-sat)\n", final_assert),
-        );
-
-        let _m32 = read_model(input, &mut reader);
+        let _sat =
+            exec_with_result_line(input, &mut reader, &format!("\n{}\n(check-sat)\n", asserts));
 
         let princ = parse(
             &ExprType::Principal,
@@ -104,7 +108,8 @@ pub fn is_as_strict(
 
         let mut model = Model {
             princ,
-            objects: vec![],
+            rec_id: parse(&ExprType::Id(coll.clone()), &rec),
+            objects: Vec::new(),
         };
 
         let tables_to_vars = extract_vars(&model_str);
@@ -161,12 +166,13 @@ pub fn is_as_strict(
 
                     fields.push((field.name.clone(), clean_value));
                 }
+
                 let obj = ModelObject {
                     coll: coll.name.clone(),
                     fields,
-                    is_record: id == &rec,
                 };
-                model.add_obj(obj);
+
+                model.objects.push(obj);
             }
         }
 
@@ -205,45 +211,13 @@ fn parse(typ: &ExprType, text: &str) -> String {
 #[derive(Debug)]
 pub struct Model {
     princ: String,
+    rec_id: String,
     objects: Vec<ModelObject>,
 }
 
 impl Model {
-    fn add_obj(&mut self, m: ModelObject) {
-        if self.objects.iter().find(|o| o.id() == m.id()).is_some() {
-            return;
-        }
-        let mut duplicate: Option<&mut ModelObject> = None;
-        let mut is_referenced = false;
-
-        if m.is_record || self.princ.contains(&m.id()) {
-            self.objects.push(m);
-            return;
-        }
-        for obj in self.objects.iter_mut() {
-            for (_, field_str_value) in obj.fields.iter() {
-                if field_str_value.contains(&m.id()) {
-                    is_referenced = true;
-                }
-            }
-            if *obj == m && !(obj.is_record || obj.id() == self.princ) {
-                duplicate = Some(obj);
-            }
-        }
-        if !is_referenced {
-            match duplicate {
-                Some(obj) => {
-                    obj.is_record = obj.is_record || m.is_record;
-                    return;
-                }
-                None => (),
-            };
-        }
-        self.objects.push(m);
-    }
-
     fn rec(&self) -> &ModelObject {
-        self.objects.iter().find(|obj| obj.is_record).unwrap()
+        self.objects.iter().find(|o| o.id() == self.rec_id).unwrap()
     }
 }
 
@@ -257,7 +231,7 @@ impl Display for Model {
         )?;
 
         for obj in self.objects.iter() {
-            if !obj.is_record {
+            if &obj.id() != &self.rec_id {
                 write!(f, "{:#}\n", obj)?;
             }
         }
@@ -269,7 +243,6 @@ impl Display for Model {
 pub struct ModelObject {
     coll: Ident<Collection>,
     fields: Vec<(Ident<Field>, String)>,
-    is_record: bool,
 }
 
 impl ModelObject {
@@ -321,13 +294,13 @@ impl<'a> Debug for Literal<'a> {
 
 fn clean_model(model: &str) -> String {
     lazy_static! {
-        static ref CARDINAL: Regex = Regex::new(r#";; cardinality constraint:[^;]*"#).unwrap();
+        static ref CARDINAL: Regex = Regex::new(r#";; cardinality constraint:([^;]*)"#).unwrap();
     }
-    let clean = CARDINAL.replace_all(model, "");
+    let clean = CARDINAL.replace_all(model, "(assert $1)");
     clean[1..clean.len() - 3].into()
 }
 
-fn extract_vars(model: &str) -> HashMap<Ident<Collection>, Vec<String>> {
+fn extract_vars(model: &str) -> HashMap<Ident<Collection>, HashSet<String>> {
     lazy_static! {
         static ref UNIVERSE: Regex =
             Regex::new(r#";; universe for ([^:]*)_i([^:]*):\s*;;([^;]*)"#).unwrap();
@@ -373,7 +346,6 @@ fn exec_with_result_line(
     reader: &mut BufReader<&mut ChildStdout>,
     cmd: &str,
 ) -> String {
-    eprintln!("CMD: {}", cmd);
     let mut line = String::new();
     input.write_all(cmd.as_bytes()).unwrap();
     reader.read_line(&mut line).unwrap();

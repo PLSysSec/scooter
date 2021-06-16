@@ -16,7 +16,6 @@ pub(crate) struct VerifProblem {
     pub stmts: Vec<Statement>,
     pub join_tables:
         HashMap<Ident<Field>, (Ident<Collection>, Ident<Field>, Ident<Field>, ExprType)>,
-    pub domains: HashMap<ExprType, Vec<Ident<SMTVar>>>,
 }
 
 lazy_static! {
@@ -31,15 +30,14 @@ pub(crate) fn gen_assert(
     after: &Policy,
 ) -> VerifProblem {
     let mut ctx = SMTContext::default();
-    let fields_with_equivs: Vec<_> = equivs.iter().map(|equiv| equiv.0.clone()).collect();
-    let low_schema_sorts = ctx.lower_schema_sorts(schema, &fields_with_equivs);
+    let low_schema_sorts = ctx.lower_schema_sorts(schema);
 
     let princ_id = Ident::new("principal");
     let rec_id = Ident::new("rec");
 
     // Declare the principal and record
-    let princ = ctx.declare_in_domain(ExprType::Principal, princ_id.clone());
-    let rec = ctx.declare_in_domain(ExprType::Object(coll.clone()), rec_id.clone());
+    let princ = declare(princ_id.clone(), &[], ExprType::Principal);
+    let rec = declare(rec_id.clone(), &[], ExprType::Object(coll.clone()));
 
     // Declare the now constant for datetimes
     let now = declare(NOW_IDENT.clone(), &[], ExprType::DateTime);
@@ -48,12 +46,9 @@ pub(crate) fn gen_assert(
     let option_datatype =
         Statement::Hack("(declare-datatypes (T) ((Option none (some (v T)))))".to_string());
 
-    // Predeclare the functions
-    let mut before_decl = ctx.predeclare(before, &fields_with_equivs);
-    let mut after_decl = ctx.predeclare(after, &fields_with_equivs);
-
     // Lower the fields
-    let mut low_schema_fields = ctx.lower_schema_fields(equivs, schema);
+    let mut low_schema_fields = ctx.lower_schema_fields(schema);
+    let mut eq_asserts = ctx.lower_equivs(equivs, schema);
 
     // Lower the functions
     let mut before = ctx.lower_policy(&princ_id, &rec_id, before);
@@ -63,12 +58,11 @@ pub(crate) fn gen_assert(
         Statement::Assert(format!("(and {} (not {}))", &after.expr, &before.expr,));
     let mut out = low_schema_sorts;
     out.insert(0, option_datatype);
-    out.append(&mut before_decl);
-    out.append(&mut after_decl);
     out.push(princ);
     out.push(rec);
     out.push(now);
     out.append(&mut low_schema_fields);
+    out.append(&mut eq_asserts);
     out.append(&mut before.stmts);
     out.append(&mut after.stmts);
     out.push(safety_assertion);
@@ -78,7 +72,6 @@ pub(crate) fn gen_assert(
         rec: rec_id,
         stmts: out,
         join_tables: ctx.join_tables,
-        domains: ctx.domains,
     }
 }
 
@@ -109,13 +102,7 @@ impl SMTResult {
 #[derive(Default)]
 struct SMTContext {
     princ_casts: HashMap<Ident<Collection>, (Ident<SMTVar>, Ident<SMTVar>)>,
-    domains: HashMap<ExprType, Vec<Ident<SMTVar>>>,
     join_tables: HashMap<Ident<Field>, (Ident<Collection>, Ident<Field>, Ident<Field>, ExprType)>,
-}
-
-struct LoweredColl {
-    sorts: Vec<Statement>,
-    body: Vec<Statement>,
 }
 
 impl SMTContext {
@@ -189,8 +176,6 @@ impl SMTContext {
             IRExpr::Path(ty, obj, f) => match ty {
                 ExprType::Set(ref _inner_ty) => {
                     let lower = self.lower_expr(target, obj);
-                    eprintln!("{:?}", f);
-                    eprintln!("{:?}", self.join_tables);
 
                     let (coll, from, to, _typ) = self.join_tables[f].clone();
                     let exi = Ident::new("join_exi");
@@ -528,11 +513,7 @@ impl SMTContext {
     }
 
     /// Lowers the schema sorts to a String containing an SMT2LIB script
-    fn lower_schema_sorts(
-        &mut self,
-        schema: &Schema,
-        fields_with_equivs: &[Ident<Field>],
-    ) -> Vec<Statement> {
+    fn lower_schema_sorts(&mut self, schema: &Schema) -> Vec<Statement> {
         let princ_ids: Vec<_> = schema
             .dynamic_principals
             .iter()
@@ -570,43 +551,37 @@ impl SMTContext {
         let colls = schema
             .collections
             .iter()
-            .map(|c| self.lower_collection_sorts(c, fields_with_equivs));
+            .map(|c| self.lower_collection_sorts(c));
 
-        let (sorts, bodies): (Vec<_>, Vec<_>) = colls.map(|lc| (lc.sorts, lc.body)).unzip();
-        let mut out: Vec<_> = sorts
-            .into_iter()
+        let mut out: Vec<_> = colls
             .flatten()
-            .chain(bodies.into_iter().flatten())
             .chain(iter::once(princ_decl))
             .chain(iter::once(Statement::Hack("(push 1)".into())))
             .collect();
+
         for (_princ_cons, princ_obj, princ_coll) in princ_ids.iter() {
             let princ_obj_decl =
-                self.declare_in_domain(ExprType::Object(princ_coll.clone()), princ_obj.clone());
+                declare(princ_obj.clone(), &[], ExprType::Object(princ_coll.clone()));
             out.push(princ_obj_decl);
         }
         out
     }
     /// Lowers the schema fields to a String containing an SMT2LIB script
-    fn lower_schema_fields(&mut self, equivs: &[Equiv], schema: &Schema) -> Vec<Statement> {
+    fn lower_schema_fields(&mut self, schema: &Schema) -> Vec<Statement> {
         schema
             .collections
             .iter()
-            .map(|c| self.lower_collection_fields(equivs, c))
+            .map(|c| self.lower_collection_fields(c))
             .collect::<Vec<_>>()
             .concat()
     }
 
-    fn lower_collection_sorts(
-        &mut self,
-        coll: &Collection,
-        fields_with_equivs: &[Ident<Field>],
-    ) -> LoweredColl {
+    fn lower_collection_sorts(&mut self, coll: &Collection) -> Vec<Statement> {
         let mut sorts = vec![Statement::DeclSort {
             id: coll.name.coerce(),
         }];
 
-        let joins = coll.fields().filter_map(|f| {
+        for f in coll.fields() {
             if let ExprType::Set(ref inner_ty) = f.typ {
                 let coll_name = Ident::new(coll.name.orig_name.clone() + &f.name.orig_name);
                 let from_name = Ident::new("from");
@@ -620,35 +595,16 @@ impl SMTContext {
                         inner_ty.as_ref().clone(),
                     ),
                 );
-                return Some(self.lower_collection(
-                    &[],
-                    &Collection {
-                        name: coll_name,
-                        fields: vec![
-                            Field {
-                                name: from_name,
-                                typ: ExprType::Id(coll.name.clone()),
-                            },
-                            Field {
-                                name: to_name,
-                                typ: inner_ty.as_ref().clone(),
-                            },
-                        ],
-                    },
-                ));
-            }
-            None
-        });
 
-        let (join_sorts, join_fields): (Vec<_>, Vec<_>) =
-            joins.map(|lc| (lc.sorts, lc.body)).unzip();
-        sorts.extend(join_sorts.into_iter().flatten());
-        LoweredColl {
-            sorts,
-            body: join_fields.concat(),
+                sorts.push(Statement::DeclSort {
+                    id: coll_name.coerce(),
+                })
+            }
         }
+
+        sorts
     }
-    fn lower_collection_fields(&mut self, equivs: &[Equiv], coll: &Collection) -> Vec<Statement> {
+    fn lower_collection_fields(&mut self, coll: &Collection) -> Vec<Statement> {
         coll.fields()
             .flat_map(move |f| {
                 if f.is_id() {
@@ -661,35 +617,28 @@ impl SMTContext {
                     )];
                 }
 
-                let equiv = equivs
-                    .iter()
-                    .find(|Equiv(e, _)| e == &f.name)
-                    .map(|Equiv(_, l)| l);
-                match equiv {
-                    None | Some(_) => vec![declare(
-                        f.name.coerce(),
-                        &[ExprType::Object(coll.name.clone())],
-                        f.typ.clone(),
-                    )],
-                    // TODO: Fix equivs
-                    //Some(_lambda) => vec![]
+                match self.join_tables.get(&f.name) {
+                    Some((join_coll, from, to, inner_ty)) => {
+                        let ty = ExprType::Object(join_coll.clone());
+                        vec![
+                            declare(
+                                from.coerce(),
+                                &[ty.clone()],
+                                ExprType::Object(coll.name.clone()),
+                            ),
+                            declare(to.coerce(), &[ty.clone()], inner_ty.clone()),
+                        ]
+                    }
+                    None => {
+                        vec![declare(
+                            f.name.coerce(),
+                            &[ExprType::Object(coll.name.clone())],
+                            f.typ.clone(),
+                        )]
+                    }
                 }
             })
             .collect()
-    }
-
-    /// Lowers each collection one by one.
-    /// Each collection gets its own sort named after its Ident,
-    /// and each field is a function mapping that sort to either a native
-    /// SMT sort or to another sort.
-    fn lower_collection(&mut self, equivs: &[Equiv], coll: &Collection) -> LoweredColl {
-        let fields_with_equivs: Vec<_> = equivs.iter().map(|equiv| equiv.0.clone()).collect();
-        let sorts = self.lower_collection_sorts(coll, &fields_with_equivs);
-        let fields = self.lower_collection_fields(equivs, coll);
-        LoweredColl {
-            sorts: sorts.sorts,
-            body: sorts.body.into_iter().chain(fields.into_iter()).collect(),
-        }
     }
 
     fn simple_nary_op(
@@ -708,89 +657,48 @@ impl SMTContext {
         SMTResult::new(stmt_lsts.concat(), body)
     }
 
-    fn predeclare_expr(
-        &mut self,
-        e: &IRExpr,
-        fields_with_equivs: &[Ident<Field>],
-    ) -> Vec<Statement> {
-        let mut out = vec![];
-        for se in e.subexprs_preorder() {
-            match se {
-                IRExpr::LookupById(coll, ..) => {
-                    out.push(self.declare_in_domain(
-                        ExprType::Object(coll.clone()),
-                        Ident::new("domain_var"),
-                    ));
+    fn lower_equivs(&self, equivs: &[Equiv], schema: &Schema) -> Vec<Statement> {
+        let mut stmts = vec![];
+        for eq in equivs {
+            let typ = schema[&eq.0].typ.clone();
+            match typ {
+                ExprType::Set(set_ty) => {
+                    let to_id: Ident<SMTVar> = Ident::new("to_assert");
+                    let join_id: Ident<SMTVar> = Ident::new("join_var");
+                    let lowered = self.lower_expr((&to_id, &set_ty), &eq.1.body);
+                    let (join_coll, from_f, to_f, ..) = self.join_tables[&eq.0].clone();
+                    stmts.push(Statement::Assert(format!(
+                        "(forall (({from_id} {from_typ}) ({to_id} {to_typ}))
+                            (=
+                                (exists (({join_id} {join_typ}))
+                                    (and
+                                        (= ({from_f} {join_id}) {from_id})
+                                        (= ({to_f} {join_id}) {to_id})))
+                                 {low_expr}))",
+                        from_id = &ident(&eq.1.param),
+                        from_typ = type_name(&eq.1.param_type),
+                        to_id = &ident(&to_id),
+                        to_typ = type_name(&set_ty),
+                        join_id = &ident(&join_id),
+                        join_typ = type_name(&ExprType::Object(join_coll.clone())),
+                        to_f = &ident(&to_f),
+                        from_f = &ident(&from_f),
+                        low_expr = &lowered.expr
+                    )));
                 }
-                IRExpr::Path(ExprType::Set(_inner_ty), _obj, f) => {
-                    if !fields_with_equivs.contains(f) {
-                        let (coll, _from, _to, _typ) = self
-                            .join_tables
-                            .get(f)
-                            .expect(&format!(
-                                "Couldn't find a join table for field {}",
-                                f.orig_name
-                            ))
-                            .clone();
-                        out.push(self.declare_in_domain(
-                            ExprType::Object(coll.clone()),
-                            Ident::new("domain_var"),
-                        ));
-                    }
+                _ => {
+                    let lowered = self.lower_expr((&eq.1.param.coerce(), &typ), &eq.1.body);
+                    stmts.push(Statement::Assert(format!(
+                        "(forall (({} {})) (= ({} {0}) {}))",
+                        &ident(&eq.1.param),
+                        type_name(&eq.1.param_type),
+                        &ident(&eq.0),
+                        &lowered.expr
+                    )))
                 }
-                IRExpr::Find(coll, fields) => {
-                    out.push(self.declare_in_domain(
-                        ExprType::Object(coll.clone()),
-                        Ident::new("domain_var"),
-                    ));
-                    for (comp, field, _fty, _expr) in fields.iter() {
-                        if *comp == FieldComparison::Contains {
-                            let (coll, _from, _to, _typ) = self.join_tables[field].clone();
-                            out.push(self.declare_in_domain(
-                                ExprType::Object(coll.clone()),
-                                Ident::new("join_var"),
-                            ));
-                        }
-                    }
-                }
-                _ => {}
-            }
+            };
         }
-        out
-    }
-
-    fn predeclare(&mut self, pol: &Policy, fields_with_equivs: &[Ident<Field>]) -> Vec<Statement> {
-        match pol {
-            Policy::None | Policy::Anyone => vec![],
-            Policy::Func(f) => self.predeclare_expr(&f.body, fields_with_equivs),
-        }
-    }
-
-    fn declare_in_domain(&mut self, typ: ExprType, id: Ident<SMTVar>) -> Statement {
-        if !self.domains.contains_key(&typ) {
-            self.domains.insert(typ.clone(), vec![]);
-        }
-        self.domains.get_mut(&typ).unwrap().push(id.clone());
-
-        declare(id, &[], typ)
-    }
-
-    #[allow(dead_code)]
-    fn domain_ident(&self, id: Ident<SMTVar>, typ: ExprType) -> Vec<Statement> {
-        let expr = format!(
-            "(or {})",
-            spaced(
-                self.domains
-                    .get(&typ)
-                    .expect(&format!("Cannot find domain for type {}", typ))
-                    .iter()
-                    .map(|d_id| format!("(= {} {})", ident(&id), ident(d_id)))
-            )
-        );
-        let decl = declare(id.clone(), &[], typ);
-        let ass = Statement::Assert(expr);
-
-        vec![decl, ass]
+        stmts
     }
 }
 

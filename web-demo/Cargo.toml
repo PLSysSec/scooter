@@ -7,4 +7,4 @@ edition = "2018"
 
 [dependencies]
 rocket="0.5.0-rc.1"
-static-checker={path="../static-checker"}
+static-checker={path="../static-checker", features=["naive_smt"]}
