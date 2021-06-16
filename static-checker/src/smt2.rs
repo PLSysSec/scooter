@@ -8,10 +8,13 @@ use policy_lang::ir::{
 use regex::Regex;
 use std::{
     collections::{HashMap, HashSet},
-    env,
+    ffi::{CStr, CString},
     fmt::{Debug, Display},
-    io::{BufRead, BufReader, Write},
-    process::{ChildStdin, ChildStdout, Command, Stdio},
+    ptr::{null, null_mut},
+};
+use z3_sys::{
+    Z3_ast, Z3_ast_to_string, Z3_context, Z3_func_decl, Z3_get_decl_name, Z3_get_symbol_string,
+    Z3_mk_app, Z3_model, Z3_model_eval, Z3_model_get_func_decl, Z3_sort, Z3_sort_to_string,
 };
 //use translate::*;
 //mod translate;
@@ -27,7 +30,7 @@ pub fn is_as_strict(
     coll: &Ident<Collection>,
     before: &Policy,
     after: &Policy,
-) -> Result<(), Model> {
+) -> Result<(), impl Display> {
     let verif_problem = gen_assert(schema, eqs, coll, before, after);
     let assertion = verif_problem
         .stmts
@@ -35,166 +38,175 @@ pub fn is_as_strict(
         .map(Statement::to_string)
         .collect::<Vec<_>>()
         .join("");
-    let asserts = verif_problem
-        .stmts
-        .iter()
-        .filter_map(|s| match s {
-            Statement::Assert(_) => Some(s.to_string()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    let mut child = Command::new(&env::var("Z3_OVERRIDE").unwrap_or("z3".to_string()))
-        .arg("-smt2")
-        .arg("-in")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Unable to spawn z3");
 
-    {
-        let input = child
-            .stdin
-            .as_mut()
-            .expect("Failed to open stdin of z3 process");
-        let output = child.stdout.as_mut().expect("Error capturing z3 output");
-        let mut reader = BufReader::new(output);
+    unsafe {
+        let config = z3_sys::Z3_mk_config();
+        let key = CString::new("smtlib2_compliant").unwrap();
+        let value = CString::new("true").unwrap();
+        z3_sys::Z3_set_param_value(config, key.as_ptr(), value.as_ptr());
+        let ctx = z3_sys::Z3_mk_context(config);
+        let solver = z3_sys::Z3_mk_solver(ctx);
+        z3_sys::Z3_solver_inc_ref(ctx, solver);
 
-        input
-            .write_all(assertion.as_bytes())
-            .expect("Error writing to z3 input");
+        let c_str = CString::new(assertion).unwrap();
+        z3_sys::Z3_solver_from_string(ctx, solver, c_str.as_ptr());
+        let res = z3_sys::Z3_solver_check(ctx, solver);
 
-        let sat_result = exec_with_result_line(input, &mut reader, "(check-sat)\n");
+        if res == z3_sys::Z3_L_TRUE {
+            let model = z3_sys::Z3_solver_get_model(ctx, solver);
+            z3_sys::Z3_model_inc_ref(ctx, model);
 
-        match sat_result.as_str() {
-            "unsat" => {
-                child.wait().expect("Error closing z3 process");
-                return Ok(());
-            }
-            "sat" => {}
-            s => panic!("Unable to read SMT output: {}", s),
-        }
+            let num_consts = z3_sys::Z3_model_get_num_consts(ctx, model);
+            let consts = (0..num_consts).map(|i| z3_sys::Z3_model_get_const_decl(ctx, model, i));
+            let consts: HashMap<String, Z3_func_decl> = consts
+                .map(|decl| {
+                    let symbol = Z3_get_decl_name(ctx, decl);
+                    let string_name = CStr::from_ptr(Z3_get_symbol_string(ctx, symbol))
+                        .to_string_lossy()
+                        .to_string();
+                    (string_name, decl)
+                })
+                .collect();
 
-        let model_str = read_model(input, &mut reader);
-        // The model we get back is a little bad
-        let model_str = clean_model(&model_str);
+            let rec_decl = consts[&ident(&verif_problem.rec)];
+            let rec_app = z3_sys::Z3_mk_app(ctx, rec_decl, 0, null());
+            let rec_id = eval(ctx, model, rec_app).unwrap();
 
-        // Clear the verif problem
-        input
-            .write_all("(pop 1)\n".as_bytes())
-            .expect("Error writing to z3 input");
+            let princ_decl = consts[&ident(&verif_problem.princ)];
+            let princ_app = z3_sys::Z3_mk_app(ctx, princ_decl, 0, null());
+            let princ_id = eval(ctx, model, princ_app).unwrap();
 
-        // Write the model
-        input
-            .write_all(model_str.as_bytes())
-            .expect("Error writing to z3 input");
-
-        let _sat =
-            exec_with_result_line(input, &mut reader, &format!("\n{}\n(check-sat)\n", asserts));
-
-        let princ = parse(
-            &ExprType::Principal,
-            &exec_with_result_line(
-                input,
-                &mut reader,
-                &format!("(eval {})\n", ident(&verif_problem.princ)),
-            ),
-        );
-        let rec = exec_with_result_line(
-            input,
-            &mut reader,
-            &format!("(eval {})\n", ident(&verif_problem.rec)),
-        );
-
-        let mut model = Model {
-            princ,
-            rec_id: parse(&ExprType::Id(coll.clone()), &rec),
-            objects: Vec::new(),
-        };
-
-        // Below we read out from the SMT solver. This code is cursed because:
-        //  - We aren't guaranteed that each id is unique
-        // .- Join tables need to be queried
-        //  - We juggle parsed and unparsed idents both as strings
-        //
-        // TODO: exorcise this haunted code
-        let tables_to_redundant_vars = extract_vars(&model_str);
-        let mut tables_to_vars = HashMap::<Ident<Collection>, HashSet<String>>::new();
-        for (coll, ids) in tables_to_redundant_vars {
-            let mut actual_ids = HashSet::new();
-            for id in ids {
-                actual_ids.insert(exec_with_result_line(
-                    input,
-                    &mut reader,
-                    &format!("\n(eval {})\n", id),
-                ));
-            }
-            tables_to_vars.insert(coll, actual_ids);
-        }
-
-        let mut join_vals = HashMap::<Ident<Field>, HashSet<(String, String)>>::new();
-        for (field, (coll, from, to, ty)) in verif_problem.join_tables {
-            let mut vals = HashSet::new();
-            for id in tables_to_vars[&coll].iter() {
-                let from = exec_with_result_line(
-                    input,
-                    &mut reader,
-                    &format!("(eval ({} {}))\n", ident(&from), id),
-                );
-
-                let raw_to = exec_with_result_line(
-                    input,
-                    &mut reader,
-                    &format!("(eval ({} {}))\n", ident(&to), id),
-                );
-                let to = parse(&ty, &raw_to.trim());
-
-                vals.insert((from, to));
-            }
-            join_vals.insert(field, vals);
-        }
-
-        for (coll_id, ids) in tables_to_vars.iter() {
-            let maybe_coll = schema.collections.iter().find(|c| c.name == *coll_id);
-            let coll = match maybe_coll {
-                Some(ref coll) => coll,
-                None => continue,
+            let mut output = Model {
+                rec_id: parse(&ExprType::Id(coll.clone()), &rec_id),
+                princ: parse(&ExprType::Principal, &princ_id),
+                objects: Vec::new(),
             };
-            for id in ids {
-                let mut fields = vec![];
-                for field in coll.fields() {
-                    if matches!(field.typ, ExprType::Set(_)) {
-                        let x = join_vals[&field.name]
-                            .iter()
-                            .filter(|(from, _)| from == id)
-                            .map(|(_, to)| to.clone())
-                            .collect::<Vec<_>>()
-                            .join(", ");
 
-                        fields.push((field.name.clone(), format!("[{}]", x)));
-                        continue;
-                    }
+            let num_decls = z3_sys::Z3_model_get_num_funcs(ctx, model);
+            let funcs = (0..num_decls).map(|i| Z3_model_get_func_decl(ctx, model, i));
+            let func_map: HashMap<String, Z3_func_decl> = funcs
+                .map(|decl| {
+                    let symbol = Z3_get_decl_name(ctx, decl);
+                    let string_name = CStr::from_ptr(Z3_get_symbol_string(ctx, symbol))
+                        .to_string_lossy()
+                        .to_string();
+                    (string_name, decl)
+                })
+                .collect();
 
-                    let val = exec_with_result_line(
-                        input,
-                        &mut reader,
-                        &format!("(eval ({} {}))\n", ident(&field.name), id),
-                    );
-                    let clean_value = parse(&field.typ, &val);
+            let num_sorts = z3_sys::Z3_model_get_num_sorts(ctx, model);
+            let sorts = (0..num_sorts).map(|i| z3_sys::Z3_model_get_sort(ctx, model, i));
+            let sort_map: HashMap<String, Z3_sort> = sorts
+                .map(|sort| {
+                    let string_name = CStr::from_ptr(Z3_sort_to_string(ctx, sort))
+                        .to_string_lossy()
+                        .to_string();
+                    (string_name, sort)
+                })
+                .collect();
 
-                    fields.push((field.name.clone(), clean_value));
+            let mut join_vals = Vec::<(Ident<Field>, String, String)>::new();
+            for (field, (coll, from, to, inner_ty)) in verif_problem.join_tables.iter() {
+                let sort = sort_map[&ident(coll)];
+                let (to_decl, from_decl) =
+                    match (func_map.get(&ident(&to)), func_map.get(&ident(&from))) {
+                        (Some(to_decl), Some(from_decl)) => (*to_decl, *from_decl),
+                        _ => continue,
+                    };
+
+                let val_vec = z3_sys::Z3_model_get_sort_universe(ctx, model, sort);
+                z3_sys::Z3_ast_vector_inc_ref(ctx, val_vec);
+                let num_vals = z3_sys::Z3_ast_vector_size(ctx, val_vec);
+                let vals = (0..num_vals).map(|i| z3_sys::Z3_ast_vector_get(ctx, val_vec, i));
+                for val in vals {
+                    let to_app = Z3_mk_app(ctx, to_decl, 1, &val);
+                    let to_val = eval(ctx, model, to_app).unwrap();
+
+                    let from_app = Z3_mk_app(ctx, from_decl, 1, &val);
+                    let from_val = eval(ctx, model, from_app).unwrap();
+
+                    join_vals.push((field.clone(), from_val, parse(inner_ty, &to_val)));
                 }
 
-                let obj = ModelObject {
-                    coll: coll.name.clone(),
-                    fields,
+                z3_sys::Z3_ast_vector_dec_ref(ctx, val_vec);
+            }
+            for (sort_name, sort) in sort_map.iter() {
+                let coll_name: String = {
+                    let mut iter = sort_name.split('_');
+                    iter.next_back();
+                    iter.collect()
+                };
+                let coll = match schema.find_collection(&coll_name) {
+                    Some(coll) => coll,
+                    None => continue,
                 };
 
-                model.objects.push(obj);
-            }
-        }
+                let val_vec = z3_sys::Z3_model_get_sort_universe(ctx, model, *sort);
+                z3_sys::Z3_ast_vector_inc_ref(ctx, val_vec);
+                let num_vals = z3_sys::Z3_ast_vector_size(ctx, val_vec);
+                let vals = (0..num_vals).map(|i| z3_sys::Z3_ast_vector_get(ctx, val_vec, i));
 
-        Err(model)
+                for val in vals {
+                    let mut object = ModelObject {
+                        coll: coll.name.clone(),
+                        fields: Vec::new(),
+                        complete: true,
+                    };
+                    let id = CStr::from_ptr(Z3_ast_to_string(ctx, val))
+                        .to_string_lossy()
+                        .to_string();
+                    for field in coll.fields() {
+                        if verif_problem.join_tables.contains_key(&field.name) {
+                            let vals: Vec<_> = join_vals
+                                .iter()
+                                .filter_map(|(f, name, val)| {
+                                    (&field.name == f && name == &id).then(|| val.to_string())
+                                })
+                                .collect::<HashSet<_>>()
+                                .into_iter()
+                                .collect();
+                            object
+                                .fields
+                                .push((field.name.clone(), format!("[{}]", vals.join(", "))));
+                        }
+                        let func_decl = match func_map.get(&ident(&field.name)) {
+                            Some(decl) => *decl,
+                            _ => {
+                                object.complete = false;
+                                continue;
+                            }
+                        };
+                        let app = Z3_mk_app(ctx, func_decl, 1, &val);
+                        let value = eval(ctx, model, app).unwrap();
+                        object
+                            .fields
+                            .push((field.name.clone(), parse(&field.typ, &value)));
+                    }
+                    output.objects.push(object);
+                }
+
+                z3_sys::Z3_ast_vector_dec_ref(ctx, val_vec);
+            }
+            z3_sys::Z3_del_context(ctx);
+            z3_sys::Z3_del_config(config);
+            Err(output)
+        } else {
+            z3_sys::Z3_del_context(ctx);
+            z3_sys::Z3_del_config(config);
+            Ok(())
+        }
+    }
+}
+
+fn eval(ctx: Z3_context, model: Z3_model, ast: Z3_ast) -> Option<String> {
+    let mut result = null_mut();
+    unsafe {
+        let success = Z3_model_eval(ctx, model, ast, true, &mut result);
+        success.then(|| {
+            CStr::from_ptr(Z3_ast_to_string(ctx, result))
+                .to_string_lossy()
+                .to_string()
+        })
     }
 }
 
@@ -265,6 +277,7 @@ impl Display for Model {
 pub struct ModelObject {
     coll: Ident<Collection>,
     fields: Vec<(Ident<Field>, String)>,
+    complete: bool,
 }
 
 impl ModelObject {
@@ -299,11 +312,15 @@ impl PartialEq for ModelObject {
 
 impl Display for ModelObject {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut dbug_struct = f.debug_struct(&self.coll.orig_name);
+        write!(f, "{} {{\n", &self.coll.orig_name)?;
         for (f_id, val) in self.fields.iter() {
-            dbug_struct.field(&f_id.orig_name, &Literal(val));
+            write!(f, "\t{}: {:?},\n", &f_id.orig_name, &Literal(val))?;
         }
-        dbug_struct.finish()
+        if !self.complete {
+            write!(f, "\t...\n}}")
+        } else {
+            write!(f, "}}")
+        }
     }
 }
 
@@ -312,65 +329,4 @@ impl<'a> Debug for Literal<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
-}
-
-fn clean_model(model: &str) -> String {
-    lazy_static! {
-        static ref CARDINAL: Regex = Regex::new(r#";; cardinality constraint:([^;]*)"#).unwrap();
-    }
-    let clean = CARDINAL.replace_all(model, "(assert $1)");
-    clean[1..clean.len() - 3].into()
-}
-
-fn extract_vars(model: &str) -> HashMap<Ident<Collection>, Vec<String>> {
-    lazy_static! {
-        static ref UNIVERSE: Regex =
-            Regex::new(r#";; universe for ([^:]*)_i([^:]*):\s*;;([^;]*)"#).unwrap();
-        static ref ID: Regex = Regex::new(r#"\S+"#).unwrap();
-    }
-
-    UNIVERSE
-        .captures_iter(model)
-        .map(|cap| {
-            let typ = cap.get(1).map(|u| u.as_str()).unwrap();
-            let idx: u32 = cap
-                .get(2)
-                .map(|u| u.as_str().parse::<u32>().unwrap())
-                .unwrap();
-            let coll = Ident::unsafe_construct(idx, typ.into());
-            let elems = cap.get(3).map(|u| u.as_str()).unwrap();
-            let ids = ID
-                .find_iter(elems)
-                .map(|m| m.as_str().to_string())
-                .collect();
-            (coll, ids)
-        })
-        .collect()
-}
-
-fn read_model(input: &mut ChildStdin, reader: &mut BufReader<&mut ChildStdout>) -> String {
-    let mut line = String::new();
-    input
-        .write_all("(get-model)\n(eval \"ENDMODEL\")\n".as_bytes())
-        .unwrap();
-    let mut model_str = String::new();
-    while line != "\"ENDMODEL\"\n" {
-        model_str += &line;
-        line = String::new();
-        reader.read_line(&mut line).unwrap();
-    }
-
-    model_str
-}
-
-fn exec_with_result_line(
-    input: &mut ChildStdin,
-    reader: &mut BufReader<&mut ChildStdout>,
-    cmd: &str,
-) -> String {
-    let mut line = String::new();
-    input.write_all(cmd.as_bytes()).unwrap();
-    reader.read_line(&mut line).unwrap();
-
-    line.trim().to_string()
 }

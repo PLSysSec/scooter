@@ -107,30 +107,23 @@ struct SMTContext {
 
 impl SMTContext {
     fn lower_policy(&self, princ: &Ident<SMTVar>, rec: &Ident<SMTVar>, pol: &Policy) -> SMTResult {
-        let id = Ident::new("policy");
-        let stmts = match pol {
-            Policy::None => vec![define(id.clone(), &[], ExprType::Bool, false)],
-            Policy::Anyone => vec![define(id.clone(), &[], ExprType::Bool, true)],
+        let mut stmts = vec![];
+        let expr = match pol {
+            Policy::None => "false".to_string(),
+            Policy::Anyone => "true".to_string(),
             Policy::Func(f) => {
                 let low = self.lower_expr((princ, &ExprType::Principal), &f.body);
-                let func = define(
-                    id.clone(),
-                    &[],
-                    ExprType::Bool,
-                    exists(
-                        &f.param.coerce(),
-                        &f.param_type,
-                        &format!("(and (= {} {}) {})", ident(&f.param), ident(&rec), low.expr),
-                    ),
-                );
 
-                let mut out = low.stmts;
-                out.push(func);
-                out
+                stmts = low.stmts;
+                exists(
+                    &f.param.coerce(),
+                    &f.param_type,
+                    &format!("(and (= {} {}) {})", ident(&f.param), ident(&rec), low.expr),
+                )
             }
         };
 
-        SMTResult::new(stmts, ident(&id))
+        SMTResult::new(stmts, expr)
     }
 
     fn lower_expr(&self, target: (&Ident<SMTVar>, &ExprType), body: &IRExpr) -> SMTResult {
@@ -551,11 +544,7 @@ impl SMTContext {
             .iter()
             .map(|c| self.lower_collection_sorts(c));
 
-        let mut out: Vec<_> = colls
-            .flatten()
-            .chain(iter::once(princ_decl))
-            .chain(iter::once(Statement::Hack("(push 1)".into())))
-            .collect();
+        let mut out: Vec<_> = colls.flatten().chain(iter::once(princ_decl)).collect();
 
         for (_princ_cons, princ_obj, princ_coll) in princ_ids.iter() {
             let princ_obj_decl =
@@ -606,13 +595,22 @@ impl SMTContext {
         coll.fields()
             .flat_map(move |f| {
                 if f.is_id() {
+                    let typ = ExprType::Object(coll.name.clone());
                     let id = Ident::new("id");
-                    return vec![define(
-                        f.name.coerce(),
-                        &[(id.clone(), ExprType::Object(coll.name.clone()))],
-                        f.typ.clone(),
-                        ident(&id),
-                    )];
+                    return vec![
+                        define(
+                            f.name.coerce(),
+                            &[(id.clone(), typ.clone())],
+                            f.typ.clone(),
+                            ident(&id),
+                        ),
+                        Statement::Assert(format!(
+                            "(forall (({} {})) (= ({} {0}) ({2} {0})))",
+                            ident::<SMTVar>(&Ident::new("test")),
+                            type_name(&typ),
+                            ident(&f.name)
+                        )),
+                    ];
                 }
 
                 match self.join_tables.get(&f.name) {
@@ -628,11 +626,19 @@ impl SMTContext {
                         ]
                     }
                     None => {
-                        vec![declare(
-                            f.name.coerce(),
-                            &[ExprType::Object(coll.name.clone())],
-                            f.typ.clone(),
-                        )]
+                        vec![
+                            declare(
+                                f.name.coerce(),
+                                &[ExprType::Object(coll.name.clone())],
+                                f.typ.clone(),
+                            ),
+                            Statement::Assert(format!(
+                                "(forall (({} {})) (= ({} {0}) ({2} {0})))",
+                                ident::<SMTVar>(&Ident::new("test")),
+                                type_name(&ExprType::Object(coll.name.clone())),
+                                ident(&f.name)
+                            )),
+                        ]
                     }
                 }
             })

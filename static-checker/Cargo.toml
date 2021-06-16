@@ -16,3 +16,4 @@ policy-lang = {path = "../policy-lang"}
 chrono = "*"
 lazy_static = "*"
 regex = "1"
+z3-sys = "*"

@@ -2334,6 +2334,7 @@ dependencies = [
  "lazy_static",
  "policy-lang",
  "regex",
+ "z3-sys",
 ]
 
 [[package]]
@@ -3092,3 +3093,9 @@ name = "yansi"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fc79f4a1e39857fc00c3f662cbf2651c771f00e9c15fe2abc341806bd46bd71"
+
+[[package]]
+name = "z3-sys"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afa18ba5fbd4933e41ffb440c3fd91f91fe9cdb7310cce3ddfb6648563811de0"
