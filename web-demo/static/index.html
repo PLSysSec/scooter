@@ -33,7 +33,7 @@
 			bottom: 0;
 			--divider: 0px;
 			grid-template: "header header header" auto "policy vdivider migration"1fr "policy vdivider result"1fr / calc(50% + var(--divider)) auto 1fr;
-			font-size: 16px;
+			font-size: 14px;
 			background: #e1e1db;
 		}
 
@@ -152,6 +152,8 @@
 		#output {
 			margin: 0;
 			padding: 0.5rem;
+			word-wrap: normal;
+			white-space: pre-wrap;
 		}
 	</style>
 </head>
@@ -269,7 +271,7 @@
 		function configEditor(editor) {
 			editor.setTheme(theme);
 			editor.setOptions({
-				fontSize: "16px"
+				fontSize: "14px"
 			});
 		}
 
