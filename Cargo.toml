@@ -8,7 +8,8 @@ members = [
     "static-checker",
     "cli",
     "bench/postfriend",
-    "web-demo"
+    "web-demo",
+    "web-demo/wasm-validator"
 ]
 
 exclude = ["case-studies/bibifi"]

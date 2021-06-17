@@ -217,3 +217,12 @@ CollectionPolicyKind: CollectionPolicyKind = {
     "create" => CollectionPolicyKind::Create,
     "delete" => CollectionPolicyKind::Delete,
 }
+
+match {
+    // Ignore Python-style comments
+    r"#[^\n\r]*[\n\r]*" => { },
+    // Ignore whitespace
+    // You probably want this to have low precedence
+    r"\s*" => { },
+    _ // Everything else
+}

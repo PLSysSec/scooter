@@ -39,9 +39,9 @@ pub fn migrate_policy_from_files(
 /// policy, that doesn't leak any information from the old policy, but
 /// is valid post-migration.
 pub fn migrate_policy(policy_text: &str, migration_text: &str) -> Result<String, Box<dyn Error>> {
-    let parsed_policy = parse_policy(policy_text)?;
+    let parsed_policy = parse_policy(policy_text).map_err(|e| e.to_string())?;
     let initial_schema_policy = extract_schema_policy(&parsed_policy)?;
-    let parsed_migration = parse_migration(migration_text)?;
+    let parsed_migration = parse_migration(migration_text).map_err(|e| e.to_string())?;
     let migration_steps = extract_migration_steps(&initial_schema_policy.schema, parsed_migration)?;
     let resulting_policy = interpret_migration_on_policy(initial_schema_policy, migration_steps)?;
     Ok(policy_to_string(resulting_policy))
