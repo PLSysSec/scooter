@@ -187,6 +187,7 @@
 	</section>
 	<script src="https://pagecdn.io/lib/ace/1.4.5/ace.js"
 		integrity="sha256-5Xkhn3k/1rbXB+Q/DX/2RuAtaB4dRRyQvMs83prFjpM=" crossorigin="anonymous"></script>
+	<script src="https://pagecdn.io/lib/lodash/4.17.19/lodash.min.js" crossorigin="anonymous"></script>
 	<script type="module">
 		import { examples } from "./examples.js";
 		import init, { parse_policy, parse_migration } from './validator/wasm_validator.js';
@@ -279,8 +280,27 @@
 			});
 		}
 
+		// Returns a function, that, as long as it continues to be invoked, will not
+		// be triggered. The function will be called after it stops being called for
+		// N milliseconds. If `immediate` is passed, trigger the function on the
+		// leading edge, instead of the trailing.
+		function debounce(func, wait, immediate) {
+			var timeout;
+			return function () {
+				var context = this, args = arguments;
+				var later = function () {
+					timeout = null;
+					if (!immediate) func.apply(context, args);
+				};
+				var callNow = immediate && !timeout;
+				clearTimeout(timeout);
+				timeout = setTimeout(later, wait);
+				if (callNow) func.apply(context, args);
+			};
+		};
+
 		function setup_parser(editor, parse_function) {
-			editor.on("change", () => {
+			editor.on("change", debounce(() => {
 				editor.session.clearAnnotations();
 				try {
 					parse_function(editor.getValue());
@@ -292,7 +312,7 @@
 						type: "error"
 					}]);
 				}
-			})
+			}, 200))
 
 		}
 
@@ -301,7 +321,6 @@
 				setup_parser(policy_editor, parse_policy);
 				setup_parser(migration_editor, parse_migration);
 			});
-
 
 	</script>
 </body>
