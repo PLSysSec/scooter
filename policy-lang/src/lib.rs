@@ -3,11 +3,12 @@ pub mod ir;
 
 use std::fmt::Display;
 
-use lalrpop_util::{self, lalrpop_mod, state_machine::Token};
+use lalrpop_util::{self, lalrpop_mod};
 use serde::Serialize;
 
 #[allow(dead_code, unused_parens)]
 lalrpop_mod!(parser);
+
 pub type GlobalPolicyParseTree = ast::GlobalPolicy;
 pub fn parse_policy<'a>(input: &'a str) -> Result<GlobalPolicyParseTree, ParseError> {
     parser::GlobalPolicyParser::new()
@@ -54,13 +55,7 @@ fn error_from_lalr(
     let offset_to_location = |offset| {
         let (prefix, _) = input.split_at(offset);
         let line = prefix.chars().filter(|c| *c == '\n').count();
-        let column = prefix
-            .chars()
-            .rev()
-            .enumerate()
-            .find(|(_, c)| *c == '\n')
-            .map(|(idx, _)| idx)
-            .unwrap_or(prefix.len());
+        let column = prefix.chars().rev().take_while(|c| *c != '\n').count();
 
         Location { line, column }
     };
@@ -69,8 +64,8 @@ fn error_from_lalr(
     let end = end.map(offset_to_location);
 
     let message = match lalr_err {
-        lalrpop_util::ParseError::InvalidToken { location } => "Invalid token".to_string(),
-        lalrpop_util::ParseError::UnrecognizedEOF { location, expected } => {
+        lalrpop_util::ParseError::InvalidToken { .. } => "Invalid token".to_string(),
+        lalrpop_util::ParseError::UnrecognizedEOF { expected, .. } => {
             format!("EOF found but expected one of {}", expected.join(","))
         }
         lalrpop_util::ParseError::UnrecognizedToken { token, expected } => format!(
