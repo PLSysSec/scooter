@@ -68,7 +68,19 @@ fn error_from_lalr(
     let start = start.map(offset_to_location);
     let end = end.map(offset_to_location);
 
-    let message = format!("{:?}", lalr_err);
+    let message = match lalr_err {
+        lalrpop_util::ParseError::InvalidToken { location } => "Invalid token".to_string(),
+        lalrpop_util::ParseError::UnrecognizedEOF { location, expected } => {
+            format!("EOF found but expected one of {}", expected.join(","))
+        }
+        lalrpop_util::ParseError::UnrecognizedToken { token, expected } => format!(
+            "Unexpected input \"{}\", expected one of: {}",
+            token.1 .1,
+            expected.join(",")
+        ),
+        lalrpop_util::ParseError::ExtraToken { token } => format!("Extra token: {}", token.1 .1),
+        lalrpop_util::ParseError::User { error } => error.to_string(),
+    };
 
     ParseError {
         start,
@@ -79,7 +91,19 @@ fn error_from_lalr(
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
+        let loc = match (&self.start, &self.end) {
+            (Some(start), None) => todo!("[{}:{}]", start.line + 1, start.column),
+            (Some(start), Some(end)) => format!(
+                "[{}:{} - {}:{}]",
+                start.line + 1,
+                start.column,
+                end.line + 1,
+                end.column
+            ),
+            _ => String::new(),
+        };
+
+        write!(f, "{} parse error: {}", loc, self.message)
     }
 }
 
