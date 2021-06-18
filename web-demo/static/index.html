@@ -41,7 +41,7 @@
 			font-family: var(--primary-font);
 			display: grid;
 			width: 100%;
-			--divider: 0px;
+			--divider: 0%;
 			grid-template: "header header header"auto "policy vdivider migration"1fr "policy vdivider result"1fr / calc(50% + var(--divider)) auto 1fr;
 			font-size: 14px;
 			background: #e1e1db;
@@ -62,31 +62,46 @@
 			padding-bottom: 5px;
 		}
 
-		body>header>button {
+		.right {
+			margin-left: auto;
+		}
+		#github {
+			display: block;
+			height: 1.5rem;
+			width: 1.5rem;
+		}
+
+		body>header>.button,body>header>button {
 			align-self: stretch;
 			cursor: pointer;
 			box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px -2px;
 			font-size: 14px;
-			padding: 0 1rem;
 			border-radius: 5px;
 			border: none;
 			background: white;
+			padding: 0;
+			display: flex;
+			align-items: center;
+			padding: 0 0.5rem;
+			text-decoration: none;
+			color: inherit;
+			transition: background-color 0.2s;
+		}
+		body>header>button {
+			padding: 0 0.75rem;
 		}
 
 		body>header>* {
 			margin-left: 1rem;
+			display: block;
 		}
 
-		body>header>button:hover {
+		body>header>button:hover, body>header>.button:hover {
 			background: #EEE;
 		}
 
 		body>header>button:disabled {
 			background: var(--border-color);
-		}
-
-		body>header>button:hover {
-			transition: background-color 0.2s;
 		}
 
 		#submit {
@@ -111,14 +126,14 @@
 
 		section,
 		body>header {
-			margin: 5px;
+			margin: 5px 0;
 		}
 
 		#vdivider {
-			background: red;
-			width: 0px;
+			width: auto;
 			grid-area: vdivider;
 			cursor: ew-resize;
+			width: 10px;
 		}
 
 		#policy {
@@ -171,13 +186,14 @@
 
 <body>
 	<header>
-		<button id="submit">Verify ▶</button>
-		<div>Load Example: <select id="example-selector">
-				<option selected hidden style='display: none' value=''></option>
+		<button id="submit">Verify &nbsp;▶</button>
+		<div style="font-weight: bold; justify-self: center">Example: &nbsp; <select id="example-selector">
 			</select></div>
+		<a class="button right" href="https://github.com/PLSysSec/scooter">
+			<img id="github" src="/github.svg" />&nbsp; PLSysSec/scooter
+		</a>
 	</header>
-	<div id="vdivider">
-	</div>
+	<div id="vdivider"></div>
 	<section id="migration" class="editor">
 		<header>Scooter Migration</header>
 		<div id="migration-editor" class="editor">
@@ -253,25 +269,21 @@
 		}
 
 		example_selector.onchange = () => {
-			setEditors(examples[example_selector.value]);
-			history.pushState({ example: example_selector.value }, undefined, "#" + encodeURIComponent(example_selector.value))
-		}
-
-		window.onpopstate = function (event) {
-			setExample(event.state.example);
+			setExample(example_selector.value);
 		}
 
 		// Select from hash or default to first
 
 		if (window.location.hash.length === 0 || !setExample(decodeURIComponent(window.location.hash.substr(1)))) {
-			setExample(example_selector.children[1].value);
+			example_selector.value = example_selector.children[0].value;
+			example_selector.onchange();
 		}
 
 
 		function setExample(name) {
 			if (name in examples) {
-				example_selector.value = name;
 				setEditors(examples[name]);
+				history.replaceState({ example: name }, undefined, "#" + encodeURIComponent(name))
 				return true;
 			}
 
@@ -331,6 +343,34 @@
 				setup_parser(policy_editor, parse_policy);
 				setup_parser(migration_editor, parse_migration);
 			});
+
+		const vdivider = document.getElementById("vdivider");
+		let drag_start;
+		let div_start;
+		let vdiv_height;
+		vdivider.onpointerdown = (ev) => {
+			if(ev.isPrimary) {
+				drag_start = ev.clientX;
+				const prop = document.body.style.getPropertyValue('--divider') || "0%";
+				div_start = Number.parseInt(prop.substr(0,prop.length-1))
+				console.log(prop, div_start);
+				ev.target.setPointerCapture(ev.pointer);
+			}
+		}
+
+		vdivider.onpointerup = (ev) => {
+			if(ev.isPrimary) {
+				ev.target.releasePointerCapture(ev.pointer);
+			}
+		}
+
+		vdivider.onpointermove = (ev) => {
+			if(ev.isPrimary && ev.pressure > 0) {
+				const br = document.body.getBoundingClientRect();
+				const offset = (ev.clientX - drag_start) / br.width * 100;
+				document.body.style.setProperty("--divider", offset + div_start + "%");
+			}
+		}
 
 	</script>
 </body>
