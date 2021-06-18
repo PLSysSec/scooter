@@ -187,10 +187,13 @@ pub fn is_as_strict(
 
                 z3_sys::Z3_ast_vector_dec_ref(ctx, val_vec);
             }
+            z3_sys::Z3_solver_dec_ref(ctx, solver);
+            z3_sys::Z3_model_dec_ref(ctx, model);
             z3_sys::Z3_del_context(ctx);
             z3_sys::Z3_del_config(config);
             Err(output)
         } else {
+            z3_sys::Z3_solver_dec_ref(ctx, solver);
             z3_sys::Z3_del_context(ctx);
             z3_sys::Z3_del_config(config);
             Ok(())

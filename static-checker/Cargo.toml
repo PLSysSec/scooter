@@ -8,8 +8,8 @@ edition = "2018"
 [lib]
 
 [features]
-# Defines a feature named `webp` that does not enable any other features.
-naive_smt = []
+naive-smt = []
+static-link-z3 = ["z3-sys/static-link-z3"]
 
 [dependencies]
 policy-lang = {path = "../policy-lang"}
