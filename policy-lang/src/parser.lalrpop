@@ -16,6 +16,13 @@ CollectionPolicy: CollectionPolicy = {
         cp.annotations.push(a);
         cp
     },
+    <i:Ident> "{" "create" ":" <cp:Policy> "," "delete" ":" <dp:Policy> "}"  => CollectionPolicy {
+        name: i,
+        create: cp,
+        delete: dp,
+        fields: vec![],
+        annotations: vec![],
+    },
     <i:Ident> "{" "create" ":" <cp:Policy> "," "delete" ":" <dp:Policy> "," <fp:Comma<FieldPolicy>> "}"  => CollectionPolicy {
         name: i,
         create: cp,
@@ -30,7 +37,7 @@ Annotation: Annotation = {
 }
 
 FieldPolicy: (String, FieldPolicy) = {
-    <i:Ident> ":" <t: FieldType> "{" "read" ":" <r:Policy> "," "write" ":" <w:Policy> "," "}" =>
+    <i:Ident> ":" <t: FieldType> "{" "read" ":" <r:Policy> "," "write" ":" <w:Policy> ","? "}" =>
         (i.to_string(), FieldPolicy {
             ty: t,
             read: r,
