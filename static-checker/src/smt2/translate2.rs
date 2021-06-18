@@ -597,20 +597,12 @@ impl SMTContext {
                 if f.is_id() {
                     let typ = ExprType::Object(coll.name.clone());
                     let id = Ident::new("id");
-                    return vec![
-                        define(
-                            f.name.coerce(),
-                            &[(id.clone(), typ.clone())],
-                            f.typ.clone(),
-                            ident(&id),
-                        ),
-                        Statement::Assert(format!(
-                            "(forall (({} {})) (= ({} {0}) ({2} {0})))",
-                            ident::<SMTVar>(&Ident::new("test")),
-                            type_name(&typ),
-                            ident(&f.name)
-                        )),
-                    ];
+                    return vec![define(
+                        f.name.coerce(),
+                        &[(id.clone(), typ.clone())],
+                        f.typ.clone(),
+                        ident(&id),
+                    )];
                 }
 
                 match self.join_tables.get(&f.name) {
@@ -626,19 +618,11 @@ impl SMTContext {
                         ]
                     }
                     None => {
-                        vec![
-                            declare(
-                                f.name.coerce(),
-                                &[ExprType::Object(coll.name.clone())],
-                                f.typ.clone(),
-                            ),
-                            Statement::Assert(format!(
-                                "(forall (({} {})) (= ({} {0}) ({2} {0})))",
-                                ident::<SMTVar>(&Ident::new("test")),
-                                type_name(&ExprType::Object(coll.name.clone())),
-                                ident(&f.name)
-                            )),
-                        ]
+                        vec![declare(
+                            f.name.coerce(),
+                            &[ExprType::Object(coll.name.clone())],
+                            f.typ.clone(),
+                        )]
                     }
                 }
             })
