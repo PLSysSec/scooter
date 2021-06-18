@@ -22,18 +22,22 @@
 			--header-border-radius: 4px;
 			--header-accent-border: #bdbdbd;
 			--header-padding: 0 5px 5px 5px;
+			--header-height: 40px;
+		}
+
+		/* Thank safari for this hack */
+		:root {
+			display: flex;
+			flex-direction: column;
+			align-items: stretch;
 		}
 
 		body {
 			font-family: var(--primary-font);
 			display: grid;
-			position: absolute;
-			top: 0;
-			left: 0;
-			right: 0;
-			bottom: 0;
+			height: 100%;
 			--divider: 0px;
-			grid-template: "header header header"auto "policy vdivider migration"1fr "policy vdivider result"1fr / calc(50% + var(--divider)) auto 1fr;
+			grid-template: "header header header" auto "policy vdivider migration" 1fr "policy vdivider result" 1fr / calc(50% + var(--divider)) auto 1fr;
 			font-size: 14px;
 			background: #e1e1db;
 		}
@@ -44,7 +48,7 @@
 		}
 
 		body>header {
-			height: 40px;
+			height: var(--header-height);
 			overflow: none;
 			display: flex;
 			align-items: center;
