@@ -28,16 +28,21 @@
 		/* Thank safari for this hack */
 		:root {
 			display: flex;
-			flex-direction: column;
+			flex-direction: row;
 			align-items: stretch;
+			position: absolute;
+			top: 0;
+			bottom: 0;
+			left: 0;
+			right: 0;
 		}
 
 		body {
 			font-family: var(--primary-font);
 			display: grid;
-			height: 100%;
+			width: 100%;
 			--divider: 0px;
-			grid-template: "header header header" auto "policy vdivider migration" 1fr "policy vdivider result" 1fr / calc(50% + var(--divider)) auto 1fr;
+			grid-template: "header header header"auto "policy vdivider migration"1fr "policy vdivider result"1fr / calc(50% + var(--divider)) auto 1fr;
 			font-size: 14px;
 			background: #e1e1db;
 		}
@@ -166,7 +171,7 @@
 
 <body>
 	<header>
-		<button id="submit">Run Migration</button>
+		<button id="submit">Verify ▶</button>
 		<div>Load Example: <select id="example-selector">
 				<option selected hidden style='display: none' value=''></option>
 			</select></div>
@@ -273,8 +278,9 @@
 			return false;
 		}
 		function setEditors({ policy, migration }) {
-			policy_editor.setValue(policy, -1)
-			migration_editor.setValue(migration, -1)
+			output.innerText = "";
+			policy_editor.setValue(policy, -1);
+			migration_editor.setValue(migration, -1);
 		}
 
 		function configEditor(editor) {
