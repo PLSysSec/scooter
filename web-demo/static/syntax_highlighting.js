@@ -66,7 +66,7 @@ define('ace/mode/policy_highlight_rules', [], function (require, exports, module
         },
         {
           token: "comment.line",
-          regex: /^\s*#.*$/,
+          regex: /#.*$/,
         }, {
           regex: "\\w+\\b",
           token: keywordMapper
