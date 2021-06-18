@@ -3,6 +3,6 @@ pub mod migrate;
 pub mod smt;
 
 #[cfg(feature = "naive-smt")]
-pub mod smt2;
+pub mod naive_smt;
 #[cfg(feature = "naive-smt")]
-pub use smt2 as smt;
+pub use naive_smt as smt;

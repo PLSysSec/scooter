@@ -18,8 +18,8 @@ use z3_sys::{
 };
 //use translate::*;
 //mod translate;
-mod translate2;
-use translate2::*;
+mod translate;
+use translate::*;
 
 #[derive(Clone)]
 pub struct Equiv(pub Ident<Field>, pub Func);

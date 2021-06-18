@@ -711,24 +711,6 @@ pub fn type_name(typ: &ExprType) -> String {
     }
 }
 
-#[cfg(debug_assertions)]
-/// A helper function used for debug asserts to guarantee we don't unknown types (i.e. empty lists)
-fn contains_unknown(typ: &ExprType) -> bool {
-    match typ {
-        // Ids and objects are the same in SMT land
-        ExprType::Id(_)
-        | ExprType::Object(_)
-        | ExprType::String
-        | ExprType::I64
-        | ExprType::F64
-        | ExprType::DateTime
-        | ExprType::Principal
-        | ExprType::Bool => false,
-        ExprType::Unknown(_) => true,
-        ExprType::Set(t) | ExprType::Option(t) => contains_unknown(t),
-    }
-}
-
 #[derive(Debug, Clone)]
 pub(crate) enum Statement {
     Hack(String),
