@@ -17,6 +17,7 @@
 			--border-color: #bbb;
 			--border: 1px solid var(--border-color);
 			--header-main-border: #dedede;
+			--header-color: #333;
 			--header-transition: 0.2s ease-in-out;
 			--header-tint: #428bca;
 			--header-border-radius: 4px;
@@ -62,7 +63,7 @@
 			grid-area: header;
 			padding-top: 0;
 			padding-bottom: 5px;
-			color: #333;
+			color: var(--header-color);
 		}
 
 		.right {
@@ -97,6 +98,10 @@
 			text-decoration: none;
 			color: inherit;
 			transition: background-color 0.2s;
+		}
+
+		header {
+			color: var(--header-color);
 		}
 
 		body>header>button {
@@ -192,7 +197,7 @@
 		}
 		#result.stale  #stale-warning {
 			display: inline;
-			opacity: 0.5;
+			opacity: 0.7;
 		}
 
 		#result>.editor {
