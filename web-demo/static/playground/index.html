@@ -184,6 +184,17 @@
 			grid-area: result;
 		}
 
+		#result  #stale-warning {
+			display:none;
+			opacity: 0;
+			transition: opacity 0.2s;
+			font-weight: normal;
+		}
+		#result.stale  #stale-warning {
+			display: inline;
+			opacity: 0.5;
+		}
+
 		#result>.editor {
 			background: white;
 		}
@@ -232,7 +243,7 @@
 		</div>
 	</section>
 	<section id="result" class="editor">
-		<header>Result</header>
+		<header>Result <span id="stale-warning">(Stale)</span></header>
 		<div id="result-editor" class="editor">
 			<pre id="output"></pre>
 		</div>
@@ -256,6 +267,7 @@
 		configEditor(migration_editor);
 		migration_editor.session.setMode("ace/mode/scooter-migration");
 
+		const result = document.getElementById("result");
 		const result_editor = document.getElementById("result-editor");
 		const output = document.getElementById("output");
 
@@ -328,6 +340,12 @@
 			});
 		}
 
+		function staleOutput() {
+			if (output.innerText) {
+				result.classList.add("stale");
+			}
+		}
+
 		// Returns a function, that, as long as it continues to be invoked, will not
 		// be triggered. The function will be called after it stops being called for
 		// N milliseconds. If `immediate` is passed, trigger the function on the
@@ -349,6 +367,7 @@
 
 		function setup_parser(editor, parse_function) {
 			editor.on("change", debounce(() => {
+				staleOutput();
 				editor.session.clearAnnotations();
 				try {
 					parse_function(editor.getValue());
@@ -367,6 +386,7 @@
 		function resetOutput() {
 			output.innerText = "";
 			result_editor.classList.remove('error');
+			result.classList.remove('stale');
 		}
 
 		init()
