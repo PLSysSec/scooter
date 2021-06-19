@@ -376,27 +376,31 @@
 		let drag_start;
 		let div_start;
 		let vdiv_height;
+		let down = false;
 		vdivider.onpointerdown = (ev) => {
 			if (ev.isPrimary) {
+				down=true;
 				drag_start = ev.clientX;
-				const prop = document.body.style.getPropertyValue('--divider') || "0%";
-				div_start = Number.parseInt(prop.substr(0, prop.length - 1))
-				console.log(prop, div_start);
-				ev.target.setPointerCapture(ev.pointer);
+				let prop = document.body.style.getPropertyValue('--divider') || "0%";
+				div_start = Number.parseInt(prop.substr(0, prop.length - 1));
+				ev.target.setPointerCapture(ev.pointerId);
 			}
 		}
 
 		vdivider.onpointerup = (ev) => {
 			if (ev.isPrimary) {
-				ev.target.releasePointerCapture(ev.pointer);
+				down=false;
+				ev.target.releasePointerCapture(ev.pointerId);
 			}
 		}
 
 		vdivider.onpointermove = (ev) => {
-			if (ev.isPrimary && ev.pressure > 0) {
+			if (ev.isPrimary && down) {
+				ev.preventDefault();
 				const br = document.body.getBoundingClientRect();
 				const offset = (ev.clientX - drag_start) / br.width * 100;
 				document.body.style.setProperty("--divider", offset + div_start + "%");
+				return false;
 			}
 		}
 
