@@ -5,87 +5,118 @@
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Scooter & Sidecar</title>
+	<link rel="stylesheet" href="/css/reset.css" />
+	<link rel="preconnect" href="https://fonts.gstatic.com">
+	<link href="https://fonts.googleapis.com/css2?family=Spartan:wght@600&display=swap" rel="stylesheet">
 	<link rel="stylesheet" href="/css/theme.css" />
 	<style>
 		@import "/css/theme.css";
 
+		.chunk {
+			width: 100%;
+			margin-bottom: 2rem;
+			padding-bottom: 1rem;
+		}
+		.chunk>.body {
+			margin: 0 auto;
+			padding: 0 10px;
+			max-width: 800px;
+			position: relative;
+		}
 		body {
 			font-family: var(--primary-font);
 			font-size: 16px;
-			background: #fafafa;
+			background: white;
 			color: #333;
 		}
 
-		header {
-			display: grid;
-			grid: "logo logo" 1fr
-			      "tagline tagline" auto
-			      "try read" 1fr
-			     / 1fr 1fr;
-			align-items: center;
-			max-width: 600px;
-			margin: 0 auto;
-			margin-top: 30px;
-			font-size: 24px;
+		p {
+			line-height: 1.5rem;
+			padding-left: 2rem;
 		}
 
-		#logo { grid-area: logo }
-		#try { grid-area: try }
-		#read { grid-area: read }
-		#tagline {
-			grid-area: tagline;
-			margin-top: 1rem;
-			font-weight: bold;
-			text-align: center;
-		}
-
-		header > .button {
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			text-align: center;
-			border-radius: 5px;
-			text-decoration: none;
-			border: 3px solid var(--border-color);
-			color: inherit;
-			height: 45px;
-			margin: 0 0.5rem;
-			font-size: 16px;
-			cursor: pointer;
-			font-weight: bold;
-			box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px -2px;
-			transition: background-color 0.2s, border-color 0.2s;
-		}
-
-		#try {
-			background: #20aeda;
+		header.chunk {
+			background: var(--accent);
 			color: white;
-			border-color: var(--affirmative-color);
+			border-bottom: 3px solid var(--accent-light);
 		}
 
-		#try:hover {
-			background: var(--affirmative-color);
-		}
-		#try:active {
-			background: var(--affirmative-color);
-			border-color: #20aeda;
+
+		header img {
+			display: block;
+			max-width: 600px;
+			margin-top: 50px;
+			margin-left: auto;
+			margin-right: auto;
+			margin-bottom: 25px;
 		}
 
-		#read:hover {
+		h1 {
+			font-weight: bold;
+			font-family: "Spartan";
+			font-size: 1.5rem;
+			margin-bottom: 1rem;
+		}
+
+		nav {
+			display: flex;
+			font-size: 14px;
+		}
+
+		nav>a {
+			font-size: 14;
 			background: #eee;
+			border-radius: 5px;
+			margin: 1rem;
+			padding: 0.75rem;
+			display: inline-flex;
+			flex-wrap: nowrap;
+			align-items: center;
+			color: #333;
+			box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px -2px;
+			text-decoration: none;
+			border-bottom: 1px solid var(--accent-dark);
+			transition: transform 0.2s, background-color 0.2s;
+		}
+		nav>a:active {
+			transform: scale(0.95);
+			transform-origin: center;
+		}
+		nav>a:hover {
+			background: var(--accent-pale);
+		}
+
+		#play {
+			background: white;
+			color: var(--accent-dark);
+			font-weight: bold;
 		}
 
 	</style>
 </head>
 <body>
-	<header>
-		<img id="logo" src="/img/scooter.svg" />
-		<div id="tagline">
-			A DSL for policy-aware database migrations
-		</div>
-		<a id="try" class="button" href="/playground">Try the Demo</button>
-		<a id="read" class="button" href="#">Read the Paper</button>
+	<header class="chunk">
+		<div class="body">
+			<nav>
+				<a id="play" href="/playground">Web Playground</a>
+				<a href="/#" style="margin-left: auto">Read the paper</a>
+				<a href="/#">Source</a>
 
+			</nav>
+			<img src="/img/scooter-white.svg" />
+		</div>
 	</header>
+
+	<div clas="chunk">
+	</div>
+	<section class="chunk">
+		<div class="body">
+			<h1>Abstract</h1>
+			<p>
+				Web applications often handle large amounts of sensitive user data. Modern secure web frameworks protect this data by (1) using declarative languages to specify security policies alongside database schemas and (2) automatically enforcing these policies at runtime. Unfortunately, these frameworks do not handle the very common situation in which the schemas or the policies need to evolve over time—and updates to schemas and policies need to be performed in a carefully coordinated way. Mistakes during schema or policy migrations can unintentionally leak sensitive data or introduce privilege escalation bugs. In this work, we present a domain-specific language (Scooter) for expressing schema and policy migrations, and an associated SMT-based verifier (Sidecar) which ensures that migrations are secure as the application evolves. We describe the design of Scooter and Sidecar and show that our framework can be used to express realistic schemas, policies, and migrations, without giving up on runtime or verification performance.
+			</p>
+
+		</div>
+	</section>
 </body>
 </html>
