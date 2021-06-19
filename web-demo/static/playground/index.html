@@ -327,11 +327,14 @@
 
 
 		function setExample(name) {
+			console.log(name)
 			if (name in examples) {
+				example_selector.value = name;
 				setEditors(examples[name]);
 				history.replaceState({ example: name }, undefined, "#" + encodeURIComponent(name))
 				return true;
 			}
+			console.log("returning false?");
 
 			return false;
 		}
