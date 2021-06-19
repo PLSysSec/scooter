@@ -383,7 +383,7 @@
 				drag_start = ev.clientX;
 				const br = ev.target.parentElement.getBoundingClientRect();
 				div_start = (ev.target.offsetLeft - (ev.target.offsetWidth/2)) / br.width * 100;
-				ev.target.setPointerCapture(ev.pointer);
+				ev.target.setPointerCapture(ev.pointerId);
 			}
 		}
 
