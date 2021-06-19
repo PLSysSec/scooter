@@ -43,7 +43,7 @@
 			min-width: max-content;
 			flex-grow: 1;
 			--divider: 0%;
-			grid-template: "header header header"auto "policy vdivider migration"1fr "policy vdivider result"1fr / calc(50% + var(--divider)) auto minmax(0, 1fr);
+			grid-template: "header header header"auto "policy vdivider migration"1fr "policy vdivider result"1fr / minmax(min-content, calc(50% + var(--divider))) auto minmax(min-content, 1fr);
 			font-size: 14px;
 			background: #e1e1db;
 		}
@@ -381,9 +381,9 @@
 			if (ev.isPrimary) {
 				down=true;
 				drag_start = ev.clientX;
-				let prop = document.body.style.getPropertyValue('--divider') || "0%";
-				div_start = Number.parseInt(prop.substr(0, prop.length - 1));
-				ev.target.setPointerCapture(ev.pointerId);
+				const br = ev.target.parentElement.getBoundingClientRect();
+				div_start = (ev.target.offsetLeft - (ev.target.offsetWidth/2)) / br.width * 100;
+				ev.target.setPointerCapture(ev.pointer);
 			}
 		}
 
@@ -398,7 +398,7 @@
 			if (ev.isPrimary && down) {
 				ev.preventDefault();
 				const br = document.body.getBoundingClientRect();
-				const offset = (ev.clientX - drag_start) / br.width * 100;
+				const offset = (ev.clientX - drag_start) / br.width * 100 - 50;
 				document.body.style.setProperty("--divider", offset + div_start + "%");
 				return false;
 			}
