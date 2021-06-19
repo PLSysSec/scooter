@@ -270,16 +270,14 @@
 					'Content-Type': 'application/x-www-form-urlencoded'
 				}
 			});
-
+			resetOutput();
 			try {
 				const resp = await fetch(request)
 				const body = await resp.text();
 				output.innerText = body;
 
 				// NotAcceptable
-				if (resp.ok) {
-					result_editor.classList.remove('error');
-				} else {
+				if (!resp.ok) {
 					result_editor.classList.add('error');
 				}
 			} catch (e) {
@@ -317,7 +315,7 @@
 			return false;
 		}
 		function setEditors({ policy, migration }) {
-			output.innerText = "";
+			resetOutput();
 			policy_editor.setValue(policy, -1);
 			migration_editor.setValue(migration, -1);
 		}
@@ -364,6 +362,11 @@
 				}
 			}, 200))
 
+		}
+
+		function resetOutput() {
+			output.innerText = "";
+			result_editor.classList.remove('error');
 		}
 
 		init()
