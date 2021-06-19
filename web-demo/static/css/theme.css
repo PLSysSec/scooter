@@ -1,0 +1,12 @@
+:root {
+	--primary-font: 'Open Sans', sans-serif;
+	--error-border: #a42;
+	--border-color: #bbb;
+	--border: 1px solid var(--border-color);
+	--header-color: #333;
+	--header-transition: 0.2s ease-in-out;
+	--header-padding: 0 5px 5px 5px;
+	--header-height: 40px;
+	--background-color: #e1dfdb;
+	--affirmative-color: #1994BE;
+}

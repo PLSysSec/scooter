@@ -5,8 +5,87 @@
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Scooter & Sidecar</title>
+	<link rel="stylesheet" href="/css/theme.css" />
+	<style>
+		@import "/css/theme.css";
+
+		body {
+			font-family: var(--primary-font);
+			font-size: 16px;
+			background: #fafafa;
+			color: #333;
+		}
+
+		header {
+			display: grid;
+			grid: "logo logo" 1fr
+			      "tagline tagline" auto
+			      "try read" 1fr
+			     / 1fr 1fr;
+			align-items: center;
+			max-width: 600px;
+			margin: 0 auto;
+			margin-top: 30px;
+			font-size: 24px;
+		}
+
+		#logo { grid-area: logo }
+		#try { grid-area: try }
+		#read { grid-area: read }
+		#tagline {
+			grid-area: tagline;
+			margin-top: 1rem;
+			font-weight: bold;
+			text-align: center;
+		}
+
+		header > .button {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			text-align: center;
+			border-radius: 5px;
+			text-decoration: none;
+			border: 3px solid var(--border-color);
+			color: inherit;
+			height: 45px;
+			margin: 0 0.5rem;
+			font-size: 16px;
+			cursor: pointer;
+			font-weight: bold;
+			box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px -2px;
+			transition: background-color 0.2s, border-color 0.2s;
+		}
+
+		#try {
+			background: #20aeda;
+			color: white;
+			border-color: var(--affirmative-color);
+		}
+
+		#try:hover {
+			background: var(--affirmative-color);
+		}
+		#try:active {
+			background: var(--affirmative-color);
+			border-color: #20aeda;
+		}
+
+		#read:hover {
+			background: #eee;
+		}
+
+	</style>
 </head>
 <body>
-	<a href="/playground">Playground</a>
+	<header>
+		<img id="logo" src="/img/scooter.svg" />
+		<div id="tagline">
+			A DSL for policy-aware database migrations
+		</div>
+		<a id="try" class="button" href="/playground">Try the Demo</button>
+		<a id="read" class="button" href="#">Read the Paper</button>
+
+	</header>
 </body>
 </html>

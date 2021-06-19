@@ -5,26 +5,13 @@
 	<meta charset="UTF-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<title>Scooter Playground</title>
-	<link ref="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/build.css" />
 	<style>
+		@import "/css/theme.css";
+
 		* {
 			box-sizing: border-box;
 		}
 
-		:root {
-			--primary-font: 'Open Sans', sans-serif;
-			--error-border: #a42;
-			--border-color: #bbb;
-			--border: 1px solid var(--border-color);
-			--header-main-border: #dedede;
-			--header-color: #333;
-			--header-transition: 0.2s ease-in-out;
-			--header-tint: #428bca;
-			--header-border-radius: 4px;
-			--header-accent-border: #bdbdbd;
-			--header-padding: 0 5px 5px 5px;
-			--header-height: 40px;
-		}
 
 		/* Thank safari for this hack */
 		:root {
@@ -46,7 +33,7 @@
 			--divider: 0%;
 			grid-template: "header header header"auto "policy vdivider migration"1fr "policy vdivider result"1fr / minmax(min-content, calc(50% + var(--divider))) auto minmax(min-content, 1fr);
 			font-size: 14px;
-			background: #e1e1db;
+			background: var(--background-color);
 		}
 
 
@@ -123,7 +110,7 @@
 		}
 
 		#submit {
-			background: #1994BE;
+			background: var(--affirmative-color);
 			color: white;
 			font-weight: bold;
 			margin-left: 0rem;
@@ -229,7 +216,7 @@
 		<div style="font-weight: bold; justify-self: center">Example: &nbsp; <select id="example-selector">
 			</select></div>
 		<a class="button right" href="https://github.com/PLSysSec/scooter">
-			<img class="icon" style="height: 1.25rem" src="/github.svg" />&nbsp; PLSysSec/scooter
+			<img class="icon" style="height: 1.25rem" src="/img/github.svg" />&nbsp; PLSysSec/scooter
 		</a>
 		<a class="button learn" href="/">
 			<svg xmlns="http://www.w3.org/2000/svg" class="icon" style="height: 1.25rem" viewBox="0 0 512 512">
@@ -261,11 +248,11 @@
 		integrity="sha256-5Xkhn3k/1rbXB+Q/DX/2RuAtaB4dRRyQvMs83prFjpM=" crossorigin="anonymous"></script>
 	<script src="https://pagecdn.io/lib/lodash/4.17.19/lodash.min.js" crossorigin="anonymous"></script>
 	<script type="module">
-		import { examples } from "./examples.js";
-		import init, { parse_policy, parse_migration } from './validator/wasm_validator.js';
+		import { examples } from "/playground/examples.js";
+		import init, { parse_policy, parse_migration } from '/playground/validator/wasm_validator.js';
 
-		ace.config.setModuleUrl("ace/mode/custom", "./syntax_highlighting.js");
-		ace.config.setModuleUrl("ace/mode/scooter-migration", "./syntax_highlighting.js");
+		ace.config.setModuleUrl("ace/mode/custom", "/playground/syntax_highlighting.js");
+		ace.config.setModuleUrl("ace/mode/scooter-migration", "/playground/syntax_highlighting.js");
 		const theme = "ace/theme/textmate";
 
 		const policy_editor = ace.edit("policy-editor");
