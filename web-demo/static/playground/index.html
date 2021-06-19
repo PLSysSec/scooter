@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>Scooter Playground</title>
+	<link ref="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/build.css" />
+	<style>
+		* {
+			box-sizing: border-box;
+		}
+
+		:root {
+			--primary-font: 'Open Sans', sans-serif;
+			--error-border: #a42;
+			--border-color: #bbb;
+			--border: 1px solid var(--border-color);
+			--header-main-border: #dedede;
+			--header-transition: 0.2s ease-in-out;
+			--header-tint: #428bca;
+			--header-border-radius: 4px;
+			--header-accent-border: #bdbdbd;
+			--header-padding: 0 5px 5px 5px;
+			--header-height: 40px;
+		}
+
+		/* Thank safari for this hack */
+		:root {
+			display: flex;
+			flex-direction: row;
+			align-items: stretch;
+			position: absolute;
+			top: 0;
+			bottom: 0;
+			left: 0;
+			right: 0;
+		}
+
+		body {
+			font-family: var(--primary-font);
+			display: grid;
+			min-width: max-content;
+			flex-grow: 1;
+			--divider: 0%;
+			grid-template: "header header header"auto "policy vdivider migration"1fr "policy vdivider result"1fr / calc(50% + var(--divider)) auto minmax(0, 1fr);
+			font-size: 14px;
+			background: #e1e1db;
+		}
+
+
+		body>header>#logo {
+			max-height: 100%;
+		}
+
+		body>header {
+			height: var(--header-height);
+			overflow: none;
+			display: flex;
+			flex-wrap: nowrap;
+			align-items: center;
+			grid-area: header;
+			padding-top: 0;
+			padding-bottom: 5px;
+			color: #333;
+		}
+
+		.right {
+			margin-left: auto;
+		}
+
+		#github {
+			display: block;
+			height: 1.5rem;
+			width: 1.5rem;
+		}
+
+		body>header * {
+			flex-wrap: nowrap;
+			white-space: nowrap;
+		}
+
+		body>header>.button,
+		body>header>button {
+			align-self: stretch;
+			cursor: pointer;
+			box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px -2px;
+			font-size: 14px;
+			border-radius: 5px;
+			border: none;
+			background: white;
+			padding: 0;
+			display: flex;
+			align-items: center;
+			flex-wrap: nowrap;
+			padding: 0 0.5rem;
+			text-decoration: none;
+			color: inherit;
+			transition: background-color 0.2s;
+		}
+
+		body>header>button {
+			padding: 0 0.75rem;
+		}
+
+		body>header>* {
+			margin-left: 0.75rem;
+			display: block;
+		}
+
+		body>header>button:hover,
+		body>header>.button:hover {
+			background: #EEE;
+		}
+
+		body>header>button:disabled {
+			background: var(--border-color);
+		}
+
+		#submit {
+			background: #1994BE;
+			color: white;
+			font-weight: bold;
+			margin-left: 0rem;
+		}
+
+		#submit:hover {
+			background: #136F8E;
+		}
+
+		#submit:active {
+			background: var(--border-color);
+		}
+
+		#title {
+			font-weight: bold;
+			font-size: 20px;
+		}
+
+		section,
+		body>header {
+			margin: 5px 0;
+		}
+
+		#vdivider {
+			width: auto;
+			grid-area: vdivider;
+			cursor: ew-resize;
+			width: 10px;
+		}
+
+		#policy {
+			grid-area: policy;
+		}
+
+		#migration {
+			grid-area: migration;
+		}
+
+		section.editor {
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
+			min-width: 0;
+		}
+
+		.editor.error {
+			border-color: var(--error-border) !important;
+		}
+
+		section.editor>header {
+			padding: var(--header-padding);
+			font-weight: bold;
+		}
+
+		section.editor>.editor {
+			border: 3px solid var(--border-color);
+			border-radius: 5px;
+			flex-grow: 1;
+			overflow-y: auto;
+		}
+
+		#result {
+			grid-area: result;
+		}
+
+		#result>.editor {
+			background: white;
+		}
+
+		#output {
+			margin: 0;
+			padding: 0.5rem;
+			word-wrap: normal;
+			white-space: pre-wrap;
+		}
+	</style>
+</head>
+
+<body>
+	<header>
+		<button id="submit">Verify &nbsp;&nbsp;
+			<svg xmlns="http://www.w3.org/2000/svg" style="height: 0.75rem" viewBox="0 0 448 512">
+				<!-- Font Awesome Free 5.15.3 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) -->
+				<path fill="white"
+					d="M424.4 214.7L72.4 6.6C43.8-10.3 0 6.1 0 47.9V464c0 37.5 40.7 60.1 72.4 41.3l352-208c31.4-18.5 31.5-64.1 0-82.6z" />
+			</svg>
+		</button>
+		<div style="font-weight: bold; justify-self: center">Example: &nbsp; <select id="example-selector">
+			</select></div>
+		<a class="button right" href="https://github.com/PLSysSec/scooter">
+			<img style="height: 1.25rem" src="/github.svg" />&nbsp; PLSysSec/scooter
+		</a>
+		<a class="button learn" href="/">
+			<svg xmlns="http://www.w3.org/2000/svg" style="height: 1.25rem" viewBox="0 0 512 512">
+				<!-- Font Awesome Free 5.15.3 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) -->
+				<path
+					d="M256 8C119.043 8 8 119.083 8 256c0 136.997 111.043 248 248 248s248-111.003 248-248C504 119.083 392.957 8 256 8zm0 448c-110.532 0-200-89.431-200-200 0-110.495 89.472-200 200-200 110.491 0 200 89.471 200 200 0 110.53-89.431 200-200 200zm107.244-255.2c0 67.052-72.421 68.084-72.421 92.863V300c0 6.627-5.373 12-12 12h-45.647c-6.627 0-12-5.373-12-12v-8.659c0-35.745 27.1-50.034 47.579-61.516 17.561-9.845 28.324-16.541 28.324-29.579 0-17.246-21.999-28.693-39.784-28.693-23.189 0-33.894 10.977-48.942 29.969-4.057 5.12-11.46 6.071-16.666 2.124l-27.824-21.098c-5.107-3.872-6.251-11.066-2.644-16.363C184.846 131.491 214.94 112 261.794 112c49.071 0 101.45 38.304 101.45 88.8zM298 368c0 23.159-18.841 42-42 42s-42-18.841-42-42 18.841-42 42-42 42 18.841 42 42z" />
+			</svg>
+			<span>&nbsp; Learn more</span>
+		</a>
+	</header>
+	<div id="vdivider"></div>
+	<section id="migration" class="editor">
+		<header>Scooter Migration</header>
+		<div id="migration-editor" class="editor">
+		</div>
+	</section>
+	<section id="policy" class="editor">
+		<header>Scooter Policy</header>
+		<div id="policy-editor" class="editor">
+		</div>
+	</section>
+	<section id="result" class="editor">
+		<header>Result</header>
+		<div id="result-editor" class="editor">
+			<pre id="output"></pre>
+		</div>
+	</section>
+	<script src="https://pagecdn.io/lib/ace/1.4.5/ace.js"
+		integrity="sha256-5Xkhn3k/1rbXB+Q/DX/2RuAtaB4dRRyQvMs83prFjpM=" crossorigin="anonymous"></script>
+	<script src="https://pagecdn.io/lib/lodash/4.17.19/lodash.min.js" crossorigin="anonymous"></script>
+	<script type="module">
+		import { examples } from "./examples.js";
+		import init, { parse_policy, parse_migration } from './validator/wasm_validator.js';
+
+		ace.config.setModuleUrl("ace/mode/custom", "./syntax_highlighting.js");
+		ace.config.setModuleUrl("ace/mode/scooter-migration", "./syntax_highlighting.js");
+		const theme = "ace/theme/textmate";
+
+		const policy_editor = ace.edit("policy-editor");
+		configEditor(policy_editor);
+		policy_editor.session.setMode("ace/mode/custom");
+
+		const migration_editor = ace.edit("migration-editor");
+		configEditor(migration_editor);
+		migration_editor.session.setMode("ace/mode/scooter-migration");
+
+		const result_editor = document.getElementById("result-editor");
+		const output = document.getElementById("output");
+
+		const submit = document.getElementById("submit");
+		submit.onclick = async () => {
+			submit.disabled = true;
+			const policy = policy_editor.getValue();
+			const migration = migration_editor.getValue();
+
+			const request = new Request("/run_migration", {
+				method: 'POST', body: new URLSearchParams({ policy, migration }).toString(), headers: {
+					'Content-Type': 'application/x-www-form-urlencoded'
+				}
+			});
+
+			try {
+				const resp = await fetch(request)
+				const body = await resp.text();
+				output.innerText = body;
+
+				// NotAcceptable
+				if (resp.ok) {
+					result_editor.classList.remove('error');
+				} else {
+					result_editor.classList.add('error');
+				}
+			} catch (e) {
+				result_editor.classList.add('error');
+				output.innerText = "Error sending request: " + e;
+			}
+
+			submit.disabled = false;
+		};
+
+		const example_selector = document.getElementById("example-selector");
+		for (const name of Object.keys(examples)) {
+			example_selector.add(new Option(name));
+		}
+
+		example_selector.onchange = () => {
+			setExample(example_selector.value);
+		}
+
+		// Select from hash or default to first
+
+		if (window.location.hash.length === 0 || !setExample(decodeURIComponent(window.location.hash.substr(1)))) {
+			example_selector.value = example_selector.children[0].value;
+			example_selector.onchange();
+		}
+
+
+		function setExample(name) {
+			if (name in examples) {
+				setEditors(examples[name]);
+				history.replaceState({ example: name }, undefined, "#" + encodeURIComponent(name))
+				return true;
+			}
+
+			return false;
+		}
+		function setEditors({ policy, migration }) {
+			output.innerText = "";
+			policy_editor.setValue(policy, -1);
+			migration_editor.setValue(migration, -1);
+		}
+
+		function configEditor(editor) {
+			editor.setTheme(theme);
+			editor.setOptions({
+				fontSize: "14px",
+				scrollPastEnd: 0.75
+			});
+		}
+
+		// Returns a function, that, as long as it continues to be invoked, will not
+		// be triggered. The function will be called after it stops being called for
+		// N milliseconds. If `immediate` is passed, trigger the function on the
+		// leading edge, instead of the trailing.
+		function debounce(func, wait, immediate) {
+			var timeout;
+			return function () {
+				var context = this, args = arguments;
+				var later = function () {
+					timeout = null;
+					if (!immediate) func.apply(context, args);
+				};
+				var callNow = immediate && !timeout;
+				clearTimeout(timeout);
+				timeout = setTimeout(later, wait);
+				if (callNow) func.apply(context, args);
+			};
+		};
+
+		function setup_parser(editor, parse_function) {
+			editor.on("change", debounce(() => {
+				editor.session.clearAnnotations();
+				try {
+					parse_function(editor.getValue());
+				} catch (e) {
+					editor.session.setAnnotations([{
+						row: e.start.line || 0,
+						column: e.start.column || 0,
+						text: e.message,
+						type: "error"
+					}]);
+				}
+			}, 200))
+
+		}
+
+		init()
+			.then(() => {
+				setup_parser(policy_editor, parse_policy);
+				setup_parser(migration_editor, parse_migration);
+			});
+
+		const vdivider = document.getElementById("vdivider");
+		let drag_start;
+		let div_start;
+		let vdiv_height;
+		vdivider.onpointerdown = (ev) => {
+			if (ev.isPrimary) {
+				drag_start = ev.clientX;
+				const prop = document.body.style.getPropertyValue('--divider') || "0%";
+				div_start = Number.parseInt(prop.substr(0, prop.length - 1))
+				console.log(prop, div_start);
+				ev.target.setPointerCapture(ev.pointer);
+			}
+		}
+
+		vdivider.onpointerup = (ev) => {
+			if (ev.isPrimary) {
+				ev.target.releasePointerCapture(ev.pointer);
+			}
+		}
+
+		vdivider.onpointermove = (ev) => {
+			if (ev.isPrimary && ev.pressure > 0) {
+				const br = document.body.getBoundingClientRect();
+				const offset = (ev.clientX - drag_start) / br.width * 100;
+				document.body.style.setProperty("--divider", offset + div_start + "%");
+			}
+		}
+
+	</script>
+</body>
+
+</html>
