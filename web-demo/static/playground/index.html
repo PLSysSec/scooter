@@ -54,9 +54,6 @@
 			color: var(--header-color);
 		}
 
-		.right {
-			margin-left: auto;
-		}
 
 		#github {
 			display: block;
@@ -69,8 +66,8 @@
 			white-space: nowrap;
 		}
 
-		body>header>.button,
-		body>header>button {
+		body>header .button,
+		body>header button {
 			align-self: stretch;
 			cursor: pointer;
 			box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px -2px;
@@ -105,12 +102,12 @@
 			margin-left: 0;
 		}
 
-		body>header>button:hover,
-		body>header>.button:hover {
+		body>header button:hover,
+		body>header .button:hover {
 			background: #EEE;
 		}
 
-		body>header>button:disabled {
+		body>header button:disabled {
 			background: var(--border-color);
 		}
 
@@ -118,6 +115,7 @@
 			background: var(--accent);
 			color: white;
 			font-weight: bold;
+			margin-right: 0.75rem;
 		}
 
 		#submit:hover {
@@ -206,6 +204,36 @@
 			fill: currentColor;
 		}
 
+		#example-label {
+			border-top-right-radius: 0;
+			border-bottom-right-radius: 0;
+			cursor:inherit;
+			border-right: 1px solid var(--border-color);
+		}
+
+		#example-selector {
+			margin-left: 0;
+			border-bottom-left-radius: 0;
+			border-top-left-radius: 0;
+			outline: none;
+			font-weight: bold;
+			padding-right: 0;
+		}
+
+		#example-label:hover {
+			background: white;
+		}
+
+		.button-group {
+			box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px -2px;
+			display: flex;
+			height: 100%;
+			margin: 0 auto;
+		}
+		.button-group>* {
+			box-shadow: none;
+		}
+
 	</style>
 </head>
 
@@ -218,8 +246,11 @@
 					d="M424.4 214.7L72.4 6.6C43.8-10.3 0 6.1 0 47.9V464c0 37.5 40.7 60.1 72.4 41.3l352-208c31.4-18.5 31.5-64.1 0-82.6z" />
 			</svg>
 		</button>
-		<div style="font-weight: bold; justify-self: center">Example: &nbsp; <select id="example-selector">
-			</select></div>
+		<div class="button-group">
+		<div id="example-label" class="button">Example</div>
+		<select id="example-selector" class="button">
+			</select>
+		</div>
 		<a class="button right" href="https://github.com/PLSysSec/scooter">
 			<img class="icon" style="height: 1.25rem" src="/img/github.svg" />&nbsp; PLSysSec/scooter
 		</a>
