@@ -1,4 +1,5 @@
-# Scooter and Sidecar
+![Scooter: A DSL for policy-aware-migrations](./web-demo/static/img/scooter-copy.svg)
+
 This repository contains the source code for Scooter, Sidecar, and several case studies as described in **Scooter & Sidecar: A Domain-Specific Approach to Writing Secure Database Migrations** appearing in PLDI '21.
 
 ## Abstract
