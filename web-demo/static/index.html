@@ -11,16 +11,17 @@
 	<link rel="stylesheet" href="/css/theme.css" />
 	<style>
 		@import "/css/theme.css";
-
+		* {
+			box-sizing: border-box;
+		}
 		.chunk {
 			width: 100%;
-			margin-bottom: 2rem;
-			padding-bottom: 1rem;
+			padding-top: 2rem;	
 		}
 		.chunk>.body {
 			margin: 0 auto;
 			padding: 0 10px;
-			max-width: 800px;
+			max-width: 900px;
 			position: relative;
 		}
 		body {
@@ -32,7 +33,7 @@
 
 		p {
 			line-height: 1.5rem;
-			padding-left: 2rem;
+			/* padding-left: 2rem; */
 		}
 
 		header.chunk {
@@ -96,6 +97,72 @@
 			border-bottom: 1px solid var(--accent-dark);
 		}
 
+		.step {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: center;
+			padding-bottom: 2rem;
+		}
+		.step > *:first-child {
+			margin-right: 2rem;
+		}
+		.step .description {
+			min-width: 300px;
+			display: flex;
+			flex-direction: column;
+			justify-content: space-around;
+			flex: 1;
+			list-style-position: outside;
+			padding: 1rem;
+			padding-left: 2rem;
+		}
+		.step.reverse {
+			flex-direction: row-reverse;
+		}
+
+		img {
+			display: block;
+			min-width: 50%;
+			flex: 1 0;
+			object-fit: scale-down;
+			image-rendering: pixelated;
+		}
+
+		body {
+			line-height: 1.5rem;
+		}
+
+		li {
+			list-style-type:disc;
+		}
+
+		hr {
+			background-color: var(--background-color);
+			border: none;
+			height: 2px;
+		}
+
+		#counterexample {
+			display: inline-block;
+			max-width: 50%;
+			background: white;
+			color: black;
+			border: 2px solid var(--accent-light);
+			border-radius: 5px;
+			white-space: pre-wrap;
+			font-family: monospace;
+			padding: 0.5rem;
+			flex: 1 0;
+		}
+
+		.footer {
+			padding-bottom: 3rem;
+		}
+
+		.footer a {
+			color: var(--accent-dark) !important;
+		}
+
 	</style>
 </head>
 <body>
@@ -103,7 +170,7 @@
 		<div class="body">
 			<nav>
 				<a id="play" href="/playground">Playground</a>
-				<a href="" style="margin-left: auto">Paper</a>
+				<a href="https://github.com/djrenren/blog/releases/download/papers/scooter-pldi21-preprint.pdf" style="margin-left: auto">Paper</a>
 				<a href="https://github.com/plsyssec/scooter">Source</a>
 
 			</nav>
@@ -111,15 +178,82 @@
 		</div>
 	</header>
 
-	<div clas="chunk">
-	</div>
 	<section class="chunk">
 		<div class="body">
-			<h1>Abstract</h1>
+			<h1>Meet Scooter</h1>
 			<p>
-				Web applications often handle large amounts of sensitive user data. Modern secure web frameworks protect this data by (1) using declarative languages to specify security policies alongside database schemas and (2) automatically enforcing these policies at runtime. Unfortunately, these frameworks do not handle the very common situation in which the schemas or the policies need to evolve over time—and updates to schemas and policies need to be performed in a carefully coordinated way. Mistakes during schema or policy migrations can unintentionally leak sensitive data or introduce privilege escalation bugs. In this work, we present a domain-specific language (Scooter) for expressing schema and policy migrations, and an associated SMT-based verifier (Sidecar) which ensures that migrations are secure as the application evolves. We describe the design of Scooter and Sidecar and show that our framework can be used to express realistic schemas, policies, and migrations, without giving up on runtime or verification performance.
+				Scooter is a language for defining defining
+				database schemas, security policies, and
+				migrations over both. Together with the
+				<span style="font-weight: bold">Sidecar</span> verifier, it statically prevents
+				common errors such as incorrect policy refactoring,
+				and leakage due to schema migrations.
 			</p>
+			<hr style="margin-top: 2rem">
+		</div>
+	</section>
+	<section class="chunk" >
+		<div class="body">
+				<h1>Step 1: Define a policy</h1>
+			<div class="step">
+				<ul class="description">
+					<li>
+						Scooter uses a strongly-typed expression language
+						to define who can read or write to each field.
+						<li>
+						These policies are compiled to
+						your target application for automatic enforcement.
+						</ul>
+				<img src="/img/example-policy.png" />
+			</div>
+			<hr>
+		</div>
+	</section>
+	<section class="chunk">
+		<div class="body">
+				<h1>Step 2: Write a policy migration</h1>
+			<div class="step reverse">
+				<ul class="description">
+					<li> Scooter uses migrations to update <span style="font-weight: bold;">both schemas and policies</i>.
+					<li> All new fields and models must have a policy.
+				</ul>
+				<img src="/img/example-migration.png" />
+			</div>
+		</div>
+	</section>
+	<section class="chunk" style="background-color: var(--accent);color: white">
+		<div class="body">
+				<h1>Step 3: Verify your migration with Sidecar</h1>
+			<div class="step">
+				<ul class="description">
+					<li>Sidecar checks if the combination of schema and policy changes in your migrations could cause data leakage.
+					<li>If it finds a leak, Sidecar will give you an example.
+				</ul>
+				<pre id="counterexample">
+Migration unsafe!
 
+COUNTEREXAMPLE:
+
+Principal: User(1)
+
+CAN NOW ACCESS:
+
+...
+</pre>
+			</div>
+		</div>
+	</section>
+	<section class="chunk footer" style="background-color: var(--background-color);">
+		<div class="body">
+				<h1>About the Project</h1>
+
+				<p>
+					Scooter is a research project developed
+					by <a href="https://www.jrenner.net">John Renner</a> and <a href="http://cseweb.ucsd.edu/~alexss/">Alex Sanchez-Stern</a> as
+					part of their PhD studies.
+					<br/>
+					<br />
+					Scooter was published in PLDI'21 as <a href="https://github.com/djrenren/blog/releases/download/papers/scooter-pldi21-preprint.pdf">Scooter & Sidecar: A domain-specific approach to secure database migrations</a>
 		</div>
 	</section>
 </body>
