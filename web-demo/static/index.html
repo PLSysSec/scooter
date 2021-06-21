@@ -65,13 +65,14 @@
 			display: flex;
 			font-size: 14px;
 			font-family: "Spartan";
+			margin-bottom: 2rem;
 		}
 
 		nav>a {
 			border-radius: 5px;
 			font-size: 16px;
-			margin: 1rem;
-			padding: 0.75rem;
+			margin: 0 1rem;
+			padding: 0.5rem;
 			display: inline-flex;
 			flex-wrap: nowrap;
 			align-items: center;
@@ -86,6 +87,15 @@
 			transform: scale(0.95);
 			transform-origin: center;
 		}
+
+		nav > *:first-child {
+			margin-left: 0;
+		}
+
+		nav > *:last-child {
+			margin-right: 0;
+		}
+
 		nav>a:hover {
 			background: var(--accent-light);
 			/* color: var(--accent); */
