@@ -11,14 +11,17 @@ Web applications often handle large amounts of sensitive user data.  Modern secu
 
 - [`mongodb-enforcement`] - Contains the runtime enforcement (including codegen) for enforcing policies during program execution
 
-- [`mongodb-migrate`] - Contains the logic to perform migrations against a mongodb database ([`cli`] relies on this)gi
+- [`mongodb-migrate`] - Contains the logic to perform migrations against a mongodb database ([`cli`] relies on this)
 
 - [`static-checker`] - Implements SMT-based checking of policies and policy functions to ensure that new policies are stricter than old policies.
 
 - [`policy-lang`] - Implements parser, name resolution, and type-checker for the policy language (including migration).
+
+- [`web-demo`] - A small rocket web-server that leverages `static-checker` to power a playground. This sub-project also includes a small wasm binding layer for client-side parsing in the playground
 
 [`cli`]: ./cli
 [`mongodb-enforcement`]: ./mongodb-enforcement
 [`mongodb-migrate`]: ./mongodb-migrate
 [`static-checker`]: ./static-checker
 [`policy-lang`]: ./policy-lang
+[`web-demo`]: ./policy-lang
