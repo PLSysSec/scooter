@@ -24,4 +24,4 @@ Web applications often handle large amounts of sensitive user data.  Modern secu
 [`mongodb-migrate`]: ./mongodb-migrate
 [`static-checker`]: ./static-checker
 [`policy-lang`]: ./policy-lang
-[`web-demo`]: ./policy-lang
+[`web-demo`]: ./web-demo
