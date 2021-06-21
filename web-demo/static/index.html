@@ -46,12 +46,7 @@
 
 		header img {
 			display: block;
-			max-width: 600px;
-			margin-left: auto;
-			margin-right: auto;
-			margin-bottom: 25px;
-			height: 100px;
-			object-fit: initial !important;
+			flex: 0 1;
 		}
 
 		h1 {
@@ -68,7 +63,7 @@
 			margin-bottom: 2rem;
 		}
 
-		nav>a {
+		.button {
 			border-radius: 5px;
 			font-size: 16px;
 			margin: 0 1rem;
@@ -107,6 +102,12 @@
 			font-weight: bold;
 			box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px -2px;
 			border-bottom: 1px solid var(--accent-dark);
+			height: max-content;
+			font-size: 18px;
+			padding: 1rem;
+			font-family: "Spartan";
+			white-space: nowrap;
+			margin-top: 1rem;
 		}
 
 		.step {
@@ -134,9 +135,8 @@
 
 		img {
 			display: block;
-			min-width: 50%;
 			flex: 1 0;
-			object-fit: scale-down;
+			max-width: 440px;
 		}
 
 		body {
@@ -175,18 +175,28 @@
 			color: var(--accent-dark) !important;
 		}
 
+		#logo-buttons {
+			display: flex;
+			align-items: center;
+			justify-content: space-around;
+			margin-bottom: 3rem;
+			flex-wrap: wrap;
+		}
+
 	</style>
 </head>
 <body>
 	<header class="chunk">
 		<div class="body">
 			<nav>
-				<a id="play" href="/playground">Playground</a>
-				<a href="https://github.com/djrenren/blog/releases/download/papers/scooter-pldi21-preprint.pdf" style="margin-left: auto">Paper</a>
-				<a href="https://github.com/plsyssec/scooter">Source</a>
+				<a class="button" href="https://github.com/djrenren/blog/releases/download/papers/scooter-pldi21-preprint.pdf" style="margin-left: auto">Paper</a>
+				<a class="button" href="https://github.com/plsyssec/scooter">Source</a>
 
 			</nav>
-			<img src="/img/scooter-white.svg" />
+			<div id="logo-buttons">
+				<img src="/img/scooter-white.svg" />
+				<a id="play" class="button" href="/playground">Try out the web demo!</a>
+			</div>
 		</div>
 	</header>
 
@@ -261,8 +271,12 @@ CAN NOW ACCESS:
 
 				<p>
 					Scooter is a research project developed
-					by <a href="https://www.jrenner.net">John Renner</a> and <a href="http://cseweb.ucsd.edu/~alexss/">Alex Sanchez-Stern</a> as
-					part of their PhD studies.
+					by
+					<a href="https://www.jrenner.net">John Renner</a>,
+					<a href="https://cseweb.ucsd.edu/~alexss/">Alex Sanchez-Stern</a>,
+					<a href="https://web.stanford.edu/~mlfbrown/">Fraser Brown</a>,
+					<a href="http://cseweb.ucsd.edu/~lerner/">Sorin Lerner</a>,
+					and <a href="http://cseweb.ucsd.edu/~dstefan/">Deian Stefan</a>
 					<br/>
 					<br />
 					Scooter was published in PLDI'21 as <a href="https://github.com/djrenren/blog/releases/download/papers/scooter-pldi21-preprint.pdf">Scooter & Sidecar: A domain-specific approach to secure database migrations</a>
