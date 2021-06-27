@@ -16,7 +16,7 @@
 		}
 		.chunk {
 			width: 100%;
-			padding-top: 2rem;	
+			padding-top: 2rem;
 		}
 		.chunk>.body {
 			margin: 0 auto;
@@ -135,8 +135,13 @@
 
 		img {
 			display: block;
-			flex: 1 0;
-			max-width: 440px;
+			flex: 1 1;
+			object-fit: scale-down;
+		}
+
+		img.example {
+			min-width: 400px;
+			max-width: 100%;
 		}
 
 		body {
@@ -226,7 +231,7 @@
 						These policies are compiled to
 						your target application for automatic enforcement.
 						</ul>
-				<img src="/img/example-policy.png" />
+				<img class="example" src="/img/example-policy.png" />
 			</div>
 			<hr>
 		</div>
@@ -239,7 +244,7 @@
 					<li> Scooter uses migrations to update <span style="font-weight: bold;">both schemas and policies</i>.
 					<li> All new fields and models must have a policy.
 				</ul>
-				<img src="/img/example-migration.png" />
+				<img class="example" src="/img/example-migration.png" />
 			</div>
 		</div>
 	</section>
